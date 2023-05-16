@@ -639,10 +639,12 @@ qx.Class.define("qx.ui.window.Window", {
         return;
       }
 
-      if (! this.fireNonBubblingEvent(
-              "beforeClose",
-              qx.event.type.Event,
-              [ false, true ])) {
+      if (
+        !this.fireNonBubblingEvent("beforeClose", qx.event.type.Event, [
+          false,
+          true
+        ])
+      ) {
         // preventDefault() was called
         return;
       }

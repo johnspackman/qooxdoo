@@ -150,8 +150,13 @@ qx.Class.define("qx.ui.form.Slider", {
      * on this, please use {@link #slideTo} instead.
      */
     value: {
-      check:
-        "typeof value==='number'&&value>=this.getMinimum()&&value<=this.getMaximum()",
+      check(value) {
+        return (
+          typeof value === "number" &&
+          value >= this.getMinimum() &&
+          value <= this.getMaximum()
+        );
+      },
       init: 0,
       apply: "_applyValue",
       nullable: true

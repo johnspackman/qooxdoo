@@ -34,7 +34,7 @@ qx.Class.define("qx.ui.toolbar.FileSelectorButton", {
       init: "toolbar-button"
     },
 
-    show: {
+    showFeatures: {
       refine: true,
       init: "inherit"
     },

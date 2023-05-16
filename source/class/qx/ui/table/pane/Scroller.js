@@ -2037,12 +2037,13 @@ qx.Class.define("qx.ui.table.pane.Scroller", {
 
       if (pageY >= panePos.top && pageY <= panePos.bottom) {
         // This event is in the pane -> Get the row
-        var rowHeight = this.__tablePane.getRenderedRowHeight()
+        var rowHeight = this.__tablePane.getRenderedRowHeight();
 
         var scrollY = this.__verScrollBar.getPosition();
 
         if (this.getTable().getKeepFirstVisibleRowComplete()) {
-          scrollY = Math.floor(scrollY / this.getTable().getRowHeight()) * rowHeight;
+          scrollY =
+            Math.floor(scrollY / this.getTable().getRowHeight()) * rowHeight;
         }
 
         var tableY = scrollY + pageY - panePos.top;

@@ -186,6 +186,7 @@ qx.Class.define("qx.bom.webfonts.Validator", {
   members: {
     __requestedHelpers: null,
     __checkTimer: null,
+    __onceTimer: null,
     __checkStarted: null,
     __promiseValid: null,
 
@@ -199,75 +200,17 @@ qx.Class.define("qx.bom.webfonts.Validator", {
      * Validates the font
      */
     validate() {
-      if (this.__checkStarted) {
-        return;
-      }
+      this.__checkStarted = new Date().getTime();
 
-      if (document.fonts && typeof document.fonts.load == "function") {
-        this.__checkStarted = new Date().getTime();
-        let fontExpr = `${this.getFontStyle()} ${this.getFontWeight()} 12px ${this.getFontFamily()}`;
-
-        const loadImpl = async () => {
-          try {
-            await document.fonts.load(fontExpr);
-            await document.fonts.ready;
-
-            qx.bom.Label.getTextSize("Hello World", {
-              fontFamily: this.getFontFamily(),
-              fontStyle: this.getFontStyle(),
-              fontWeight: this.getFontWeight()
-            });
-
-            setTimeout(() => {
-              this.__promiseValid.resolve(true);
-              this.fireDataEvent("changeStatus", {
-                family: this.getFontFamily(),
-                valid: true
-              });
-            }, 100);
-          } catch (ex) {
-            this.warn(`Exception while loading font ${fontExpr}: ` + ex);
-          }
-        };
-        loadImpl();
+      if (this.__checkTimer) {
+        this.__checkTimer.restart();
       } else {
-        this.__checkStarted = new Date().getTime();
-
-        let fontExpr = `${this.getFontStyle()} ${this.getFontWeight()} 14px ${this.getFontFamily()}`;
-        const setValidImpl = valid => {
-          this.__checkTimer.stop();
-          this._reset();
-          this.__promiseValid.resolve(valid);
-          this.fireDataEvent("changeStatus", {
-            family: this.getFontFamily(),
-            valid: valid
-          });
-        };
-
-        const timerCheck = () => {
-          if (this._isFontValid()) {
-            // safari has trouble resizing, adding it again fixed the issue [BUG #8786]
-            if (
-              qx.core.Environment.get("browser.name") == "safari" &&
-              parseFloat(qx.core.Environment.get("browser.version")) >= 8
-            ) {
-              setTimeout(() => setValidImpl(true), 100);
-            } else {
-              setValidImpl(true);
-            }
-          } else {
-            var now = new Date().getTime();
-            if (now - this.__checkStarted >= this.getTimeout()) {
-              setValidImpl(false);
-            }
-          }
-        };
-
+        this.__checkTimer = new qx.event.Timer(100);
+        this.__checkTimer.addListener("interval", this.__onTimerInterval, this);
         // Give the browser a chance to render the new elements
-        qx.event.Timer.once(
-          () => {
-            this.__checkTimer = new qx.event.Timer(100);
-            this.__checkTimer.addListener("interval", timerCheck);
+        this.__onceTimer = qx.event.Timer.once(
+          function () {
+            this.__onceTimer = null;
             this.__checkTimer.start();
           },
           this,
@@ -442,6 +385,45 @@ qx.Class.define("qx.bom.webfonts.Validator", {
         sans: qx.bom.element.Dimension.getWidth(cls.__defaultHelpers.sans),
         serif: qx.bom.element.Dimension.getWidth(cls.__defaultHelpers.serif)
       };
+    },
+
+    /**
+     * Triggers helper element size comparison and fires a ({@link #changeStatus})
+     * event with the result.
+     */
+    __onTimerInterval() {
+      if (this._isFontValid()) {
+        const setValidImpl = () => {
+          this.__checkTimer.stop();
+          this._reset();
+          this.__promiseValid.resolve(true);
+          this.fireDataEvent("changeStatus", {
+            family: this.getFontFamily(),
+            valid: true
+          });
+        };
+
+        // safari has trouble resizing, adding it again fixed the issue [BUG #8786]
+        if (
+          qx.core.Environment.get("browser.name") == "safari" &&
+          parseFloat(qx.core.Environment.get("browser.version")) >= 8
+        ) {
+          setTimeout(setValidImpl, 100);
+        } else {
+          setValidImpl();
+        }
+      } else {
+        var now = new Date().getTime();
+        if (now - this.__checkStarted >= this.getTimeout()) {
+          this.__checkTimer.stop();
+          this._reset();
+          this.__promiseValid.resolve(false);
+          this.fireDataEvent("changeStatus", {
+            family: this.getFontFamily(),
+            valid: false
+          });
+        }
+      }
     }
   },
 
@@ -453,9 +435,11 @@ qx.Class.define("qx.bom.webfonts.Validator", {
 
   destruct() {
     this._reset();
-    if (this.__checkTimer != null) {
-      this.__checkTimer.stop();
+    if (this.__onceTimer) {
+      this.__onceTimer.stop();
     }
+    this.__checkTimer.stop();
+    this.__checkTimer.removeListener("interval", this.__onTimerInterval, this);
     this._disposeObjects("__checkTimer");
   }
 });

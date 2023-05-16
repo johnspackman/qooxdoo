@@ -52,6 +52,10 @@ qx.Class.define("qx.ui.virtual.core.Axis", {
   },
 
   members: {
+    itemCount: undefined,
+    defaultItemSize: undefined,
+    customSizes: undefined,
+
     __ranges: null,
 
     /** @type {Integer[]} sparse array of min sizes */

@@ -26,8 +26,6 @@ qx.Class.define("qx.test.core.Property", {
 
   members: {
     testBasic() {
-      this.assertNotUndefined(qx.core.Property);
-
       // Check instance
       var inst = new qx.test.core.PropertyHelper();
       this.assertNotUndefined(inst, "instance");
@@ -45,8 +43,6 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testBuiltinTypes() {
-      this.assertNotUndefined(qx.core.Property);
-
       // Check instance
       var inst = new qx.test.core.PropertyHelper();
       this.assertNotUndefined(inst, "instance");
@@ -137,8 +133,6 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testInheritance() {
-      this.assertNotUndefined(qx.core.Property);
-
       var pa = new qx.test.core.InheritanceDummy();
       var ch1 = new qx.test.core.InheritanceDummy();
       var ch2 = new qx.test.core.InheritanceDummy();
@@ -223,8 +217,6 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testMultiValues() {
-      this.assertNotUndefined(qx.core.Property);
-
       // Check instance
       var inst = new qx.test.core.PropertyHelper();
       this.assertNotUndefined(inst, "instance");
@@ -338,16 +330,19 @@ qx.Class.define("qx.test.core.Property", {
       b.dispose();
     },
 
-    testPropertyNamedClassname() {
-      qx.Class.define("qx.test.clName", {
-        extend: qx.core.Object,
-        properties: {
-          classname: {}
-        }
-      });
+    // BC break for qooxdoo v8: properties, members, and internals are
+    // all in the same namespace now. `classname` is an internal member
+    // name, so can't be used as a property name.
+    // testPropertyNamedClassname() {
+    //   qx.Class.define("qx.test.clName", {
+    //     extend: qx.core.Object,
+    //     properties: {
+    //       classname: {}
+    //     }
+    //   });
 
-      delete qx.test.clName;
-    },
+    //   delete qx.test.clName;
+    // },
 
     testWrongPropertyDefinitions() {
       if (qx.core.Environment.get("qx.debug")) {
@@ -364,7 +359,7 @@ qx.Class.define("qx.test.core.Property", {
             qx.Class.define("qx.test.clName", config);
           },
           Error,
-          new RegExp(".*Invalid.*"),
+          new RegExp("Invalid key.*The value needs to be a map"),
           "123"
         );
 
@@ -381,7 +376,7 @@ qx.Class.define("qx.test.core.Property", {
             qx.Class.define("qx.test.clName", config);
           },
           Error,
-          new RegExp(".*Invalid.*"),
+          new RegExp("Invalid key.*The value needs to be a map"),
           "123"
         );
 
@@ -399,7 +394,7 @@ qx.Class.define("qx.test.core.Property", {
             qx.Class.define("qx.test.clName", config);
           },
           Error,
-          new RegExp(".*Invalid.*"),
+          new RegExp("Can't use qx.core.Object descendent as property map"),
           "123"
         );
 
@@ -417,7 +412,7 @@ qx.Class.define("qx.test.core.Property", {
             qx.Class.define("qx.test.clName", config);
           },
           Error,
-          new RegExp(".*Invalid.*"),
+          new RegExp("Invalid key.*The value needs to be a map"),
           "123"
         );
 
@@ -434,7 +429,7 @@ qx.Class.define("qx.test.core.Property", {
             qx.Class.define("qx.test.clName", config);
           },
           Error,
-          new RegExp(".*Invalid.*"),
+          new RegExp("Invalid key.*The value needs to be a map"),
           "123"
         );
 
@@ -451,7 +446,7 @@ qx.Class.define("qx.test.core.Property", {
             qx.Class.define("qx.test.clName", config);
           },
           Error,
-          new RegExp(".*Invalid.*"),
+          new RegExp("typeof value for key.* must be"),
           "123"
         );
 
@@ -468,7 +463,7 @@ qx.Class.define("qx.test.core.Property", {
             qx.Class.define("qx.test.clName", config);
           },
           Error,
-          new RegExp(".*Invalid.*"),
+          new RegExp("typeof value for key.* must be"),
           "123"
         );
 
@@ -508,6 +503,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testEventWithInitOldData() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
 
@@ -544,6 +540,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testEventWithoutInitOldData() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
 
@@ -580,6 +577,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testEventWithInitAndInheritableOldData() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
 
@@ -617,6 +615,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testEventWithoutInitAndInheritableOldData() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
 
@@ -681,7 +680,7 @@ qx.Class.define("qx.test.core.Property", {
 
     testWrongIsEqualDefinitions() {
       if (qx.core.Environment.get("qx.debug")) {
-        var re = new RegExp("Invalid type for 'isEqual'.*");
+        var re = new RegExp("defined with wrong value type for key 'isEqual'");
         var o = new qx.core.Object();
 
         [
@@ -698,6 +697,7 @@ qx.Class.define("qx.test.core.Property", {
           var msg = "case[" + i + "] (" + String(isEqualTestValue) + ")";
           this.assertException(
             function () {
+              qx.Class.undefine("qx.TestProperty");
               qx.Class.define("qx.TestProperty", {
                 extend: qx.core.Object,
                 properties: {
@@ -715,7 +715,7 @@ qx.Class.define("qx.test.core.Property", {
             msg
           );
 
-          delete qx.TestProperty;
+          qx.Class.undefine("qx.TestProperty");
         }, this);
 
         o.dispose();
@@ -723,6 +723,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testIsEqualInline() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
         properties: {
@@ -777,6 +778,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testIsEqualFunction() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
         properties: {
@@ -833,6 +835,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testIsEqualMember() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
         properties: {
@@ -895,6 +898,7 @@ qx.Class.define("qx.test.core.Property", {
     testIsEqualInlineContext() {
       var context, object;
 
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
         properties: {
@@ -913,7 +917,8 @@ qx.Class.define("qx.test.core.Property", {
         }
       });
 
-      object = new qx.TestProperty().set({ prop: 4711 });
+      object = new qx.TestProperty();
+      object.set({ prop: 4711 });
 
       this.assertIdentical(object, context);
 
@@ -923,6 +928,7 @@ qx.Class.define("qx.test.core.Property", {
     testIsEqualFunctionContext() {
       var context, object;
 
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
         properties: {
@@ -947,6 +953,7 @@ qx.Class.define("qx.test.core.Property", {
     testIsEqualMemberContext() {
       var context, object;
 
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
         properties: {
@@ -984,6 +991,7 @@ qx.Class.define("qx.test.core.Property", {
         }
       });
 
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.Super,
         properties: {
@@ -1004,6 +1012,7 @@ qx.Class.define("qx.test.core.Property", {
     },
 
     testTransform() {
+      qx.Class.undefine("qx.TestProperty");
       qx.Class.define("qx.TestProperty", {
         extend: qx.core.Object,
         construct() {

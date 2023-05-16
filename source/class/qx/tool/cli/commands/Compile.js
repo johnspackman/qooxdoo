@@ -684,7 +684,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
             }
           });
           if (this.argv["watch-debug"]) {
-            watch.setDebug(true);
+            watch.setDebuging(true);
           }
 
           watch.addListener("making", () => {
