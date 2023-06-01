@@ -245,7 +245,8 @@ qx.Class.define("qx.tool.compiler.app.Library", {
         let fonts = [];
         if (data.provides.webfonts.length) {
           qx.tool.compiler.Console.print(
-            "qx.tool.compiler.webfonts.deprecated"
+            "qx.tool.compiler.webfonts.deprecated",
+            rootDir
           );
         }
         data.provides.webfonts.forEach(wf => {

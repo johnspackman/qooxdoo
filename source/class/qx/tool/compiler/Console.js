@@ -271,7 +271,7 @@ qx.Class.define("qx.tool.compiler.Console", {
 
         // Fonts
         "qx.tool.compiler.webfonts.deprecated":
-          "Manifest uses deprecated provides.webfonts, consider switching to provides.font",
+          "Manifest uses deprecated provides.webfonts, consider switching to provides.font in %1",
         "qx.tool.compiler.fonts.unresolved": "Cannot find font with name %1"
       },
 
