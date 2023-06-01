@@ -1,7 +1,7 @@
 # Qooxdoo Release Notes
 
 ## Notable changes and new features in v8.0
-- Qooxdoo version 8.0 includes a nearly completely rewriten class and
+- Qooxdoo version 8.0 includes a nearly completely rewritten class and
   property system. The benefits of this rewrite include easier
   debugging into internals of properties when unexpected behavior is
   anticipated, and some new, exciting property features:
@@ -94,6 +94,12 @@
 
 ## Breaking changes in v8.0
 
+- The new class/property system is implemented using the JavaScript
+  feature `Proxy`, so a new requirement of the JavaScript engine being
+  used, with qooxdoo 8.0+, is that it supports `Proxy`. This,
+  unfortunately, means that support for the Rhino runtime is no longer
+  available.
+
 - Properties and members are now in the same namespace. Formerly, a
   class could have a member variable and a property with the same
   name, and there was no conflict. Now, since properties are
@@ -124,6 +130,23 @@
   font color. Now, setting a font after setting an appearance uses the
   specified font's color.
   
+- The following properties have been renamed to avoid conflicts with
+  members of the same names, now that properties and members are in
+  the same namespace:
+  - `qx.event.handler.Focus`, property `focus`, renamed to `focusedElement`
+  - `qx.ui.form.Button`, property `capture`, renamed to `captureCamera`
+  - `qx.io.jsonrpc.protocol.Error`, property `error`, renamed to `errorDetail`
+  - `qx.ui.form.SplitButton`, property `show`, renamed to `showFeatures`
+  - `qx.ui.menubar.Button`, property `show`, renamed to `showFeatures`
+  - `qx.ui.toolbar.FleSelectorButton`, property `show`, renamed to `showFeatures`
+  - `qx.ui.toolbar.Part`, property `show`, renamed to `showFeatures`
+  - `qx.ui.toolbar.CheckBox`, property `show`, renamed to `showFeatures`
+  - `qx.ui.toolbar.Button`, property `show`, renamed to `showFeatures`
+  - `qx.ui.toolbar.ToolBar`, property `show`, renamed to `showFeatures`
+  - `qx.ui.toolbar.PartContainer`, property `show`, renamed to `showFeatures`
+  - `qx.ui.basic.Atom`, property `show`, renamed to `showFeatures`
+  - `qx.ui.mobile.basic.Atom`, property `show`, renamed to `showFeatures`
+
 - Because the entire class and property system was rewritten, there
   may be other obscure backward-compatibility changes that pop up.
   Those listed above are the only ones that reared their heads while

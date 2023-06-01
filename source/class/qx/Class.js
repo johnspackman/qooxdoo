@@ -16,14 +16,14 @@
 
 ************************************************************************ */
 
-// To be implemented in the future
-let FUTURE = false;
-
-// The opposite
 let BROKEN = false;
 
 qx.Bootstrap.define("qx.Class", {
   type: "static",
+
+  environment: {
+    "qx.Class.futureCheckJsDoc": false
+  },
 
   statics: {
     /**
@@ -52,6 +52,16 @@ qx.Bootstrap.define("qx.Class", {
        */
       propsAccessible: true
     },
+
+    /** Properties that are predefined in Object */
+    objectProperties: new Set([
+      "hasOwnProperty",
+      "isPrototypeOf",
+      "propertyIsEnumerable",
+      "toLocaleString",
+      "toString",
+      "valueOf"
+    ]),
 
     /** The global object registry */
     $$registry: qx.Bootstrap.$$registry,
@@ -264,7 +274,7 @@ qx.Bootstrap.define("qx.Class", {
       // Process environment
       let environment = config.environment || {};
       for (let key in environment) {
-        qx["core"]["Environment"].add(key, environment[key]);
+        qx.core.Environment.add(key, environment[key]);
       }
 
       // Normalize include to array
@@ -285,7 +295,7 @@ qx.Bootstrap.define("qx.Class", {
       if (config.extend === null) {
         config.extend = Object;
       } else if (!config.extend) {
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           if (config.type && config.type != "static") {
             throw new Error(
               `${className}: ` +
@@ -319,7 +329,7 @@ qx.Bootstrap.define("qx.Class", {
           return Reflect.construct(orig, ...args, this);
         };
       } else if (
-        qx["core"]["Environment"].get("qx.debug") &&
+        qx.core.Environment.get("qx.debug") &&
         config.extend.toString()?.includes("_classCallCheck(this")
       ) {
         console.warn(
@@ -334,7 +344,7 @@ qx.Bootstrap.define("qx.Class", {
         );
       }
 
-      if (qx["core"]["Environment"].get("qx.debug")) {
+      if (qx.core.Environment.get("qx.debug")) {
         Object.keys(config).forEach(key => {
           let allowedKeys =
             config.type == "static"
@@ -405,7 +415,7 @@ qx.Bootstrap.define("qx.Class", {
       for (let key in config.statics || {}) {
         let staticFuncOrVar;
 
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           if (key.charAt(0) === "@") {
             if (config.statics[key.substring(1)] === undefined) {
               throw new Error(
@@ -436,7 +446,7 @@ qx.Bootstrap.define("qx.Class", {
         staticFuncOrVar = config.statics[key];
 
         if (typeof staticFuncOrVar == "function") {
-          if (qx["core"]["Environment"].get("qx.aspects")) {
+          if (qx.core.Environment.get("qx.aspects")) {
             staticFuncOrVar = qx.core.Aspect.wrap(
               className,
               staticFuncOrVar,
@@ -551,7 +561,7 @@ qx.Bootstrap.define("qx.Class", {
           config.implement.forEach(iface => this.addInterface(clazz, iface));
         }
 
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           this.validateAbstractInterfaces(clazz);
         }
       }
@@ -563,7 +573,7 @@ qx.Bootstrap.define("qx.Class", {
       //
       let destruct = config.destruct || function () {};
 
-      if (qx["core"]["Environment"].get("qx.aspects")) {
+      if (qx.core.Environment.get("qx.aspects")) {
         destruct = qx.core.Aspect.wrap(className, destruct, "destructor");
       }
 
@@ -654,6 +664,7 @@ qx.Bootstrap.define("qx.Class", {
       const customProxyHandler = config.proxyHandler;
       const _this = this;
       let allProperties = superclass.$$allProperties || {};
+      let superProperties = superclass.$$superProperties || {};
       let initFunctions = [];
       let subclass;
       let initialConstruct = config.construct;
@@ -708,12 +719,15 @@ qx.Bootstrap.define("qx.Class", {
 
       // Ensure there are no properties defined that overwrite
       // superclasses' properties, unless "refine : true" is
-      // specified. For now, we allow a property to be entirely
-      // overwritten if refine: true is specified.
+      // specified.
       for (let property in properties) {
         let refined = false;
 
-        if (property in allProperties && !properties[property].refine) {
+        if (
+          property in superProperties &&
+          !qx.Class.objectProperties.has(property) &&
+          !properties[property].refine
+        ) {
           throw new Error(
             `${className}: ` +
               `Overwriting property "${property}" without "refine: true"`
@@ -830,6 +844,14 @@ qx.Bootstrap.define("qx.Class", {
         enumerable: qx.Class.$$options.propsAccessible || false
       });
 
+      // Save the super properties for this class
+      Object.defineProperty(subclass, "$$superProperties", {
+        value: allProperties,
+        writable: qx.Class.$$options.propsAccessible || false,
+        configurable: qx.Class.$$options.propsAccessible || false,
+        enumerable: qx.Class.$$options.propsAccessible || false
+      });
+
       // Save the full chain of properties for this class
       allProperties = Object.assign({}, allProperties, properties || {});
       Object.defineProperty(subclass, "$$allProperties", {
@@ -920,7 +942,7 @@ qx.Bootstrap.define("qx.Class", {
 
                 // Require that members be declared in the "members"
                 // section of the configuration passed to qx.Class.define
-                if (qx["core"]["Environment"].get("qx.debug")) {
+                if (qx.core.Environment.get("qx.debug")) {
                   if (
                     !property &&
                     qx.Class.$$options["Warn member not declared"] &&
@@ -1001,14 +1023,13 @@ qx.Bootstrap.define("qx.Class", {
                   );
                 }
 
-                // Yup. Does it have a transform method?
+                // Does it have a transform method?
                 if (property.transform) {
                   // It does. Call it. It returns the new value.
                   if (typeof property.transform == "function") {
                     value = property.transform.call(proxy, value, old);
-                  }
-                  // otherwise it's a string
-                  else {
+                  } else {
+                    // It's a string (function name) rather than a function reference
                     value = obj[property.transform].call(proxy, value, old);
                   }
                 }
@@ -1026,9 +1047,8 @@ qx.Bootstrap.define("qx.Class", {
                   // validation failure
                   if (typeof property.validate == "function") {
                     property.validate.call(proxy, value);
-                  }
-                  // otherwise it's a string
-                  else {
+                  } else {
+                    // It's a string (function name) rather than a function reference
                     obj[property.validate].call(proxy, value);
                   }
                 }
@@ -1287,7 +1307,7 @@ qx.Bootstrap.define("qx.Class", {
             "Expected value to implement " + property.check
           );
         } else {
-          if (FUTURE) {
+          if (qx.core.Environment.get("qx.Class.futureCheckJsDoc")) {
             // Next  try to parse the check string as JSDoc
             let bJSDocParsed = false;
             try {
@@ -1395,7 +1415,7 @@ qx.Bootstrap.define("qx.Class", {
         let member = members[key];
         let proto = clazz.prototype;
 
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           if (key.charAt(0) === "@") {
             var annoKey = key.substring(1);
             if (
@@ -1427,7 +1447,13 @@ qx.Bootstrap.define("qx.Class", {
               );
             }
 
-            if (patch !== true && proto.hasOwnProperty(key)) {
+            if (
+              patch !== true &&
+              (proto.hasOwnProperty(key) ||
+                (key in proto &&
+                  key in clazz.$$allProperties &&
+                  !qx.Class.objectProperties.has(key)))
+            ) {
               throw new Error(
                 `Overwriting member or property "${key}" ` +
                   `of Class "${clazz.classname}" ` +
@@ -1467,7 +1493,7 @@ qx.Bootstrap.define("qx.Class", {
             `prototype.${key}`
           );
 
-          if (qx["core"]["Environment"].get("qx.aspects")) {
+          if (qx.core.Environment.get("qx.aspects")) {
             member = qx.core.Aspect.wrap(clazz.classname, member, key);
           }
 
@@ -2229,7 +2255,7 @@ qx.Bootstrap.define("qx.Class", {
         let storage;
         const proto = clazz.prototype;
 
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           if (
             proto[key] !== undefined &&
             key.charAt(0) === "_" &&
@@ -2242,7 +2268,12 @@ qx.Bootstrap.define("qx.Class", {
             );
           }
 
-          if (patch !== true && proto.hasOwnProperty(key)) {
+          if (
+            patch !== true &&
+            (proto.hasOwnProperty(key) ||
+              qx.Class.objectProperties.has(key) ||
+              (key in proto && !(key in clazz.$$superProperties)))
+          ) {
             throw new Error(
               `Overwriting member or property "${key}" ` +
                 `of Class "${clazz.classname}" ` +
@@ -2300,7 +2331,7 @@ qx.Bootstrap.define("qx.Class", {
           }
         }
 
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           if (
             typeof property.storage.init != "function" ||
             typeof property.storage.get != "function" ||
@@ -2763,7 +2794,7 @@ qx.Bootstrap.define("qx.Class", {
         let propertyFirstUp = qx.Bootstrap.firstUp(key);
         let allProperties = clazz.$$allProperties;
 
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           // Validate that group contains only existing properties, and if
           // themeable contains only themeable properties
           for (let prop of property.group) {
@@ -2900,7 +2931,7 @@ qx.Bootstrap.define("qx.Class", {
     addEvents(clazz, events, patch) {
       let key;
 
-      if (qx["core"]["Environment"].get("qx.debug")) {
+      if (qx.core.Environment.get("qx.debug")) {
         if (
           typeof events !== "object" ||
           qx.Bootstrap.getClass(events) === "Array"
@@ -3564,7 +3595,7 @@ qx.Bootstrap.define("qx.Class", {
         let properties = config.properties || {};
 
         // Ensure they're not passing a qx.core.Object descendent as property map
-        if (qx["core"]["Environment"].get("qx.debug")) {
+        if (qx.core.Environment.get("qx.debug")) {
           if (
             config.properties !== undefined &&
             qx.Bootstrap.isQxCoreObject(config.properties)
@@ -3580,7 +3611,7 @@ qx.Bootstrap.define("qx.Class", {
           let property = properties[prop];
 
           // Ensure they're not passing a qx.core.Object descendent as a property
-          if (qx["core"]["Environment"].get("qx.debug")) {
+          if (qx.core.Environment.get("qx.debug")) {
             if (qx.Bootstrap.isQxCoreObject(property)) {
               throw new Error(
                 `${prop} in ${className}: ` +

@@ -9,9 +9,9 @@ during the build process.
 The class system has been part of qooxdoo since 2005, when JavaScript had no 
 [`class` keyword](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes)
 (it was introduced with ECMAScript 2015). At the moment, it is not possible 
-to mix Qooxdoo classes and ECMAScript 2015 classes; this is planned for a
-future release. In any case, as shown below, the Qooxdoo class system is still
-much more powerful than the native classes. 
+to extend a native class as a Qooxdoo class, although the opposite is possible: 
+you can create a native class that extends a Qooxdoo class. In any case, as shown below,
+the Qooxdoo class system is still much more powerful than the native classes. 
 
 ## Declaration
 
@@ -437,7 +437,7 @@ To allow this, the `delegate` key of the class configuration can be
 provided. The `delegate` key should have, as its value, an object with
 two or three keys. At a minimum, the `get` and `set` keys must be
 provided. Optionally, a `delete` key can also be provided. Each is a
-function that replaces the default operation on the objec. `get`
+function that replaces the default operation on the object. `get`
 accepts one argument, the instance's `property` being retrieved. `set`
 accepts two arguments, the `property` being set, and the `value` that
 property of the instance it to be set to. `delete` accepts one

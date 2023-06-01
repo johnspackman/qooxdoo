@@ -190,44 +190,6 @@ qx.Class.define("qx.core.Object", {
 
     /*
     ---------------------------------------------------------------------------
-      CLONE SUPPORT
-    ---------------------------------------------------------------------------
-    */
-
-    // /**
-    //  *
-    //  * Returns a clone of this object. Copies over all user configured
-    //  * property values. Do not configure a parent nor apply the appearance
-    //  * styles directly.
-    //  *
-    //  * @return {qx.core.Object} The clone
-    //  */
-    // clone() {
-    //   if (!qx.core.Environment.get("module.property")) {
-    //     throw new Error("Cloning only possible with properties.");
-    //   }
-
-    //   var clazz = this.constructor;
-    //   var clone = new clazz();
-    //   var props = qx.Class.getProperties(clazz);
-    //   var user = this.__Property.$$store.user;
-    //   var setter = this.__Property.$$method.set;
-    //   var name;
-
-    //   // Iterate through properties
-    //   for (var i = 0, l = props.length; i < l; i++) {
-    //     name = props[i];
-    //     if (this.hasOwnProperty(user[name])) {
-    //       clone[setter[name]](this[user[name]]);
-    //     }
-    //   }
-
-    //   // Return clone
-    //   return clone;
-    // },
-
-    /*
-    ---------------------------------------------------------------------------
       USER DATA
     ---------------------------------------------------------------------------
     */
@@ -482,30 +444,5 @@ qx.Class.define("qx.core.Object", {
 
     // Cleanup user data
     this.__userData = null;
-
-    // // only of properties are available
-    // if (qx.core.Environment.get("module.property")) {
-    //   // Cleanup properties
-    //   var clazz = this.constructor;
-    //   var properties;
-
-    //   while (clazz) {
-    //     properties = clazz.$$properties;
-    //     if (properties) {
-    //       for (let name in properties) {
-    //         if (properties[name].dereference) {
-    //           this[storeUser[name]] =
-    //             this[storeTheme[name]] =
-    //             this[storeInherit[name]] =
-    //             this[storeUseinit[name]] =
-    //             this[storeInit[name]] =
-    //               undefined;
-    //         }
-    //       }
-    //     }
-
-    //     clazz = clazz.superclass;
-    //   }
-    // }
   }
 });

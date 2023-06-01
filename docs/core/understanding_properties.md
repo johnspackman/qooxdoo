@@ -183,20 +183,20 @@ Properties are first-class members of a class. They can be manipulated
 as if they were declared in the `member` section of the configuration
 -- they can be assigned to, or their value read as if it were a member
 variable -- but they are treated as if the functional setter or
-getter, were called. All operations desscribed below, that would occur
+getter, were called. All operations described below, that would occur
 as a result of calling the functional setter, are also called by
 assigning to the property as a variable.
 
 By way of example, for property `myProp`, these two getter statements are equivalent:
 
-```
+```javascript
 value = this.getMyProp();
 value = this.myProp;
 ```
 
 Similarly, these two setter statements are equivalent:
 
-```
+```javascript
 this.setMyProp(value);
 this.myProp = value;
 ```
@@ -366,7 +366,7 @@ when property values are being reset.
 There are two ways to set an init value of a property.
 
 #### Init value, calculated at class instantiation time
-The _preferred_ way for reference vaues such as objects or arrays,
+The _preferred_ way to initialize reference vaues such as objects or arrays,
 which are not expected to be shared between instances of the class, is
 to provide a function to the `initFunction` key in the property
 configuration map. The function will be called each time the class is
@@ -377,7 +377,7 @@ that instance. You can use this key standalone or in combination with
 ```javascript
 properties : {
   myProperty : {
-    initFunction : function() { return [ 1, 2, 4, 8 ]; }
+    initFunction : () => { return [ 1, 2, 4, 8 ]; }
 }
 ```
 
@@ -830,7 +830,7 @@ higher priority than the init value. The `setThemed` and `resetThemed` methods
 are part of Qooxdoo's theme layer and should not be invoked by the user
 directly.
 
-```
+```javascript
 setter                                    value                   resetter
 
 setProperty(value)            ^           user           |        resetProperty()
@@ -950,7 +950,7 @@ uses the property's `init` value (or `undefined` if the property
 doesn't define an `init` key) and stores it into the instance. The
 default storage's `init` function looks something like this:
 
-```
+```javascript
 init(propertyName, property, clazz)
 {
   // Create the storage for this property's current value
@@ -969,7 +969,7 @@ init(propertyName, property, clazz)
 ### set
 A storage implementation's `set` key defines how to store a value for the property in its storage. The default storage implementation stores the value within the instance object, in a property of the given name:
 
-```
+```javascript
 set(prop, value)
 {
   let             variant = this[`$$variant_${prop}`];
@@ -997,7 +997,7 @@ property's value from its storage. The default storage implementation
 simply retrieves the instance object's value of the given property
 name:
 
-```
+```javascript
 get(prop)
 {
   return this[prop];
@@ -1008,7 +1008,7 @@ get(prop)
 
 If the property configuration includes `dereference : true`, then the storage implementation's `dereference` function is called just before the instance's destructor. The default storage implementation deletes the property from the instance:
 
-```
+```javascript
 dereference(prop, property)
 {
   delete this[prop];
@@ -1120,14 +1120,14 @@ passing as an argument, the name of the property for which the
 property descriptor is desired. For example, to obtain the property
 descriptor for the property `myProp`:
 
-```
+```javascript
 let propDesc = myClassInstance.getPropertyDescriptor("myProp");
 ```
 
 With that property descriptor in hand, you can now manipulate the
 property with it, e.g.:
 
-```
+```javascript
 propDesc.set(2);
 ```
 

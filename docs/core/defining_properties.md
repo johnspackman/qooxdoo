@@ -123,7 +123,7 @@ when property values are being reset.
 There are two ways to set an init value of a property.
 
 #### Init value, calculated at class instantiation time
-The _preferred_ way for reference vaues such as objects or arrays,
+The _preferred_ way for reference values such as objects or arrays,
 which are not expected to be shared between instances of the class, is
 to provide a function to the `initFunction` key in the property
 configuration map. The function will be called each time the class is
@@ -134,7 +134,7 @@ that instance. You can use this key standalone or in combination with
 ```javascript
 properties : {
   myProperty : {
-    initFunction : function() { return [ 1, 2, 4, 8 ]; }
+    initFunction : () => { return [ 1, 2, 4, 8 ]; }
 }
 ```
 
@@ -149,7 +149,7 @@ combination with `nullable` and/or `inheritable`.
 ```javascript
 properties : {
   myProperty : { init : 42 },
-  myOtherProperty : { initFunction : () => 42 }
+  myOtherProperty : { initFunction : () => { return { answer: 42 } } }
 }
 ```
 
@@ -157,12 +157,8 @@ properties : {
 
 Before the introduction of the `initFunction` key in qooxdoo version
 8.0, it was necessary to initialize reference types in the
-constructor. The following remains as an available option, although it
-should be rarely necessary any longer, for use in new code.
-
-You could set the init value of the property in the constructor
-of the class. This is only recommended for cases where a declaration of an init
-value as explained above is not sufficient.
+constructor. This can still be done, although it
+only makes sense when the property values are dependent on arguments provided to the constructor at instantiation time.
 
 Using an initializing function `this.initMyProperty(value)` in the constructor
 would allow you to assign complex non-primitive types (so-called "reference
@@ -299,6 +295,7 @@ instance. Thus, they would not be shared between instances.
 > `init` only for class defined things, not for user values. Otherwise, you torpedo
 the multi-value idea behind the dynamic properties.
 
+If you are using an `initFunction` as described above, any apply function will be called automatically.
 
 ### Refining init values
 
@@ -309,7 +306,7 @@ inside the property (re-)definition: either `init` or `initFunction`;
 and `refine`. `refine` is a simple boolean flag which must be
 configured to true.
 
-Normally properties could not be overridden. This is the reason for the `refine`
+Normally properties cannot be overridden. This is the reason for the `refine`
 flag. The flag informs the implementation that the developer is aware of the
 feature and the modification which should be applied.
 
@@ -725,7 +722,7 @@ uses the property's `init` value (or `undefined` if the property
 doesn't define an `init` key) and stores it into the instance. The
 default storage's `init` function looks something like this:
 
-```
+```javascript
 init(propertyName, property, clazz)
 {
   // Create the storage for this property's current value
@@ -744,10 +741,10 @@ init(propertyName, property, clazz)
 ### set
 A storage implementation's `set` key defines how to store a value for the property in its storage. The default storage implementation stores the value within the instance object, in a property of the given name:
 
-```
+```javascript
 set(prop, value)
 {
-  let             variant = this[`$$variant_${prop}`];
+  let variant = this[`$$variant_${prop}`];
 
   // Don't go through the whole setter process; just save the value
   this[`$$variant_${prop}`] = "immediate";
@@ -760,8 +757,7 @@ Note the `variant` handling. This pertains to internals of the Class
 implementation. The key point here is that when
 `this[`$$variant_${prop}`]` is not `immediate`, all of the property
 handling such as validation, transform, etc., may occur if
-`this[prop]` is changed. To ensure that no overhead of additional
-processing is incurred, the default storage implementation saves the
+`this[prop]` is changed. For optimal efficiency, the default storage implementation saves the
 current variant, temporarily sets the variant to "immediate", saves
 the value in its storage location, and then restores the variant.
 
@@ -772,7 +768,7 @@ property's value from its storage. The default storage implementation
 simply retrieves the instance object's value of the given property
 name:
 
-```
+```javascript
 get(prop)
 {
   return this[prop];
@@ -783,7 +779,7 @@ get(prop)
 
 If the property configuration includes `dereference : true`, then the storage implementation's `dereference` function is called just before the instance's destructor. The default storage implementation deletes the property from the instance:
 
-```
+```javascript
 dereference(prop, property)
 {
   delete this[prop];
@@ -884,7 +880,7 @@ property descriptor for property `myProp`.
 
 You can access properties through the instance object to which the
 properties are attached, as has been discussed throughout this
-description of properites. Alteratively, though, if many property
+description of properites. Alternatively, though, if many property
 manipulations on a given property are to be made, you may prefer to
 obtain and keep a reference to the property descriptor for that
 property to manipulate it, rather than manipulating it through the
@@ -896,14 +892,14 @@ passing as an argument, the name of the property for which the
 property descriptor is desired. For example, to obtain the property
 descriptor for the property `myProp`:
 
-```
+```javascript
 let propDesc = myClassInstance.getPropertyDescriptor("myProp");
 ```
 
 With that property descriptor in hand, you can now manipulate the
 property with it, e.g.:
 
-```
+```javascript
 propDesc.set(2);
 ```
 

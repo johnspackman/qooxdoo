@@ -714,10 +714,10 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
     },
 
     /**
-     * Processes the configuration from a JSON data structure and creates a Maker
+     * Processes the configuration from a JSON data structure and creates Makers
      *
      * @param data {Map}
-     * @return {Maker}
+     * @return {qx.tool.compiler.makers.Maker[]}
      */
     async createMakersFromConfig(data) {
       const Console = qx.tool.compiler.Console.getInstance();
@@ -867,6 +867,27 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       if (this.argv.verbose) {
         Console.log("Qooxdoo found in " + qxLib.getRootDir());
       }
+
+      let versionManager = new qx.tool.utils.QooxdooVersions();
+      let qxVersion = qxLib.getVersion();
+      let qxLibrariesByVersionNumber = {};
+      qxLibrariesByVersionNumber[qxVersion] = qxLib;
+      for (let targetConfig of targetConfigs) {
+        if (targetConfig.qooxdooVersion) {
+          let dirname = versionManager.findBestVersion(
+            targetConfig.qooxdooVersion
+          );
+
+          if (path.resolve(dirname) == path.resolve(qxLib.getRootDir())) {
+            qxLibrariesByVersionNumber[targetConfig.qooxdooVersion] = qxLib;
+          } else {
+            let lib = (qxLibrariesByVersionNumber[targetConfig.qooxdooVersion] =
+              new qx.tool.compiler.app.Library());
+            await lib.loadManifest(dirname);
+          }
+        }
+      }
+
       let errors = await this.__checkDependencies(
         Object.values(libraries),
         data.packages
@@ -1217,7 +1238,11 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         }
 
         for (let ns in libraries) {
-          maker.getAnalyser().addLibrary(libraries[ns]);
+          let lib = libraries[ns];
+          if (ns == "qx" && targetConfig.qooxdooVersion) {
+            lib = qxLibrariesByVersionNumber[targetConfig.qooxdooVersion];
+          }
+          maker.getAnalyser().addLibrary(lib);
         }
 
         let allApplicationTypes = {};
