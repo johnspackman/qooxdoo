@@ -153,9 +153,28 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
       const browserify = require("browserify");
       const builtins = require("browserify/lib/builtins.js");
 
+      let application = this.getAppMeta().getApplication();
+
       // For some reason, `process` is not require()able, but `_process` is.
       // Make them equivalent.
       builtins.process = builtins._process;
+
+      const dumpReferences = () => {
+        let str = "";
+        for (let reference in references) {
+          let deps = {};
+          for (let arr of references[reference]) {
+            for (let entry of arr) {
+              deps[entry.replace(/:.*/, "")] = true;
+            }
+          }
+          deps = Object.keys(deps);
+          deps = deps.sort();
+          str += `${reference}: ${deps.join(", ")}\n`;
+        }
+        return str;
+      };
+      let dumpReferencesNeeded = false;
 
       return new Promise((resolve, reject) => {
         let b = browserify([], {
@@ -166,17 +185,24 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
         });
 
         b._mdeps.on("missing", (id, parent) => {
+          dumpReferencesNeeded = true;
           let message = [];
-          message.push(`ERROR: could not locate require()d module: "${id}"`);
-          message.push("  required from:");
-          try {
+          message.push(
+            `ERROR: could not locate require()d module: "${id}" in ${application.getName()}`
+          );
+          if (references[id]) {
+            message.push("  required from:");
             [...references[id]].forEach(refs => {
               refs.forEach(ref => {
                 message.push(`    ${ref}`);
               });
             });
-          } catch (e) {
-            message.push(`    <compile.json:application.localModules'>`);
+          } else if (parent) {
+            message.push(
+              `  required indirectly; parent module is in ${parent.basedir}}`
+            );
+          } else {
+            message.push(`  required indirectly`);
           }
           qx.tool.compiler.Console.error(message.join("\n"));
         });
@@ -201,6 +227,9 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
         });
 
         b.bundle(function (e, output) {
+          if (dumpReferencesNeeded) {
+            qx.tool.compiler.Console.error(dumpReferences());
+          }
           if (e) {
             // THIS IS A HACK!
             // In case of error dependency walker never returns from
