@@ -377,12 +377,21 @@ qx.Mixin.define("qx.ui.core.MPlacement", {
       var coords =
         target.getContentLocation() || this.getLayoutLocation(target);
 
-      if (coords != null) {
-        this._place(coords);
-        return true;
-      } else {
-        return false;
-      }
+        if (coords != null) {
+          if (
+            coords.top === this.__lastKnownCoords?.top &&
+            coords.right === this.__lastKnownCoords?.right &&
+            coords.bottom === this.__lastKnownCoords?.bottom &&
+            coords.left === this.__lastKnownCoords?.left
+          ) {
+            return true;
+          }
+          this.__lastKnownCoords = coords;
+          this._place(coords);
+          return true;
+        } else {
+          return false;
+        }
     },
 
     /**
