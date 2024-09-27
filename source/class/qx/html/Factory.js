@@ -105,16 +105,15 @@ qx.Class.define("qx.html.Factory", {
 
         var styles = {};
         if (attributes.style) {
-          let styleArray = attributes.style.split(";");
+          let styleArray = attributes.style
+            .replace(/\/\*.*?\*\//g, "")
+            .split(";");
           for (let styleRule of styleArray) {
             let pos = styleRule.indexOf(":");
             if (pos === -1) {
               continue;
             }
-            let key = styleRule
-              .substring(0, pos)
-              .replace(/\/\*.*?\*\//g, "")
-              .trim();
+            let key = styleRule.substring(0, pos).trim();
             let value = styleRule.substring(pos + 1).trim();
             if (key.length) {
               styles[key] = value;
