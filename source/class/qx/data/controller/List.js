@@ -421,11 +421,17 @@ qx.Class.define("qx.data.controller.List", {
         var target = this.getTarget();
         // if the model is set to null, we should remove all items in the target
         if (target != null) {
+          if (this.getAllowSelectionNotInModel()) {
+            this._startSelectionModification();
+          }
           // we need to remove the bindings too so use the controller method
           // for removing items
           var length = target.getChildren().length;
           for (var i = 0; i < length; i++) {
             this.__removeItem();
+          }
+          if (this.getAllowSelectionNotInModel()) {
+            this._endSelectionModification();
           }
         }
       }
@@ -446,6 +452,10 @@ qx.Class.define("qx.data.controller.List", {
       // add a listener for the target change
       this._addChangeTargetListener(value, old);
 
+      if (this.getAllowSelectionNotInModel()) {
+        this._startSelectionModification();
+      }
+
       // if there was an old target
       if (old != undefined) {
         // remove all element of the old target
@@ -464,6 +474,10 @@ qx.Class.define("qx.data.controller.List", {
             this.__addItem(this.__lookup(i));
           }
         }
+      }
+
+      if (this.getAllowSelectionNotInModel()) {
+        this._endSelectionModification();
       }
     },
 
@@ -533,6 +547,9 @@ qx.Class.define("qx.data.controller.List", {
       var newLength = this.__lookupTable.length;
       var currentLength = this.getTarget().getChildren().length;
 
+      if (this.getAllowSelectionNotInModel()) {
+        this._startSelectionModification();
+      }
       // if there are more item
       if (newLength > currentLength) {
         // add the new elements
@@ -545,6 +562,10 @@ qx.Class.define("qx.data.controller.List", {
         for (var j = currentLength; j > newLength; j--) {
           this.__removeItem();
         }
+      }
+
+      if (this.getAllowSelectionNotInModel()) {
+        this._endSelectionModification();
       }
 
       // build up the look up table
