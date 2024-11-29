@@ -184,6 +184,12 @@ qx.Class.define("qx.util.ResourceManager", {
       var size;
       if (id && id.startsWith("@")) {
         var part = id.split("/");
+        if (part.length > 2) {
+          size = parseInt(part[3], 10);
+          if (size) {
+            return size;
+          }
+        }
         size = parseInt(part[2], 10);
         if (size) {
           id = part[0] + "/" + part[1];

@@ -53,7 +53,9 @@ qx.Mixin.define("qx.core.MProperty", {
       }
 
       for (var propName in data) {
-        setValueImpl(propName, data[propName]);
+        if (data[propName] !== undefined) {
+          setValueImpl(propName, data[propName]);
+        }
       }
       return this;
     },

@@ -50,6 +50,9 @@ qx.Class.define("qx.ui.core.queue.Layout", {
      */
     add(widget) {
       this.__queue[widget.toHashCode()] = widget;
+      if (widget.classname === "qxl.datagrid.ClippedScrollDataGrid") {
+        console.log("qxl.datagrid.ClippedScrollDataGrid add to layout queue");
+      }
       qx.ui.core.queue.Manager.scheduleFlush("layout");
     },
 
