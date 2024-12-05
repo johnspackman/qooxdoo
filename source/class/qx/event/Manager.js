@@ -488,11 +488,7 @@ qx.Class.define("qx.event.Manager", {
 
       var targetKey =
         target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
-      var targetMap = this.__listeners[targetKey];
-
-      if (!targetMap) {
-        targetMap = this.__listeners[targetKey] = {};
-      }
+      var targetMap = (this.__listeners[targetKey] ??= {});
 
       var entryKey = type + (capture ? "|capture" : "|bubble");
       var entryList = targetMap[entryKey];
@@ -708,6 +704,10 @@ qx.Class.define("qx.event.Manager", {
 
           if (entryList.length == 0) {
             this.__unregisterAtHandler(target, type, capture);
+            delete targetMap[entryKey];
+            if (Object.keys(targetMap).length === 0) {
+              delete this.__listeners[targetKey];
+            }
           }
 
           return true;
@@ -769,6 +769,10 @@ qx.Class.define("qx.event.Manager", {
 
           if (entryList.length == 0) {
             this.__unregisterAtHandler(target, type, capture);
+            delete targetMap[entryKey];
+            if (Object.keys(targetMap).length === 0) {
+              delete this.__listeners[targetKey];
+            }
           }
 
           return true;

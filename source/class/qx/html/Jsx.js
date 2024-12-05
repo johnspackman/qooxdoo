@@ -158,8 +158,7 @@ qx.Class.define("qx.html.Jsx", {
               );
             }
           } else if (prop === "dangerouslySetInnerHTML") {
-            // eslint-disable-next-line no-underscore-dangle
-            innerHtml = attributes[prop].__html;
+            innerHtml = attributes[prop];
           } else if (qx.html.Jsx.SYNTHETIC_EVENTS[prop]) {
             const eventName = prop.replace(/^on/, "").toLowerCase();
             eventHandlers[eventName] = attributes[prop];
@@ -195,12 +194,8 @@ qx.Class.define("qx.html.Jsx", {
           tagname,
           newAttrs
         );
-        if (typeof Window !== "undefined") {
-          let domElem = document.createElement(element.getNodeName());
-          for (const key in newAttrs) {
-            domElem.setAttribute(key, newAttrs[key]);
-          }
-          element.useNode(domElem);
+        if (innerHtml) {
+          element.dangerouslySetInnerHtml(innerHtml);
         }
       }
 
@@ -244,10 +239,6 @@ qx.Class.define("qx.html.Jsx", {
           }
         };
         addChildren(children);
-      }
-
-      if (innerHtml) {
-        element.setProperty("innerHtml", innerHtml);
       }
 
       for (const eventName in eventHandlers) {
