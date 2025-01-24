@@ -264,7 +264,8 @@ qx.Class.define("qx.event.Manager", {
      *       null when no listener were found.
      */
     getListeners(target, type, capture) {
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
 
       if (!targetMap) {
@@ -289,7 +290,9 @@ qx.Class.define("qx.event.Manager", {
           set(target, property, value, receiver) {
             if (property !== "length") {
               if (!value.unique) {
-                throw new Error("Cannot store a listener without a unique id. Use addListener()");
+                throw new Error(
+                  "Cannot store a listener without a unique id. Use addListener()"
+                );
               }
               entryMap[value.unique] = value;
             }
@@ -310,36 +313,37 @@ qx.Class.define("qx.event.Manager", {
      */
     getAllListeners() {
       return Object.fromEntries(
-        this.__listeners.entries().map(
-          ([targetKey, targetMap]) => [targetKey, Object.fromEntries(
-            targetMap.entries().map(
-              ([entryKey, entryMap]) => {
-                var listeners = [...entryMap.values()];
-                var proxy = new Proxy(listeners, {
-                  deleteProperty(target, property) {
-                    if (property !== "length") {
-                      var listener = target[property];
-                      entryMap.delete(listener.unique);
-                    }
-                    delete target[property];
-                    return true;
-                  },
-                  set(target, property, value, receiver) {
-                    if (property !== "length") {
-                      if (!value.unique) {
-                        throw new Error("Cannot store a listener without a unique id. Use addListener()");
-                      }
-                      entryMap[value.unique] = value;
-                    }
-                    target[property] = value;
-                    return true;
+        this.__listeners.entries().map(([targetKey, targetMap]) => [
+          targetKey,
+          Object.fromEntries(
+            targetMap.entries().map(([entryKey, entryMap]) => {
+              var listeners = [...entryMap.values()];
+              var proxy = new Proxy(listeners, {
+                deleteProperty(target, property) {
+                  if (property !== "length") {
+                    var listener = target[property];
+                    entryMap.delete(listener.unique);
                   }
-                })
-                return [entryKey, proxy];
-              }
-            )
-          )]
-        )
+                  delete target[property];
+                  return true;
+                },
+                set(target, property, value, receiver) {
+                  if (property !== "length") {
+                    if (!value.unique) {
+                      throw new Error(
+                        "Cannot store a listener without a unique id. Use addListener()"
+                      );
+                    }
+                    entryMap[value.unique] = value;
+                  }
+                  target[property] = value;
+                  return true;
+                }
+              });
+              return [entryKey, proxy];
+            })
+          )
+        ])
       );
     },
 
@@ -351,7 +355,8 @@ qx.Class.define("qx.event.Manager", {
      *   <code>handler</code>, <code>self</code>, <code>type</code> and <code>capture</code>.
      */
     serializeListeners(target) {
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
       var result = [];
 
@@ -361,15 +366,14 @@ qx.Class.define("qx.event.Manager", {
           indexOf = entryKey.indexOf("|");
           type = entryKey.substring(0, indexOf);
           capture = entryKey.charAt(indexOf + 1) === "c";
-          result = result.concat(
-            [...entryMap.values().map(entry => ({
-                self: entry.context,
-                handler: entry.handler,
-                type: type,
-                capture: capture
-              })
-            )]
-          );
+          result = result.concat([
+            ...entryMap.values().map(entry => ({
+              self: entry.context,
+              handler: entry.handler,
+              type: type,
+              capture: capture
+            }))
+          ]);
         }
       }
 
@@ -390,7 +394,8 @@ qx.Class.define("qx.event.Manager", {
      * @param enable {Boolean} Whether to enable or disable the events
      */
     toggleAttachedEvents(target, enable) {
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
 
       if (targetMap) {
@@ -427,7 +432,8 @@ qx.Class.define("qx.event.Manager", {
         }
       }
 
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
 
       if (!targetMap) {
@@ -463,7 +469,8 @@ qx.Class.define("qx.event.Manager", {
         }
       }
 
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
 
       if (!targetMap) {
@@ -479,7 +486,7 @@ qx.Class.define("qx.event.Manager", {
 
         if (!entryMap) {
           entryMap = new Map();
-          targetMap.set(entryKey, entryMap)
+          targetMap.set(entryKey, entryMap);
         }
 
         if (entryMap.size === 0) {
@@ -492,11 +499,10 @@ qx.Class.define("qx.event.Manager", {
         // Add listener to map
         var unique = item.unique || qx.event.Manager.getNextUniqueId();
         entryMap.set(unique, {
-            handler: item.listener,
-            context: item.self,
-            unique: unique
-          }
-        );
+          handler: item.listener,
+          context: item.self,
+          unique: unique
+        });
       }
     },
 
@@ -542,7 +548,8 @@ qx.Class.define("qx.event.Manager", {
         }
       }
 
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
 
       if (!targetMap) {
@@ -555,7 +562,7 @@ qx.Class.define("qx.event.Manager", {
 
       if (!entryMap) {
         entryMap = new Map();
-        targetMap.set(entryKey, entryMap)
+        targetMap.set(entryKey, entryMap);
       }
 
       if (entryMap.size === 0) {
@@ -568,11 +575,10 @@ qx.Class.define("qx.event.Manager", {
       // Add listener to map
       var unique = qx.event.Manager.getNextUniqueId();
       entryMap.set(unique, {
-          handler: listener,
-          context: self,
-          unique: unique
-        }
-      );
+        handler: listener,
+        context: self,
+        unique: unique
+      });
 
       return entryKey + "|" + unique;
     },
@@ -739,7 +745,8 @@ qx.Class.define("qx.event.Manager", {
         }
       }
 
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
 
       if (!targetMap) {
@@ -753,7 +760,9 @@ qx.Class.define("qx.event.Manager", {
       }
       var deleted = false;
 
-      for (const [entryKey, entry] of entryMap.entries().filter(([eK, e]) => e.handler === listener && e.context === self)) {
+      for (const [entryKey, entry] of entryMap
+        .entries()
+        .filter(([eK, e]) => e.handler === listener && e.context === self)) {
         deleted = true;
         entryMap.delete(entryKey);
         this.__addToBlacklist(entryKey);
@@ -791,7 +800,8 @@ qx.Class.define("qx.event.Manager", {
       var capture = split[1].charCodeAt(0) === 99; // detect leading "c"
       var unique = split[2];
 
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
 
       if (!targetMap) {
@@ -824,7 +834,8 @@ qx.Class.define("qx.event.Manager", {
      * @return {Boolean} Whether the events were existant and were removed successfully.
      */
     removeAllListeners(target) {
-      var targetKey = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
+      var targetKey =
+        target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
       var targetMap = this.__listeners.get(targetKey);
       if (!targetMap) {
         return false;
@@ -909,6 +920,10 @@ qx.Class.define("qx.event.Manager", {
      * {@link #addListener}. After dispatching the event object will be pooled
      * for later reuse or disposed.
      *
+     * Unlike `dispatchEventAsync` this method will not wait for async property
+     * handlers to complete before returning - this means that only synchronous
+     * event handlers will have the opportunity to prevent the event default action.
+     *
      * @param target {Object} Any valid event target
      * @param event {qx.event.type.Event} The event object to dispatch. The event
      *     object must be obtained using {@link qx.event.Registration#createEvent}
@@ -918,6 +933,60 @@ qx.Class.define("qx.event.Manager", {
      * @throws {Error} if there is no dispatcher for the event
      */
     dispatchEvent(target, event) {
+      let promise = this.__dispatchEventImpl(target, event);
+
+      // check whether "preventDefault" has been called
+      var preventDefault = event.getDefaultPrevented();
+      if (qx.lang.Type.isPromise(promise)) {
+        promise.then(() => qx.event.Pool.getInstance().poolObject(event));
+      } else {
+        qx.event.Pool.getInstance().poolObject(event);
+      }
+
+      return !preventDefault;
+    },
+
+    /**
+     * Dispatches an event object using the qooxdoo event handler system. The
+     * event will only be visible in event listeners attached using
+     * {@link #addListener}. After dispatching the event object will be pooled
+     * for later reuse or disposed.
+     *
+     * Unlike `dispatchEvent`, this method returns a promise and waits for any
+     * async event handlers to resolve before discovering whether the event
+     * default was prevented or not.
+     *
+     * @param target {Object} Any valid event target
+     * @param event {qx.event.type.Event} The event object to dispatch. The event
+     *     object must be obtained using {@link qx.event.Registration#createEvent}
+     *     and initialized using {@link qx.event.type.Event#init}.
+     * @return {qx.Promise<Boolean>} a promise which resolves to whether the event
+     *    default was prevented or not - true when the event was NOT prevented.
+     * @throws {Error} if there is no dispatcher for the event
+     */
+    async dispatchEventAsync(target, event) {
+      await this.__dispatchEventImpl(target, event);
+
+      var preventDefault = event.getDefaultPrevented();
+      qx.event.Pool.getInstance().poolObject(event);
+
+      return !preventDefault;
+    },
+
+    /**
+     * Dispatches an event object using the qooxdoo event handler system. The
+     * event will only be visible in event listeners attached using
+     * {@link #addListener}. After dispatching the event object will be pooled
+     * for later reuse or disposed.
+     *
+     * @param target {Object} Any valid event target
+     * @param event {qx.event.type.Event} The event object to dispatch. The event
+     *     object must be obtained using {@link qx.event.Registration#createEvent}
+     *     and initialized using {@link qx.event.type.Event#init}.
+     * @return {qx.Promise?} the result of any asynchronous event handlers
+     * @throws {Error} if there is no dispatcher for the event
+     */
+    __dispatchEventImpl(target, event) {
       if (qx.core.Environment.get("qx.debug")) {
         var msg =
           "Could not dispatch event '" +
@@ -971,7 +1040,6 @@ qx.Class.define("qx.event.Manager", {
       var type = event.getType();
 
       if (!event.getBubbles() && !this.hasListener(target, type)) {
-        qx.event.Pool.getInstance().poolObject(event);
         return true;
       }
 
@@ -985,17 +1053,15 @@ qx.Class.define("qx.event.Manager", {
 
       // Loop through the dispatchers
       var dispatched = false;
-      var tracker = {};
+      let promise = null;
 
       for (var i = 0, l = classes.length; i < l; i++) {
         instance = this.getDispatcher(classes[i]);
 
         // Ask if the dispatcher can handle this event
         if (instance.canDispatchEvent(target, event, type)) {
-          qx.event.Utils.track(
-            tracker,
-            instance.dispatchEvent(target, event, type)
-          );
+          let tmp = instance.dispatchEvent(target, event, type);
+          promise = qx.event.Utils.queuePromise(promise, tmp);
 
           dispatched = true;
           break;
@@ -1012,15 +1078,7 @@ qx.Class.define("qx.event.Manager", {
         return true;
       }
 
-      return qx.event.Utils.then(tracker, function () {
-        // check whether "preventDefault" has been called
-        var preventDefault = event.getDefaultPrevented();
-
-        // Release the event instance to the event pool
-        qx.event.Pool.getInstance().poolObject(event);
-
-        return !preventDefault;
-      });
+      return promise;
     },
 
     /**
