@@ -144,7 +144,7 @@ qx.Class.define("qx.ui.form.AbstractField", {
 
     // translation support
     if (qx.core.Environment.get("qx.dynlocale")) {
-      qx.locale.Manager.getInstance().addListener(
+      this.__changeLocaleAbstractFieldListenerId = qx.locale.Manager.getInstance().addListener(
         "changeLocale",
         this._onChangeLocale,
         this
@@ -1066,11 +1066,9 @@ qx.Class.define("qx.ui.form.AbstractField", {
 
     this._placeholder = this.__font = null;
 
-    if (qx.core.Environment.get("qx.dynlocale")) {
-      qx.locale.Manager.getInstance().removeListener(
-        "changeLocale",
-        this._onChangeLocale,
-        this
+    if (qx.core.Environment.get("qx.dynlocale") && this.__changeLocaleAbstractFieldListenerId) {
+      qx.locale.Manager.getInstance().removeListenerById(
+        this.__changeLocaleAbstractFieldListenerId
       );
     }
 
