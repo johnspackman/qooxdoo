@@ -169,13 +169,7 @@ qx.Bootstrap.define("qx.bom.AnimationFrame", {
      * @return {Number} The id of the request.
      */
     request(callback, context) {
-      if (qx.bom.AnimationFrame.__suspensionCount > 0) {
-        qx.bom.AnimationFrame.__suspendedRequests.push({ callback, context });
-        return;
-      }
-      var requestAnimationFrameName = qx.core.Environment.get(
-        "css.animation.requestframe"
-      );
+      var req = qx.core.Environment.get("css.animation.requestframe");
 
       var cb = function (time) {
         // check for high resolution time
@@ -186,40 +180,14 @@ qx.Bootstrap.define("qx.bom.AnimationFrame", {
         time = time || Date.now();
         callback.call(context, time);
       };
-      if (requestAnimationFrameName) {
-        return window[requestAnimationFrameName](cb);
+      if (req) {
+        return window[req](cb);
       } else {
         // make sure to use an indirection because setTimeout passes a
         // number as first argument as well
         return window.setTimeout(function () {
           cb();
         }, qx.bom.AnimationFrame.TIMEOUT);
-      }
-    },
-
-    /** @type{Integer} */
-    __suspensionCount: 0,
-    __suspendedRequests: [],
-
-    suspend() {
-      qx.bom.AnimationFrame.__suspensionCount++;
-    },
-
-    resume() {
-      if (qx.core.Environment.get("qx.debug")) {
-        if (qx.bom.AnimationFrame.__suspensionCount === 0) {
-          throw new Error(
-            "qx.bom.AnimationFrame.resume(): Not suspended when resuming."
-          );
-        }
-      }
-      qx.bom.AnimationFrame.__suspensionCount--;
-      if (qx.bom.AnimationFrame.__suspensionCount === 0) {
-        let requests = qx.bom.AnimationFrame.__suspendedRequests;
-        qx.bom.AnimationFrame.__suspendedRequests = [];
-        requests.forEach(req =>
-          qx.bom.AnimationFrame.request(req.callback, req.context)
-        );
       }
     }
   },
