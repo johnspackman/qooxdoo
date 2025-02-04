@@ -231,20 +231,6 @@ qx.Mixin.define("qx.data.controller.MSelection", {
         this.setSelection(selection);
       }
 
-      let newSelection = [];
-      for (var i = 0; i < targetSelection.length; i++) {
-        var model = targetSelection[i].getModel();
-        if (model !== null) {
-          newSelection.push(model);
-        }
-      }
-      if (!selection.equals(newSelection)) {
-        selection.replace(newSelection);
-        // fire the change event manually
-        this.fireDataEvent("changeSelection", this.getSelection());
-      }
-
-      /*
       // go through the target selection
       var spliceArgs = [0, selection.getLength()];
       for (var i = 0; i < targetSelection.length; i++) {
@@ -258,7 +244,6 @@ qx.Mixin.define("qx.data.controller.MSelection", {
 
       // fire the change event manually
       this.fireDataEvent("changeSelection", this.getSelection());
-      */
     },
 
     /*
