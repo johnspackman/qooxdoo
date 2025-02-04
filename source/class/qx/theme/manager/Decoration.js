@@ -92,15 +92,14 @@ qx.Class.define("qx.theme.manager.Decoration", {
     addCssClass(value) {
       var sheet = qx.ui.style.Stylesheet.getInstance();
 
-      var instance = value;
-
-      value = this.getCssClassName(value);
-      var selector = "." + value;
+      let cssClassName = this.getCssClassName(value);
+      var selector = "." + cssClassName;
 
       if (sheet.hasRule(selector)) {
-        return value;
+        return cssClassName;
       }
 
+      var instance = value;
       if (qx.lang.Type.isString(instance)) {
         instance = this.resolve(instance);
       }
@@ -143,7 +142,7 @@ qx.Class.define("qx.theme.manager.Decoration", {
         this.__rules.push(selector);
       }
 
-      return value;
+      return cssClassName;
     },
 
     /**
