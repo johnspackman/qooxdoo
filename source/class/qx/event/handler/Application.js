@@ -90,7 +90,18 @@ qx.Class.define("qx.event.handler.Application", {
     onScriptLoaded() {
       var inst = qx.event.handler.Application.$$instance;
       if (inst) {
-        inst.__fireReady();
+        if (qx.core.Environment.get("qx.debug")) {
+          if (document.location.search.match(/qx.waitAtStartup=true/)) {
+            console.log(
+              "Application startup is on hold - run `window.start()` in the console to continue."
+            );
+            window.start = () => inst.__fireReady();
+          } else {
+            inst.__fireReady();
+          }
+        } else {
+          inst.__fireReady();
+        }
       }
     },
 
