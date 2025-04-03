@@ -168,7 +168,7 @@ qx.Class.define("qx.data.SingleValueBinding", {
               if (i == 0) {
                 // the root property can not change --> error
                 throw new qx.core.AssertionError(
-                  `Binding property ${source.classname}.${propertyName} of object ${source} not possible: No event available. Full property chain: ` +
+                  `Binding property ${source.classname}.${propertyName} of object ${source} (${source?.classname}) not possible: No event available. Full property chain: ` +
                     sourcePropertyChain
                 );
               }
@@ -178,7 +178,7 @@ qx.Class.define("qx.data.SingleValueBinding", {
                 qx.Class.hasProperty(source.constructor, propertyName)
               ) {
                 qx.log.Logger.warn(
-                  `Binding property ${source.classname}.${propertyName} of object ${source} not possible: No event available. Full property chain: ` +
+                  `Binding property ${source.classname}.${propertyName} of object ${source} (${source?.classname}) not possible: No event available. Full property chain: ` +
                     sourcePropertyChain
                 );
               }
