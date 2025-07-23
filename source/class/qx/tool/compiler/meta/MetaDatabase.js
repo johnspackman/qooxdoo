@@ -1,7 +1,34 @@
+/* ************************************************************************
+ *
+ *    qooxdoo-compiler - node.js based replacement for the Qooxdoo python
+ *    toolchain
+ *
+ *    https://github.com/qooxdoo/qooxdoo
+ *
+ *    Copyright:
+ *      2011-2025 Zenesis Limited, http://www.zenesis.com
+ *
+ *    License:
+ *      MIT: https://opensource.org/licenses/MIT
+ *
+ *      This software is provided under the same licensing terms as Qooxdoo,
+ *      please see the LICENSE file in the Qooxdoo project's top-level directory
+ *      for details.
+ *
+ *    Authors:
+ *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
+ *
+ * *********************************************************************** */
+
 const fs = require("fs");
 const path = require("upath");
 
-qx.Class.define("qx.tool.compiler.MetaDatabase", {
+/**
+ * MetaDatabase is used to store the metadata for all classes in a qooxdoo compilation;
+ * it covers all classes in all libraries, and has scope to incorporate pre-compilers
+ * in the future.
+ */
+qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   extend: qx.core.Object,
 
   construct() {
@@ -11,6 +38,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
     this.__cachedMeta = {};
     this.__dirtyClasses = {};
     this.__database = {};
+    this.__symbolTypesLookup = {};
   },
 
   properties: {
@@ -22,7 +50,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
   },
 
   members: {
-    /** @type{Map<String,qx.tool.compiler.MetaExtraction>} list of meta indexed by classname */
+    /** @type{Map<String,qx.tool.compiler.meta.ClassMeta>} list of meta indexed by classname */
     __metaByClassname: null,
 
     /** @type{Map<String,Boolean} list of classes which need to have their second pass */
@@ -31,16 +59,16 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
     /** The database */
     __database: null,
 
+    /** @type{Object<String, String>} map of symbol types, just a quick lookup */
+    __symbolTypesLookup: null,
+
     /**
      * Saves the database
      */
     async save() {
       await qx.tool.utils.Utils.makeDirs(this.getRootDir());
       this.__database.classnames = Object.keys(this.__metaByClassname);
-      await qx.tool.utils.Json.saveJsonAsync(
-        this.getRootDir() + "/db.json",
-        this.__database
-      );
+      await qx.tool.utils.Json.saveJsonAsync(this.getRootDir() + "/db.json", this.__database);
     },
 
     getDatabase() {
@@ -61,19 +89,22 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       this.__database = data;
 
       for (let classname of data.classnames) {
-        let filename =
-          this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
+        let segs = classname.split(".");
+        this.__symbolTypesLookup[classname] = "class";
+        for (let i = 0; i < segs.length - 1; i++) {
+          let seg = segs.slice(0, i + 1).join(".");
+          this.__symbolTypesLookup[seg] = "package";
+        }
+        let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
         if (fs.existsSync(filename)) {
           await qx.tool.utils.Utils.makeParentDir(filename);
-          let meta = new qx.tool.compiler.MetaExtraction(this.getRootDir());
-          await meta.loadMeta(filename);
-          this.__metaByClassname[classname] = meta;
-          let classFilename = meta.getMetaData().classFilename;
-          classFilename = path.resolve(
-            path.join(this.getRootDir(), classFilename)
-          );
+          let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
+          await metaReader.loadMeta(filename);
+          this.__metaByClassname[classname] = metaReader;
+          let classFilename = metaReader.getMetaData().classFilename;
+          classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
 
-          this.__metaByFilename[classFilename] = meta;
+          this.__metaByFilename[classFilename] = metaReader;
         }
       }
     },
@@ -113,8 +144,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       }
 
       let pos = currentClassMeta.className.lastIndexOf(".");
-      let packageName =
-        pos > -1 ? currentClassMeta.className.substring(0, pos) : null;
+      let packageName = pos > -1 ? currentClassMeta.className.substring(0, pos) : null;
 
       if (packageName) {
         pos = type.indexOf(".");
@@ -139,14 +169,39 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       if (meta && !force && !(await meta.isOutOfDate())) {
         return;
       }
-      meta = new qx.tool.compiler.MetaExtraction(this.getRootDir());
+      meta = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
       let metaData = await meta.parse(filename);
+      let classname = metaData.className;
       if (metaData.className === undefined) {
         return;
       }
       this.__metaByClassname[metaData.className] = meta;
       this.__metaByFilename[filename] = meta;
       this.__dirtyClasses[metaData.className] = true;
+
+      let segs = classname.split(".");
+      this.__symbolTypesLookup[classname] = "class";
+      for (let i = 0; i < segs.length - 1; i++) {
+        let seg = segs.slice(0, i + 1).join(".");
+        this.__symbolTypesLookup[seg] = "package";
+      }
+    },
+
+    /**
+     * Removes a file from the database, because it has been deleted or renamed
+     *
+     * @param {String} filename
+     */
+    async removeFile(filename) {
+      filename = await qx.tool.utils.files.Utils.correctCase(filename);
+      filename = path.resolve(filename);
+      let meta = this.__metaByFilename[filename];
+      if (meta) {
+        let classname = meta.getMetaData().className;
+        delete this.__metaByClassname[classname];
+        delete this.__metaByFilename[filename];
+        delete this.__dirtyClasses[classname];
+      }
     },
 
     /**
@@ -169,6 +224,86 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
     },
 
     /**
+     * @typedef {Object} EnvironmentCheck
+     * @property {String} matchString - the string to match against the environment
+     * @property {Boolean?} startsWith - if true, then the matchString is a prefix otherwise it is an exact match
+     * @property {String} className - the name of the class that the check is for
+     *
+     * @returns {EnvironmentCheck[]} the environment checks
+     */
+    getEnvironmentChecks() {
+      return this.__database.environmentChecks || {};
+    },
+
+    /**
+     * Detects the type of a symbol, eg whether it is a class, package, member, environment etc
+     *
+     * @typedef {Object} SymbolType
+     * @property {String} symbolType - the type of the symbol, one of "class", "package", "member", "environment"
+     * @property {String?} className - the name of the class that the symbol belongs to, if applicable
+     * @property {String} name - the name of the symbol
+     *
+     * @property {String} name - the name of the symbol to detect
+     * @returns {SymbolType}
+     */
+    getSymbolType(name) {
+      var symbolType = this.__knownSymbols[name];
+
+      if (symbolType) {
+        return {
+          symbolType: symbolType,
+          className: symbolType == "class" ? name : null,
+          name
+        };
+      }
+
+      function testEnvironment(check) {
+        let match = false;
+        if (check.startsWith) {
+          match = name.startsWith(check.matchString);
+        } else {
+          match = name == check.matchString;
+        }
+        if (match) {
+          return {
+            symbolType: "environment",
+            className: check.className,
+            name
+          };
+        }
+        return null;
+      }
+
+      let envCheck = this.getEnvironmentChecks()[name];
+      if (envCheck) {
+        let result = testEnvironment(envCheck);
+        if (result) {
+          return result;
+        }
+      }
+      for (let envCheck of this.getEnvironmentChecks()) {
+        let result = testEnvironment(envCheck);
+        if (result) {
+          return result;
+        }
+      }
+
+      let segs = name.split(".");
+      for (let i = segs.length - 2; i >= 0; i--) {
+        let tmpname = segs.slice(0, i).join(".");
+        if (this.__knownSymbols[tmpname] == "class") {
+          return {
+            symbolType: "member",
+            className: tmpname,
+            name: name
+          };
+        }
+      }
+
+      return null;
+    },
+
+    /**
      * Once all meta data has been loaded, this method traverses the database
      * to add information that can only be added once all classes are known,
      * eg which methods override other methods and where they were overridden from
@@ -180,9 +315,9 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       let derivedClassLookup = this.__createDerivedClassLookup();
 
       for (let i = 0; i < classnames.length; i++) {
-        const className = classnames[i];
-        const derived = derivedClassLookup[className];
-        for (const derivedClass of derived.values()) {
+        let className = classnames[i];
+        let derived = derivedClassLookup[className];
+        for (let derivedClass of derived.values()) {
           if (!classnames.includes(derivedClass)) {
             classnames.push(derivedClass);
           }
@@ -190,14 +325,14 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       }
 
       for (let className of classnames) {
-        let meta = this.__metaByClassname[className];
-        let metaData = meta.getMetaData();
+        let metaReader = this.__metaByClassname[className];
+        let metaData = metaReader.getMetaData();
 
         const typeResolver = {
           resolveType: this.resolveType.bind(this, metaData)
         };
 
-        meta.fixupJsDoc(typeResolver);
+        metaReader.fixupJsDoc(typeResolver);
 
         this.__fixupMembers(metaData);
 
@@ -205,9 +340,8 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
         this.__fixupEntries(metaData, "statics");
         this.__fixupEntries(metaData, "properties");
 
-        let filename =
-          this.getRootDir() + "/" + className.replace(/\./g, "/") + ".json";
-        await meta.saveMeta(filename);
+        let filename = this.getRootDir() + "/" + className.replace(/\./g, "/") + ".json";
+        await metaReader.saveMeta(filename);
       }
     },
 
@@ -270,13 +404,9 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       if (!metaData.superClass) {
         return null;
       }
-      let superMeta = this.__metaByClassname[metaData.superClass];
-      if (superMeta) {
-        return this.__findSuperMethod(
-          superMeta.getMetaData(),
-          methodName,
-          false
-        );
+      let superMetaReader = this.__metaByClassname[metaData.superClass];
+      if (superMetaReader) {
+        return this.__findSuperMethod(superMetaReader.getMetaData(), methodName, false);
       }
       return null;
     },
@@ -379,10 +509,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
      *
      */
     getHierarchyFlat(metaOrClassName) {
-      const meta =
-        typeof metaOrClassName === "string"
-          ? this.getMetaData(metaOrClassName)
-          : metaOrClassName;
+      const meta = typeof metaOrClassName === "string" ? this.getMetaData(metaOrClassName) : metaOrClassName;
 
       const data = {
         className: meta.className,
@@ -394,18 +521,18 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       let toResolve = [meta];
 
       while (toResolve.length) {
-        const currentMeta = toResolve.shift();
+        let currentMeta = toResolve.shift();
 
         if (currentMeta.superClass) {
-          const superClassMeta = this.getMetaData(currentMeta.superClass);
+          let superClassMeta = this.getMetaData(currentMeta.superClass);
           if (superClassMeta) {
             data.superClasses[superClassMeta.className] = superClassMeta;
             toResolve.push(superClassMeta);
           }
         }
         if (currentMeta.mixins) {
-          for (const mixin of currentMeta.mixins) {
-            const mixinMeta = this.getMetaData(mixin);
+          for (let mixin of currentMeta.mixins) {
+            let mixinMeta = this.getMetaData(mixin);
             if (mixinMeta) {
               data.mixins[mixinMeta.className] = mixinMeta;
               toResolve.push(mixinMeta);
@@ -413,8 +540,8 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
           }
         }
         if (currentMeta.interfaces) {
-          for (const iface of currentMeta.interfaces) {
-            const ifaceMeta = this.getMetaData(iface);
+          for (let iface of currentMeta.interfaces) {
+            let ifaceMeta = this.getMetaData(iface);
             if (ifaceMeta) {
               data.interfaces[ifaceMeta.className] = ifaceMeta;
               toResolve.push(ifaceMeta);

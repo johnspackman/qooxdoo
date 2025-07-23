@@ -129,7 +129,7 @@ qx.Class.define("qx.tool.cli.commands.Typescript", {
           if (classFiles.length > 1) {
             console.log("Only one file can be processed in meta debug mode");
           }
-          let meta = new qx.tool.compiler.MetaExtraction();
+          let meta = new qx.tool.compiler.meta.ClassMeta();
           await meta.parse(classFiles[0]);
           meta.fixupJsDoc({ resolveType: type => type });
           console.log(JSON.stringify(meta.getMetaData(), null, 2));
@@ -137,7 +137,7 @@ qx.Class.define("qx.tool.cli.commands.Typescript", {
         }
       }
 
-      let metaDb = new qx.tool.compiler.MetaDatabase();
+      let metaDb = new qx.tool.compiler.meta.MetaDatabase();
       await metaDb.load();
       for (let filename of classFiles) {
         if (this.argv.verbose) {
