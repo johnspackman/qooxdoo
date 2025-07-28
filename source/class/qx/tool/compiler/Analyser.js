@@ -317,7 +317,6 @@ qx.Class.define("qx.tool.compiler.Analyser", {
      */
     async saveDatabase() {
       log.debug("saving generator database");
-      await this.fireDataEventAsync("saveDatabase", this.__db);
       await qx.tool.utils.Json.saveJsonAsync(this.getDbFilename(), this.__db).then(
         () => this.__resManager && this.__resManager.saveDatabase()
       );
@@ -341,35 +340,6 @@ qx.Class.define("qx.tool.compiler.Analyser", {
       if (!this.__db) {
         this.__db = {};
       }
-
-      var compiledClasses = {};
-      var metaFixupDescendants = {};
-      var listenerId = this.addListener("compiledClass", function (evt) {
-        var data = evt.getData();
-        if (data.oldDbClassInfo) {
-          if (data.oldDbClassInfo.extends) {
-            metaFixupDescendants[data.oldDbClassInfo.extends] = true;
-          }
-          if (data.oldDbClassInfo.implement) {
-            data.oldDbClassInfo.implement.forEach(name => (metaFixupDescendants[name] = true));
-          }
-          if (data.oldDbClassInfo.include) {
-            data.oldDbClassInfo.include.forEach(name => (metaFixupDescendants[name] = true));
-          }
-        }
-
-        if (data.dbClassInfo.extends) {
-          metaFixupDescendants[data.dbClassInfo.extends] = true;
-        }
-        if (data.dbClassInfo.implement) {
-          data.dbClassInfo.implement.forEach(name => (metaFixupDescendants[name] = true));
-        }
-        if (data.dbClassInfo.include) {
-          data.dbClassInfo.include.forEach(name => (metaFixupDescendants[name] = true));
-        }
-
-        compiledClasses[data.classFile.getClassName()] = data;
-      });
 
       // Note that it is important to pre-load the classes in all libraries - this is because
       //  Babel plugins MUST be synchronous (ie cannot afford an async lookup of files on disk
@@ -441,7 +411,6 @@ qx.Class.define("qx.tool.compiler.Analyser", {
           info.dependsOn[depName].load = true;
         });
       }
-      t.removeListenerById(listenerId);
     },
 
     /**

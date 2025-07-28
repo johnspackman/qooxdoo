@@ -88,6 +88,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       let data = await qx.tool.utils.Json.loadJsonAsync(filename);
       this.__database = data;
 
+      let filesToLoad = [];
       for (let classname of data.classnames) {
         let segs = classname.split(".");
         this.__symbolTypesLookup[classname] = "class";
@@ -97,16 +98,18 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         }
         let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
         if (fs.existsSync(filename)) {
-          await qx.tool.utils.Utils.makeParentDir(filename);
-          let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
-          await metaReader.loadMeta(filename);
-          this.__metaByClassname[classname] = metaReader;
-          let classFilename = metaReader.getMetaData().classFilename;
-          classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
-
-          this.__metaByFilename[classFilename] = metaReader;
+          filesToLoad.push({ filename, classname });
         }
       }
+      await qx.tool.utils.Promisify.poolEachOf(filesToLoad, 100, async fileToLoad => {
+        let { filename, classname } = fileToLoad;
+        let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
+        await metaReader.loadMeta(filename);
+        this.__metaByClassname[classname] = metaReader;
+        let classFilename = metaReader.getMetaData().classFilename;
+        classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
+        this.__metaByFilename[classFilename] = metaReader;
+      });
     },
 
     /**
