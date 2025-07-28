@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const chokidar = require("chokidar");
 
 /**
  * Discovery is used to discover classes in a project by watching specified paths for changes.
@@ -10,6 +11,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
   construct() {
     super();
     this.__classes = {};
+    this.__paths = [];
   },
 
   events: {
@@ -36,6 +38,9 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      * @type {Object<String, ClassMeta>} list of ClassMeta objects, indexed by classname
      */
     __classes: null,
+
+    /** @type{String[]} */
+    __paths: null,
 
     /**
      * @typedef WatchedPath
@@ -130,7 +135,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
                 classname = packageName + "." + classname;
               }
               this.__classes[classname] = {
-                files: [fullFilename],
+                filenames: [fullFilename],
                 lastModified: stat.mtime,
                 packageName: packageName,
                 classname: classname
@@ -163,11 +168,9 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      */
     __onFileChange(event, filename, rootDir) {
       let packageName = path.relative(rootDir, filename);
-      for (let i = 0; i < packageName.length; i++) {
-        if (packageName[i] == path.sep) {
-          packageName[i] = ".";
-        }
-      }
+      let arr = packageName.split(path.sep);
+      arr.pop();
+      packageName = arr.join(".");
       let classname = path.basename(filename, ".js");
       if (packageName.length) {
         classname = packageName + "." + classname;
@@ -183,7 +186,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
         if (filename.endsWith(".js")) {
           let stat = fs.statSync(filename);
           this.__classes[classname] = {
-            files: [filename],
+            filenames: [filename],
             lastModified: stat.mtime,
             packageName: packageName,
             classname: classname

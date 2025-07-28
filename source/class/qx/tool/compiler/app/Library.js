@@ -512,6 +512,15 @@ qx.Class.define("qx.tool.compiler.app.Library", {
      */
     getThemeFilename(filename) {
       return path.join(this.getRootDir(), this.getThemePath(), filename);
+    },
+
+    /**
+     * Returns the environment checks defined in the manifest
+     *
+     * @returns
+     */
+    getEnvironmentChecks() {
+      return this.__environmentChecks;
     }
   },
 
