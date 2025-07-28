@@ -502,109 +502,29 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           });
         }
       }
-      let parsedArgs = {
-        target: this.argv.target,
-        outputPath: null,
-        locales: null,
-        writeAllTranslations: this.argv.writeAllTranslations,
-        environment: {},
-        verbose: this.argv.verbose
-      };
 
-      if (this.argv.locale && this.argv.locale.length) {
-        parsedArgs.locales = this.argv.locale;
-      }
+      if (this.__gauge) {
+        this.addListener("writingApplications", () => this.__gauge.show("Writing Applications", 0));
 
-      if (this.argv["set-env"]) {
-        this.argv["set-env"].forEach(function (kv) {
-          var m = kv.match(/^([^=\s]+)(=(.+))?$/);
-          var key = m[1];
-          var value = m[3];
-          parsedArgs.environment[key] = value;
-        });
-      }
-
-      let targetType = this.getCompilerApi().getCommand().getTargetType();
-      let config = this.getCompilerApi().getConfiguration();
-
-      if (!config.locales) {
-        config.locales = [];
-      }
-      if (typeof parsedArgs.writeAllTranslations == "boolean") {
-        config.writeAllTranslations = parsedArgs.writeAllTranslations;
-      }
-
-      if (!config.environment) {
-        config.environment = {};
-      }
-
-      // Set the environment variables coming from command line arguments
-      // in target's environment object. If that object doesn't exist create
-      // one and assign it to the target.
-      if (config.targets) {
-        const target = config.targets.find(
-          target => target.type === targetType
-        );
-
-        target.environment = target.environment || {};
-        qx.lang.Object.mergeWith(
-          target.environment,
-          parsedArgs.environment,
-          true
-        );
-      }
-
-      if (config.sass && config.sass.compiler !== undefined) {
-        qx.tool.compiler.resources.ScssConverter.USE_V6_COMPILER =
-          config.sass.compiler == "latest";
-      } else {
-        qx.tool.compiler.resources.ScssConverter.USE_V6_COMPILER = null;
-      }
-      if (config.sass && config.sass.copyOriginal) {
-        qx.tool.compiler.resources.ScssConverter.COPY_ORIGINAL_FILES = true;
-      }
-
-      if (this.__progressBar) {
-        this.addListener("writingApplications", () =>
-          this.__progressBar.update(0, { status: "Writing Applications" })
-        );
-
-        this.addListener("writtenApplications", () =>
-          this.__progressBar.update(100, { status: "Writing Applications" })
-        );
+        this.addListener("writtenApplications", () => this.__gauge.show("Writing Applications", 1));
 
         this.addListener("writingApplication", evt =>
-          this.__progressBar.increment({
-            status: "Writing Application " +
-              evt.getData().appMeta.getApplication().getName()
-          })
+          this.__gauge.pulse("Writing Application " + evt.getData().appMeta.getApplication().getName())
         );
 
-        this.addListener("compilingClass", evt =>
-          this.__progressBar.increment({
-            status: "Compiling " + evt.getData().classFile.getClassName()
-          })
-        );
+        this.addListener("compilingClass", evt => this.__gauge.pulse("Compiling " + evt.getData().classFile.getClassName()));
 
         this.addListener("minifyingApplication", evt =>
-          this.__progressBar.increment({
-            status: "Minifying " +
-              evt.getData().application.getName() +
-              " " +
-              evt.getData().filename
-          })
+          this.__gauge.pulse("Minifying " + evt.getData().application.getName() + " " + evt.getData().filename)
         );
       } else {
         this.addListener("writingApplication", evt => {
           let appInfo = evt.getData();
-          qx.tool.compiler.Console.print(
-            "qx.tool.compiler.cli.compile.writingApplication",
-            appInfo.appMeta.getApplication().getName()
-          );
+          qx.tool.compiler.Console.print("qx.tool.cli.compile.writingApplication", appInfo.appMeta.getApplication().getName());
         });
         this.addListener("minifyingApplication", evt =>
           qx.tool.compiler.Console.print(
-            "qx.tool.compiler.cli.compile.minifyingApplication",
+            "qx.tool.cli.compile.minifyingApplication",
             evt.getData().application.getName(),
             evt.getData().filename
           )
@@ -612,18 +532,18 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       }
 
       this.addListener("making", evt => {
-        if (this.__progressBar) {
-          this.__progressBar.update(100, { status: "Compiling" });
+        if (this.__gauge) {
+          this.__gauge.show("Compiling", 1);
         } else {
-          qx.tool.compiler.Console.print("qx.tool.compiler.cli.compile.makeBegins");
+          qx.tool.compiler.Console.print("qx.tool.cli.compile.makeBegins");
         }
       });
 
       this.addListener("made", evt => {
-        if (this.__progressBar) {
-          this.__progressBar.update(100, { status: "Compiling" });
+        if (this.__gauge) {
+          this.__gauge.show("Compiling", 1);
         } else {
-          qx.tool.compiler.Console.print("qx.tool.compiler.cli.compile.makeEnds");
+          qx.tool.compiler.Console.print("qx.tool.cli.compile.makeEnds");
         }
       });
 
@@ -674,6 +594,11 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
      * @return {Boolean} true if all makers succeeded
      */
     async _loadConfigAndStartMaking() {
+      if (!this.getCompilerApi().compileJsonExists() && !qx.tool.cli.Cli.getInstance().compileJsExists()) {
+        qx.tool.compiler.Console.error("Cannot find either compile.json nor compile.js");
+
+        process.exit(1);
+      }
       var config = this.getCompilerApi().getConfiguration();
       var makers = (this.__makers = await this.createMakersFromConfig(config));
       if (!makers || !makers.length) {
@@ -686,13 +611,16 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           this.dispatchEvent(evt.clone());
         }
       };
-      let waiters = [];
-      for await (const maker of makers) {
-        var analyser = maker.getAnalyser();
-        let cfg = await qx.tool.compiler.cli.ConfigDb.getInstance();
-        analyser.setWritePoLineNumbers(
-          cfg.db("qx.translation.strictPoCompatibility", false)
-        );
+
+      let isFirstWatcher = true;
+
+      await qx.Promise.all(
+        makers.map(async maker => {
+          var analyser = maker.getAnalyser();
+          let cfg = await qx.tool.cli.ConfigDb.getInstance();
+          analyser.setWritePoLineNumbers(
+            cfg.db("qx.translation.strictPoCompatibility", false)
+          );
 
         if (!(await fs.existsAsync(maker.getOutputDir()))) {
           this.__outputDirWasCreated = true;
@@ -701,63 +629,49 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           await maker.eraseOutputDir();
           await qx.tool.utils.files.Utils.safeUnlink(analyser.getDbFilename());
 
-          await qx.tool.utils.files.Utils.safeUnlink(
-            analyser.getResDbFilename()
-          );
-        }
-        if (config.ignores) {
-          analyser.setIgnores(config.ignores);
-        }
+            await qx.tool.utils.files.Utils.safeUnlink(analyser.getResDbFilename());
+          }
+          if (config.ignores) {
+            analyser.setIgnores(config.ignores);
+          }
 
-        var target = maker.getTarget();
-        analyser.addListener("compilingClass", e =>
-          this.dispatchEvent(e.clone())
-        );
+          var target = maker.getTarget();
+          analyser.addListener("compilingClass", e => this.dispatchEvent(e.clone()));
 
-        analyser.addListener("compiledClass", e =>
-          this.dispatchEvent(e.clone())
-        );
+          analyser.addListener("compiledClass", e => this.dispatchEvent(e.clone()));
 
-        analyser.addListener("saveDatabase", e =>
-          this.dispatchEvent(e.clone())
-        );
+          analyser.addListener("saveDatabase", e => this.dispatchEvent(e.clone()));
 
-        target.addListener("checkEnvironment", e =>
-          this.dispatchEvent(e.clone())
-        );
+          target.addListener("checkEnvironment", e => this.dispatchEvent(e.clone()));
 
-        let appInfos = [];
-        target.addListener("writingApplication", async () => {
-          let appInfo = {
-            maker,
-            target,
-            appMeta: target.getAppMeta()
-          };
+          let appInfos = [];
+          target.addListener("writingApplication", async () => {
+            let appInfo = {
+              maker,
+              target,
+              appMeta: target.getAppMeta()
+            };
 
-          appInfos.push(appInfo);
-          await this.fireDataEventAsync("writingApplication", appInfo);
-        });
-        target.addListener("writtenApplication", async () => {
-          await this.fireDataEventAsync("writtenApplication", {
-            maker,
-            target,
-            appMeta: target.getAppMeta()
+            appInfos.push(appInfo);
+            await this.fireDataEventAsync("writingApplication", appInfo);
           });
-        });
-        maker.addListener("writingApplications", collateDispatchEvent);
-        maker.addListener("writtenApplications", async () => {
-          await this.fireDataEventAsync("writtenApplications", appInfos);
-        });
+          target.addListener("writtenApplication", async () => {
+            await this.fireDataEventAsync("writtenApplication", {
+              maker,
+              target,
+              appMeta: target.getAppMeta()
+            });
+          });
+          maker.addListener("writingApplications", collateDispatchEvent);
+          maker.addListener("writtenApplications", async () => {
+            await this.fireDataEventAsync("writtenApplications", appInfos);
+          });
 
-        if (target instanceof qx.tool.compiler.targets.BuildTarget) {
-          target.addListener("minifyingApplication", e =>
-            this.dispatchEvent(e.clone())
-          );
+          if (target instanceof qx.tool.compiler.targets.BuildTarget) {
+            target.addListener("minifyingApplication", e => this.dispatchEvent(e.clone()));
 
-          target.addListener("minifiedApplication", e =>
-            this.dispatchEvent(e.clone())
-          );
-        }
+            target.addListener("minifiedApplication", e => this.dispatchEvent(e.clone()));
+          }
 
         let stat = await qx.tool.utils.files.Utils.safeStat(
           "source/index.html"
@@ -770,28 +684,26 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           );
         }
 
-        // Setup event listeners for non-watch mode
-        if (!this.argv.watch) {
-          maker.addListener("making", () => {
-            countMaking++;
-            if (countMaking == 1) {
-              this.fireEvent("making");
-            }
-          });
-          maker.addListener("made", () => {
-            countMaking--;
-            if (countMaking == 0) {
-              this.fireEvent("made");
-            }
-          });
-        }
+          // Simple one of make
+          if (!this.argv.watch) {
+            maker.addListener("making", () => {
+              countMaking++;
+              if (countMaking == 1) {
+                this.fireEvent("making");
+              }
+            });
+            maker.addListener("made", () => {
+              countMaking--;
+              if (countMaking == 0) {
+                this.fireEvent("made");
+              }
+            });
 
-        // Always make first
-        await maker.make();
+            return await maker.make();
+          }
 
-        // Watch mode setup
-        if (this.argv.watch) {
-          let watch = new qx.tool.compiler.cli.Watch(maker);
+          // Continuous make
+          let watch = new qx.tool.cli.Watch(maker);
           config.applications.forEach(appConfig => {
             if (appConfig.runWhenWatching) {
               watch.setRunWhenWatching(appConfig.name, appConfig.runWhenWatching);
@@ -820,10 +732,130 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           let arr = [this._compileJsFilename, this._compileJsonFilename].filter(str => Boolean(str));
 
           watch.setConfigFilenames(arr);
-          waiters.push(watch.start());
+
+          if (target instanceof qx.tool.compiler.targets.SourceTarget && isFirstWatcher) {
+            isFirstWatcher = false;
+            try {
+              await this.__attachTypescriptWatcher(watch);
+            } catch (ex) {
+              qx.tool.compiler.Console.error(ex);
+            }
+          }
+
+          return watch.start();
+        })
+      );
+
+      if (!this.argv.watch) {
+        try {
+          await this.__attachTypescriptWatcher(null);
+        } catch (ex) {
+          qx.tool.compiler.Console.error(ex);
         }
       }
-      return qx.Promise.all(waiters);
+    },
+
+    async __attachTypescriptWatcher(watch) {
+      let classFiles = [];
+
+      // Scans a directory recursively to find all .js files
+      const scanImpl = async filename => {
+        let basename = path.basename(filename);
+        let stat = await fs.promises.stat(filename);
+        if (stat.isFile() && basename.match(/\.js$/)) {
+          classFiles.push(filename);
+        } else if (stat.isDirectory() && (basename == "." || basename[0] != ".")) {
+          let files = await fs.promises.readdir(filename);
+          for (let i = 0; i < files.length; i++) {
+            let subname = path.join(filename, files[i]);
+            await scanImpl(subname);
+          }
+        }
+      };
+
+      // Do the initial scan
+      qx.tool.compiler.Console.info(`Loading meta data ...`);
+      let metaDb = new qx.tool.compiler.meta.MetaDatabase().set({
+        rootDir: this.__metaDir
+      });
+
+      await metaDb.load();
+
+      // Scan all library directories
+      metaDb.getDatabase().libraries = {};
+      for (let lib of Object.values(this.__libraries)) {
+        let dir = path.join(lib.getRootDir(), lib.getSourcePath());
+        metaDb.getDatabase().libraries[lib.getNamespace()] = {
+          sourceDir: dir
+        };
+
+        await scanImpl(dir);
+      }
+
+      for (let filename of classFiles) {
+        await metaDb.addFile(filename, !!this.argv.clean);
+      }
+      await metaDb.reparseAll();
+      await metaDb.save();
+      await this.fireDataEventAsync("writtenMetaData", metaDb);
+
+      // Do the inital write
+      let tsWriter = null;
+      if (this.__typescriptEnabled) {
+        qx.tool.compiler.Console.info(`Generating typescript output ...`);
+        tsWriter = new qx.tool.compiler.targets.TypeScriptWriter(metaDb);
+        if (this.__typescriptFile) {
+          tsWriter.setOutputTo(this.__typescriptFile);
+        } else {
+          tsWriter.setOutputTo(path.join(this.__metaDir, "..", "qooxdoo.d.ts"));
+        }
+        await tsWriter.process();
+      }
+
+      if (!watch) {
+        return;
+      }
+
+      // Redo the files that change, as they change
+      classFiles = {};
+      let debounce = new qx.tool.utils.Debounce(async () => {
+        let filesParsed = false;
+        qx.tool.compiler.Console.info(`Loading meta data ...`);
+        let addFilePromises = [];
+        while (true) {
+          let arr = Object.keys(classFiles);
+          if (arr.length == 0) {
+            break;
+          }
+          filesParsed = true;
+          classFiles = {};
+          arr.forEach(filename => {
+            if (this.argv.verbose) {
+              qx.tool.compiler.Console.info(`Processing meta for ${filename} ...`);
+            }
+            addFilePromises.push(metaDb.addFile(filename));
+          });
+        }
+        if (filesParsed) {
+          qx.tool.compiler.Console.info(`Generating typescript output ...`);
+          await Promise.all(addFilePromises);
+          await metaDb.reparseAll();
+          await metaDb.save();
+          if (this.__typescriptEnabled) {
+            await tsWriter.process();
+          }
+        }
+      });
+
+      // Watch for changes
+      watch.addListener("fileChanged", evt => {
+        let data = evt.getData();
+        if (data.fileType == "source") {
+          let filename = data.library.getFilename(data.filename);
+          classFiles[filename] = true;
+          debounce.run();
+        }
+      });
     },
 
     /**
@@ -1383,27 +1415,6 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         } else {
           qx.tool.utils.files.Utils.safeUnlink(target.getOutputDir() + "index.html");
         }
-
-        const showMarkers = (classname, markers) => {
-          if (markers) {
-            markers.forEach(function (marker) {
-              var str = qx.tool.compiler.Console.decodeMarker(marker);
-              Console.warn(classname + ": " + str);
-            });
-          }
-        };
-
-        // Note - this will cause output multiple times, once per maker/target; but this is largely unavoidable
-        //  because different targets can cause different warnings for the same code due to different compilation
-        //  options (eg node vs browser)
-        maker.getAnalyser().addListener("compiledClass", evt => {
-          var data = evt.getData();
-          showMarkers(data.classFile.getClassName(), data.dbClassInfo.markers);
-        });
-        maker.getAnalyser().addListener("alreadyCompiledClass", evt => {
-          var data = evt.getData();
-          showMarkers(data.className, data.dbClassInfo.markers);
-        });
 
         makers.push(maker);
       });

@@ -37,7 +37,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
    */
   construct(className, theme) {
     super();
-    this._compiledClasses = {};
+    this.__compiledClasses = {};
     this.__applications = [];
     if (className) {
       var app = new qx.tool.compiler.app.Application(className);
@@ -122,7 +122,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
     /** Lookup of classes which have been compiled this session; this is a map where the keys are
      * the class name and the value is `true`, it is erased periodically
      */
-    _compiledClasses: null,
+    __compiledClasses: null,
 
     __applications: null,
 
@@ -142,6 +142,13 @@ qx.Class.define("qx.tool.compiler.Maker", {
       return this.__applications;
     },
 
+    updateProgress(type, ...args) {
+      this.getAnalyser()
+        .getController()
+        .getProgress()
+        .update(type, ...args);
+    },
+
     /**
      * Makes the application
      *
@@ -150,7 +157,6 @@ qx.Class.define("qx.tool.compiler.Maker", {
       var analyser = this.getAnalyser();
       let target = this.getTarget();
 
-      await this.fireEventAsync("making");
       this.setSuccess(null);
       this.setHasWarnings(null);
       let success = true;
@@ -227,7 +233,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       await analyser.open();
       analyser.setEnvironment(compileEnv);
       if (!this.isNoErase() && analyser.isContextChanged()) {
-        log.log("enviroment changed - delete output dir");
+        console.log("enviroment changed - delete output dir");
         await this.eraseOutputDir();
         await qx.tool.utils.Utils.makeParentDir(this.getOutputDir());
         await analyser.resetDatabase();
@@ -263,7 +269,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       await analyser.analyseClasses();
 
       await analyser.saveDatabase();
-      await this.fireEventAsync("writingApplications");
+      this.updateProgress("maker.writingApps");
 
       // Detect which applications need to be recompiled by looking for classes recently compiled
       //  which is on the application's dependency list.  The first time `.make()` is called there
@@ -325,12 +331,12 @@ qx.Class.define("qx.tool.compiler.Maker", {
         };
 
         allAppInfos.push(appInfo);
-        await this.fireDataEventAsync("writingApplication", appInfo);
+        this.updateProgress("maker.writingApp", application.getName());
         await target.generateApplication(application, appEnv);
-        await this.fireDataEventAsync("writtenApplication", appInfo);
+        this.updateProgress("maker.writtenApp", application.getName());
       }
 
-      await this.fireDataEventAsync("writtenApplications", allAppInfos);
+      this.updateProgress("maker.writtenApps");
 
       await analyser.saveDatabase();
       await this.fireEventAsync("made");
@@ -381,11 +387,11 @@ qx.Class.define("qx.tool.compiler.Maker", {
         return this._analyser;
       }
       this._analyser = this._createAnalyser();
-      this._analyser.addListener("compiledClass", evt => {
-        let data = evt.getData();
-        this._compiledClasses[data.classFile.getClassName()] = true;
-      });
       return this._analyser;
+    },
+
+    onClassCompiled(classname) {
+      this.__compiledClasses[classname] = true;
     },
 
     /**
@@ -395,9 +401,9 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @return {Map} list of class names that have been compiled
      */
     getRecentlyCompiledClasses(eraseAfter) {
-      let classes = this._compiledClasses;
+      let classes = this.__compiledClasses;
       if (eraseAfter) {
-        this._compiledClasses = {};
+        this.__compiledClasses = {};
       }
       return classes;
     },
