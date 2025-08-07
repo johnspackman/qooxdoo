@@ -406,7 +406,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
             );
           }
           process.exitCode = success ? 0 : 1;
-          process.exit();
+          controller.stop();
         });
       }
       await controller.start();
