@@ -88,16 +88,9 @@ qx.Class.define("qx.tool.compiler.resources.Asset", {
     getDestFilename(target) {
       let filename = null;
       if (this.__converters) {
-        filename = this.__converters[
-          this.__converters.length - 1
-        ].getDestFilename(target, this);
+        filename = this.__converters[this.__converters.length - 1].getDestFilename(target, this);
       }
-      return filename
-        ? filename
-        : path.relative(
-            process.cwd(),
-            path.join(target.getOutputDir(), "resource", this.__filename)
-          );
+      return filename ? filename : path.relative(process.cwd(), path.join(target.getOutputDir(), "resource", this.__filename));
     },
 
     setLoaders(loaders) {
@@ -136,9 +129,7 @@ qx.Class.define("qx.tool.compiler.resources.Asset", {
 
     setDependsOn(assets) {
       if (this.__dependsOn) {
-        this.__dependsOn.forEach(
-          thatAsset => delete thatAsset.__dependsOnThisAsset[this.getFilename]
-        );
+        this.__dependsOn.forEach(thatAsset => delete thatAsset.__dependsOnThisAsset[this.getFilename]);
       }
       if (assets && assets.length) {
         this.__dependsOn = assets;
@@ -160,9 +151,7 @@ qx.Class.define("qx.tool.compiler.resources.Asset", {
     },
 
     getDependsOnThisAsset() {
-      return this.__dependsOnThisAsset
-        ? Object.values(this.__dependsOnThisAsset)
-        : null;
+      return this.__dependsOnThisAsset ? Object.values(this.__dependsOnThisAsset) : null;
     },
 
     async load() {
@@ -176,10 +165,7 @@ qx.Class.define("qx.tool.compiler.resources.Asset", {
       let srcFilename = this.getSourceFilename();
 
       if (this.__converters) {
-        let doNotCopy = await qx.tool.utils.Promisify.some(
-          this.__converters,
-          converter => converter.isDoNotCopy(srcFilename)
-        );
+        let doNotCopy = await qx.tool.utils.Promisify.some(this.__converters, converter => converter.isDoNotCopy(srcFilename));
 
         if (doNotCopy) {
           return;
@@ -190,31 +176,16 @@ qx.Class.define("qx.tool.compiler.resources.Asset", {
       if (destStat) {
         let filenames = [this.getSourceFilename()];
         if (this.__dependsOn) {
-          this.__dependsOn.forEach(asset =>
-            filenames.push(asset.getSourceFilename())
-          );
+          this.__dependsOn.forEach(asset => filenames.push(asset.getSourceFilename()));
         }
-        let needsIt = await qx.tool.utils.Promisify.some(
-          filenames,
-          async filename => {
-            let srcStat = await qx.tool.utils.files.Utils.safeStat(filename);
-            return (
-              srcStat && srcStat.mtime.getTime() > destStat.mtime.getTime()
-            );
-          }
-        );
+        let needsIt = await qx.tool.utils.Promisify.some(filenames, async filename => {
+          let srcStat = await qx.tool.utils.files.Utils.safeStat(filename);
+          return srcStat && srcStat.mtime.getTime() > destStat.mtime.getTime();
+        });
 
         if (!needsIt && this.__converters) {
-          needsIt = await qx.tool.utils.Promisify.some(
-            this.__converters,
-            converter =>
-              converter.needsConvert(
-                target,
-                this,
-                srcFilename,
-                destFilename,
-                this.isThemeFile()
-              )
+          needsIt = await qx.tool.utils.Promisify.some(this.__converters, converter =>
+            converter.needsConvert(target, this, srcFilename, destFilename, this.isThemeFile())
           );
         }
         if (!needsIt) {
@@ -222,51 +193,29 @@ qx.Class.define("qx.tool.compiler.resources.Asset", {
         }
       }
 
-      await qx.tool.utils.Utils.makeParentDir(destFilename);
+      await qx.tool.utils.Utils.mkParentDir(destFilename);
 
       if (this.__converters) {
         let dependsOn = [];
         if (this.__converters.length == 1) {
-          dependsOn =
-            (await this.__converters[0].convert(
-              target,
-              this,
-              srcFilename,
-              destFilename,
-              this.isThemeFile()
-            )) || [];
+          dependsOn = (await this.__converters[0].convert(target, this, srcFilename, destFilename, this.isThemeFile())) || [];
         } else {
           let lastTempFilename = null;
-          qx.tool.utils.Promisify.each(
-            this.__converters,
-            async (converter, index) => {
-              let tmpSrc = lastTempFilename ? lastTempFilename : srcFilename;
-              let tmpDest =
-                index === this.__converters.length - 1
-                  ? destFilename
-                  : path.join(
-                      require("os").tmpdir(),
-                      path.basename(srcFilename) + "-pass" + (index + 1) + "-"
-                    );
+          qx.tool.utils.Promisify.each(this.__converters, async (converter, index) => {
+            let tmpSrc = lastTempFilename ? lastTempFilename : srcFilename;
+            let tmpDest =
+              index === this.__converters.length - 1
+                ? destFilename
+                : path.join(require("os").tmpdir(), path.basename(srcFilename) + "-pass" + (index + 1) + "-");
 
-              let tmpDependsOn =
-                (await converter.convert(
-                  target,
-                  this,
-                  tmpSrc,
-                  tmpDest,
-                  this.isThemeFile()
-                )) || [];
-              tmpDependsOn.forEach(str => dependsOn.push(str));
-              lastTempFilename = tmpDest;
-            }
-          );
+            let tmpDependsOn = (await converter.convert(target, this, tmpSrc, tmpDest, this.isThemeFile())) || [];
+            tmpDependsOn.forEach(str => dependsOn.push(str));
+            lastTempFilename = tmpDest;
+          });
         }
         let rm = target.getAnalyser().getResourceManager();
         dependsOn = dependsOn
-          .map(filename =>
-            rm.getAsset(path.resolve(filename), true, this.isThemeFile())
-          )
+          .map(filename => rm.getAsset(path.resolve(filename), true, this.isThemeFile()))
           .filter(tmp => tmp !== this);
         this.setDependsOn(dependsOn);
       } else {

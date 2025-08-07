@@ -78,17 +78,11 @@ qx.Class.define("qx.tool.utils.files.Utils", {
           }
           return p.then(() =>
             readdir(from).then(files =>
-              Promise.all(
-                files.map(file =>
-                  t.sync(path.join(from, file), path.join(to, file), filter)
-                )
-              )
+              Promise.all(files.map(file => t.sync(path.join(from, file), path.join(to, file), filter)))
             )
           );
         } else if (statFrom.isFile()) {
-          return qx.Promise.resolve(filter ? filter(from, to) : true).then(
-            result => result && t.copyFile(from, to)
-          );
+          return qx.Promise.resolve(filter ? filter(from, to) : true).then(result => result && t.copyFile(from, to));
         }
         return undefined;
       }
@@ -131,23 +125,23 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @param to {String} path to copy to
      * @async
      */
-    copyFile(from, to) {
-      return new Promise((resolve, reject) => {
-        qx.tool.utils.Utils.mkParentPath(to, function () {
-          var rs = fs.createReadStream(from, {
-            flags: "r",
-            encoding: "binary"
-          });
-
-          var ws = fs.createWriteStream(to, { flags: "w", encoding: "binary" });
-          rs.on("end", function () {
-            resolve(from, to);
-          });
-          rs.on("error", reject);
-          ws.on("error", reject);
-          rs.pipe(ws);
+    async copyFile(from, to) {
+      await qx.tool.utils.Utils.mkParentDir(to);
+      let promise = new Promise((resolve, reject) => {
+        var rs = fs.createReadStream(from, {
+          flags: "r",
+          encoding: "binary"
         });
+
+        var ws = fs.createWriteStream(to, { flags: "w", encoding: "binary" });
+        rs.on("end", function () {
+          resolve(from, to);
+        });
+        rs.on("error", reject);
+        ws.on("error", reject);
+        rs.pipe(ws);
       });
+      return await promise;
     },
 
     /**
@@ -299,34 +293,30 @@ qx.Class.define("qx.tool.utils.files.Utils", {
         }
 
         return new Promise((resolve, reject) => {
-          fs.readdir(
-            currentDir.length == 0 ? "." : drivePrefix + currentDir,
-            { encoding: "utf8" },
-            (err, files) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-
-              let nextLowerCase = nextSeg.toLowerCase();
-              let exact = false;
-              let insensitive = null;
-              for (let i = 0; i < files.length; i++) {
-                if (files[i] === nextSeg) {
-                  exact = true;
-                  break;
-                }
-                if (files[i].toLowerCase() === nextLowerCase) {
-                  insensitive = files[i];
-                }
-              }
-              if (!exact && insensitive) {
-                nextSeg = insensitive;
-              }
-
-              bumpToNext(nextSeg).then(resolve);
+          fs.readdir(currentDir.length == 0 ? "." : drivePrefix + currentDir, { encoding: "utf8" }, (err, files) => {
+            if (err) {
+              reject(err);
+              return;
             }
-          );
+
+            let nextLowerCase = nextSeg.toLowerCase();
+            let exact = false;
+            let insensitive = null;
+            for (let i = 0; i < files.length; i++) {
+              if (files[i] === nextSeg) {
+                exact = true;
+                break;
+              }
+              if (files[i].toLowerCase() === nextLowerCase) {
+                insensitive = files[i];
+              }
+            }
+            if (!exact && insensitive) {
+              nextSeg = insensitive;
+            }
+
+            bumpToNext(nextSeg).then(resolve);
+          });
         });
       }
 

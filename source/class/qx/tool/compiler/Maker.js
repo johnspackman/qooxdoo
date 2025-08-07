@@ -19,22 +19,25 @@
  *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
  *
  * *********************************************************************** */
-var log = qx.tool.utils.LogManager.createLog("analyser");
+
+var path = require("upath");
 
 /**
  * Application maker; supports multiple applications to compile against a single
  * target
  */
-qx.Class.define("qx.tool.compiler.makers.AppMaker", {
-  extend: qx.tool.compiler.makers.AbstractAppMaker,
+qx.Class.define("qx.tool.compiler.Maker", {
+  extend: qx.core.Object,
 
   /**
    * Constructor
+   *
    * @param className {String|String[]} classname(s) to generate
    * @param theme {String} the theme classname
    */
   construct(className, theme) {
     super();
+    this._compiledClasses = {};
     this.__applications = [];
     if (className) {
       var app = new qx.tool.compiler.app.Application(className);
@@ -45,7 +48,82 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
     }
   },
 
+  properties: {
+    /** Database filename relative to the target's output directory; if null, defaults to db.json; absolute paths can be used */
+    dbFilename: {
+      init: null,
+      nullable: true,
+      check: "String",
+      apply: "__applyDbFilename"
+    },
+
+    /** Map of environment settings */
+    environment: {
+      init: null,
+      nullable: true
+    },
+
+    /** Blocks automatic deleting of the output directory */
+    noErase: {
+      init: false,
+      check: "Boolean"
+    },
+
+    /** Whether the make has succeeded, null during/before make */
+    success: {
+      init: null,
+      nullable: true,
+      check: "Boolean"
+    },
+
+    /** Whether the make has any warnings, null during/before make */
+    hasWarnings: {
+      init: null,
+      nullable: true,
+      check: "Boolean"
+    },
+
+    /** Target for the compiled application */
+    target: {
+      nullable: false,
+      check: "qx.tool.compiler.targets.Target",
+      apply: "__applyTarget"
+    },
+
+    /** Supported Locales */
+    locales: {
+      nullable: false,
+      init: ["en"],
+      apply: "_applyLocales"
+    },
+
+    /** Whether to write all translation strings (as opposed to just those used by the classes) */
+    writeAllTranslations: {
+      init: false,
+      nullable: false,
+      check: "Boolean",
+      apply: "__applyWriteAllTranslations"
+    }
+  },
+
+  events: {
+    making: "qx.event.type.Event",
+    made: "qx.event.type.Event",
+    writingApplications: "qx.event.type.Event",
+    writingApplication: "qx.event.type.Data",
+    writtenApplication: "qx.event.type.Data",
+    writtenApplications: "qx.event.type.Event"
+  },
+
   members: {
+    /** {Analyser} current analyser (created on demand) */
+    __analyser: null,
+
+    /** Lookup of classes which have been compiled this session; this is a map where the keys are
+     * the class name and the value is `true`, it is erased periodically
+     */
+    _compiledClasses: null,
+
     __applications: null,
 
     /**
@@ -64,8 +142,9 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
       return this.__applications;
     },
 
-    /*
-     * @Override
+    /**
+     * Makes the application
+     *
      */
     async make() {
       var analyser = this.getAnalyser();
@@ -78,7 +157,7 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
       let hasWarnings = false;
 
       // merge all environment settings for the analyser
-      const compileEnv = qx.tool.utils.Values.merge(
+      let compileEnv = qx.tool.utils.Values.merge(
         {},
         qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS,
         {
@@ -102,11 +181,7 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
 
       let appEnvironments = {};
       this.getApplications().forEach(app => {
-        appEnvironments[app.toHashCode()] = qx.tool.utils.Values.merge(
-          {},
-          compileEnv,
-          app.getCalculatedEnvironment()
-        );
+        appEnvironments[app.toHashCode()] = qx.tool.utils.Values.merge({}, compileEnv, app.getCalculatedEnvironment());
       });
 
       // Analyze the list of environment variables, detect which are shared between all apps
@@ -152,9 +227,9 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
       await analyser.open();
       analyser.setEnvironment(compileEnv);
       if (!this.isNoErase() && analyser.isContextChanged()) {
-        log.log("enviroment changed - delete output dir");
+        this.error("enviroment changed - delete output dir");
         await this.eraseOutputDir();
-        await qx.tool.utils.Utils.makeParentDir(this.getOutputDir());
+        await qx.tool.utils.Utils.mkParentDir(this.getOutputDir());
         await analyser.resetDatabase();
       }
 
@@ -205,13 +280,9 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
         let res = loadDeps.some(name => Boolean(compiledClasses[name]));
         let localModules = app.getLocalModules();
         for (let requireName in localModules) {
-          let stat = await qx.tool.utils.files.Utils.safeStat(
-            localModules[requireName]
-          );
+          let stat = await qx.tool.utils.files.Utils.safeStat(localModules[requireName]);
 
-          res ||=
-            stat.mtime.getTime() >
-            (db?.modulesInfo?.localModules[requireName] || 0);
+          res ||= stat.mtime.getTime() > (db?.modulesInfo?.localModules[requireName] || 0);
         }
         return res;
       });
@@ -221,41 +292,30 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
       for (let i = 0; i < appsThisTime.length; i++) {
         let application = appsThisTime[i];
         if (application.getType() != "browser" && !compileEnv["qx.headless"]) {
-          qx.tool.compiler.Console.print(
-            "qx.tool.compiler.maker.appNotHeadless",
-            application.getName()
-          );
+          qx.tool.compiler.Console.print("qx.tool.compiler.maker.appNotHeadless", application.getName());
         }
-        var appEnv = qx.tool.utils.Values.merge(
-          {},
-          compileEnv,
-          appEnvironments[application.toHashCode()]
-        );
+        var appEnv = qx.tool.utils.Values.merge({}, compileEnv, appEnvironments[application.toHashCode()]);
 
         application.calcDependencies();
         if (application.getFatalCompileErrors()) {
-          qx.tool.compiler.Console.print(
-            "qx.tool.compiler.maker.appFatalError",
-            application.getName()
-          );
+          qx.tool.compiler.Console.print("qx.tool.compiler.maker.appFatalError", application.getName());
 
           success = false;
           continue;
         }
         if (!hasWarnings) {
           application.getDependencies().forEach(classname => {
-            if (!db.classInfo[classname] || !db.classInfo[classname].markers) {
+            let dbClassInfo = analyser.getDbClassInfo(classname);
+            if (!dbClassInfo?.markers) {
               return;
             }
-            db.classInfo[classname].markers.forEach(marker => {
-              let type = qx.tool.compiler.Console.getInstance().getMessageType(
-                marker.msgId
-              );
-
+            for (let marker of dbClassInfo.markers) {
+              let type = qx.tool.compiler.Console.getInstance().getMessageType(marker.msgId);
               if (type == "warning") {
                 hasWarnings = true;
+                break;
               }
-            });
+            }
           });
         }
 
@@ -271,12 +331,140 @@ qx.Class.define("qx.tool.compiler.makers.AppMaker", {
         await this.fireDataEventAsync("writtenApplication", appInfo);
       }
 
-      await this.fireDataEventAsync("writtenApplications", allAppInfos);
+      await this.fireEventAsync("writtenApplications");
 
       await analyser.saveDatabase();
       await this.fireEventAsync("made");
       this.setSuccess(success);
       this.setHasWarnings(hasWarnings);
+    },
+
+    /**
+     * Returns the output directory, with a trailing slash
+     *
+     * @returns {String}
+     * @abstract
+     */
+    getOutputDir() {
+      throw new Error("No implementation for " + this.classname + ".getOutputDir");
+    },
+
+    /**
+     * Erases the output directory
+     */
+    async eraseOutputDir() {
+      var dir = path.resolve(this.getOutputDir());
+      var pwd = path.resolve(process.cwd());
+      if (pwd.startsWith(dir) && dir.length <= pwd.length) {
+        throw new Error("Output directory (" + dir + ") is a parent directory of PWD");
+      }
+      await qx.tool.utils.files.Utils.deleteRecursive(this.getOutputDir());
+    },
+
+    /**
+     * Apply for databaseName property
+     * @param value
+     * @param oldValue
+     * @private
+     */
+    __applyDbFilename(value, oldValue) {
+      if (this.__analyser) {
+        throw new Error("Cannot change the database filename once an Analyser has been created");
+      }
+    },
+
+    /**
+     * Gets the analyser, creating it if necessary
+     * @returns {Analyser}
+     */
+    getAnalyser() {
+      if (this.__analyser) {
+        return this.__analyser;
+      }
+      this.__analyser = this._createAnalyser();
+      this.__analyser.addListener("compiledClass", evt => {
+        let data = evt.getData();
+        this._compiledClasses[data.classFile.getClassName()] = true;
+      });
+      return this.__analyser;
+    },
+
+    /**
+     * Returns a list of classes which have been compiled in this session
+     *
+     * @param eraseAfter {Boolean?} if true, the list is reset after returning
+     * @return {Map} list of class names that have been compiled
+     */
+    getRecentlyCompiledClasses(eraseAfter) {
+      let classes = this._compiledClasses;
+      if (eraseAfter) {
+        this._compiledClasses = {};
+      }
+      return classes;
+    },
+
+    /**
+     * Creates the analyser
+     * @returns {Analyser}
+     * @protected
+     */
+    _createAnalyser() {
+      var analyser = (this.__analyser = new qx.tool.compiler.Analyser(
+        path.join(this.getOutputDir(), this.getDbFilename() || "db.json"),
+        this
+      ));
+
+      analyser.setOutputDir(this.getOutputDir());
+      return analyser;
+    },
+
+    /*
+     * @Override
+     */
+    getOutputDir() {
+      return this.getTarget().getOutputDir();
+    },
+
+    /**
+     * Apply for target property
+     * @param value
+     * @param oldValue
+     * @private
+     */
+    __applyTarget(value, oldValue) {
+      if (this.__analyser) {
+        this.__analyser.setOutputDir(value ? value.getOutputDir() : null);
+      }
+      if (value) {
+        value.set({
+          locales: this.getLocales(),
+          writeAllTranslations: this.getWriteAllTranslations()
+        });
+      }
+    },
+
+    /**
+     * Apply for writeAllTranslations
+     * @param value
+     * @param oldValue
+     * @private
+     */
+    __applyWriteAllTranslations(value, oldValue) {
+      if (this.getTarget()) {
+        this.getTarget().setWriteAllTranslations(value);
+      }
+    },
+
+    /**
+     * Apply for locales property
+     * @param value
+     * @param oldValue
+     * @private
+     */
+    _applyLocales(value, oldValue) {
+      if (this.getTarget()) {
+        this.getTarget().setLocales(value);
+      }
     }
   }
 });

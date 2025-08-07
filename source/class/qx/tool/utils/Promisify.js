@@ -27,8 +27,7 @@ const PromisePool = require("es6-promise-pool");
 qx.Class.define("qx.tool.utils.Promisify", {
   statics: {
     MAGIC_KEY: "__isPromisified__",
-    IGNORED_PROPS:
-      /^(?:promises|length|name|arguments|caller|callee|prototype|__isPromisified__)$/,
+    IGNORED_PROPS: /^(?:promises|length|name|arguments|caller|callee|prototype|__isPromisified__)$/,
 
     promisifyAll(target, fn) {
       Object.getOwnPropertyNames(target).forEach(key => {
@@ -83,7 +82,7 @@ qx.Class.define("qx.tool.utils.Promisify", {
         }
         let item = arr[index++];
         return fn(item);
-      }, 10);
+      }, size);
       await pool.start();
     },
 
@@ -164,9 +163,7 @@ qx.Class.define("qx.tool.utils.Promisify", {
 
     callback(promise, cb) {
       if (cb) {
-        promise = promise
-          .then((...args) => cb(null, ...args))
-          .catch(err => cb(err));
+        promise = promise.then((...args) => cb(null, ...args)).catch(err => cb(err));
       }
       return promise;
     },

@@ -108,98 +108,24 @@ qx.Class.define("qx.tool.utils.Utils", {
       } else if (hours || minutes) {
         result += "0" + seconds;
       }
-      result +=
-        "." + (millisec > 99 ? "" : millisec > 9 ? "0" : "00") + millisec + "s";
+      result += "." + (millisec > 99 ? "" : millisec > 9 ? "0" : "00") + millisec + "s";
       return result;
     },
 
     /**
-     * Creates a dir
-     * @param dir
-     * @param cb
-     */
-    mkpath(dir, cb) {
-      dir = path.normalize(dir);
-      var segs = dir.split(path.sep);
-      var made = "";
-      async.eachSeries(
-        segs,
-        function (seg, cb) {
-          if (made.length || !seg.length) {
-            made += "/";
-          }
-          made += seg;
-          fs.exists(made, function (exists) {
-            if (!exists) {
-              fs.mkdir(made, function (err) {
-                if (err && err.code === "EEXIST") {
-                  err = null;
-                }
-                cb(err);
-              });
-              return;
-            }
-            fs.stat(made, function (err, stat) {
-              if (err) {
-                cb(err);
-              } else if (stat.isDirectory()) {
-                cb(null);
-              } else {
-                cb(
-                  new Error(
-                    "Cannot create " +
-                      made +
-                      " (in " +
-                      dir +
-                      ") because it exists and is not a directory",
-                    "ENOENT"
-                  )
-                );
-              }
-            });
-          });
-        },
-        function (err) {
-          cb(err);
-        }
-      );
-    },
-
-    /**
      * Creates the parent directory of a filename, if it does not already exist
+     *
+     * @param {string} dir the directory to create the parent directory of
+     * @return {Promise?} a promise when complete, but only if no callback is given
      */
-    mkParentPath(dir, cb) {
+    async mkParentDir(dir) {
       var segs = dir.split(/[\\\/]/);
       segs.pop();
       if (!segs.length) {
-        return cb && cb();
+        return;
       }
       dir = segs.join(path.sep);
-      return this.mkpath(dir, cb);
-    },
-
-    /**
-     * Creates the parent directory of a filename, if it does not already exist
-     *
-     * @param {string} filename the filename to create the parent directory of
-     *
-     * @return {Promise?} the value
-     */
-    makeParentDir(filename) {
-      const mkParentPath = promisify(this.mkParentPath).bind(this);
-      return mkParentPath(filename);
-    },
-
-    /**
-     * Creates a directory, if it does not exist, including all intermediate paths
-     *
-     * @param {string} filename the directory to create
-     *
-     * @return {Promise?} the value
-     */
-    makeDirs(filename) {
-      const mkpath = promisify(this.mkpath);
-      return mkpath(filename);
+      await fs.promises.mkdir(dir, { recursive: true });
     },
 
     /**
@@ -345,9 +271,7 @@ qx.Class.define("qx.tool.utils.Utils", {
         });
         exe.on("close", code => {
           if (code !== 0) {
-            let message = `Error executing '${cmd} ${args.join(
-              " "
-            )}'. Use --verbose to see what went wrong.`;
+            let message = `Error executing '${cmd} ${args.join(" ")}'. Use --verbose to see what went wrong.`;
             reject(new qx.tool.utils.Utils.UserError(message));
           } else {
             resolve(0);
@@ -495,11 +419,9 @@ qx.Class.define("qx.tool.utils.Utils", {
     /**
      * Returns the absolute path to the template directory
      * @return {String}
-     */ 
+     */
     getTemplateDir() {
-      let dir = qx.util.ResourceManager.getInstance().toUri(
-        "qx/tool/compiler/cli/templates/template_vars.js"
-      );
+      let dir = qx.util.ResourceManager.getInstance().toUri("qx/tool/compiler/cli/templates/template_vars.js");
 
       dir = path.dirname(dir);
       return dir;

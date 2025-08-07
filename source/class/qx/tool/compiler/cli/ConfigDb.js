@@ -53,15 +53,14 @@ qx.Class.define("qx.tool.compiler.cli.ConfigDb", {
      * Loads the configuration
      */
     async load() {
-      this.__db =
-        (await qx.tool.utils.Json.loadJsonAsync(this.getPath())) || {};
+      this.__db = (await qx.tool.utils.Json.loadJsonAsync(this.getPath())) || {};
     },
 
     /**
      * Saves the configuration
      */
     async save() {
-      await qx.tool.utils.Utils.makeParentDir(this.getPath());
+      await qx.tool.utils.Utils.mkParentDir(this.getPath());
       await qx.tool.utils.Json.saveJsonAsync(this.getPath(), this.__db);
     },
 
@@ -134,9 +133,7 @@ qx.Class.define("qx.tool.compiler.cli.ConfigDb", {
       let db = qx.tool.compiler.cli.ConfigDb.__instance;
       if (!db) {
         db = qx.tool.compiler.cli.ConfigDb.__instance = new qx.tool.compiler.cli.ConfigDb();
-        db.setPath(
-          path.join(qx.tool.compiler.cli.ConfigDb.getDirectory(), "config.json")
-        );
+        db.setPath(path.join(qx.tool.compiler.cli.ConfigDb.getDirectory(), "config.json"));
 
         await db.load();
       }

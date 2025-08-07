@@ -182,9 +182,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.ApplicationMeta", {
     async syncAssets() {
       for (let i = 0; i < this.__packages.length; i++) {
         let pkg = this.__packages[i];
-        await qx.tool.utils.Promisify.poolEachOf(pkg.getAssets(), 10, asset =>
-          asset.sync(this.__target)
-        );
+        await qx.tool.utils.Promisify.poolEachOf(pkg.getAssets(), 10, asset => asset.sync(this.__target));
       }
     },
 
@@ -203,9 +201,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.ApplicationMeta", {
      * @return {qx.tool.compiler.app.Library}
      */
     getAppLibrary() {
-      let appLibrary = this.__application
-        .getAnalyser()
-        .getLibraryFromClassname(this.__application.getClassName());
+      let appLibrary = this.__application.getAnalyser().findLibraryForClassname(this.__application.getClassName());
       return appLibrary;
     },
 
@@ -272,11 +268,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.ApplicationMeta", {
      * @return {Part}
      */
     createPart(name) {
-      let part = new qx.tool.compiler.targets.meta.Part(
-        this.getTarget(),
-        name,
-        this.__parts.length
-      );
+      let part = new qx.tool.compiler.targets.meta.Part(this.getTarget(), name, this.__parts.length);
 
       this.__parts.push(part);
       this.__partsLookup[name] = part;
@@ -316,10 +308,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.ApplicationMeta", {
      * @return {Package}
      */
     createPackage() {
-      let pkg = new qx.tool.compiler.targets.meta.Package(
-        this,
-        this.__packages.length
-      );
+      let pkg = new qx.tool.compiler.targets.meta.Package(this, this.__packages.length);
 
       this.__packages.push(pkg);
       return pkg;

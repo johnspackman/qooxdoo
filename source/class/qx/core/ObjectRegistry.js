@@ -240,11 +240,7 @@ qx.Bootstrap.define("qx.core.ObjectRegistry", {
             }
           }
         } catch (ex) {
-          qx.Bootstrap.error(
-            this,
-            "Could not dispose object " + obj.toString() + ": " + ex,
-            ex
-          );
+          qx.Bootstrap.error(this, "Could not dispose object " + obj.toString() + ": " + ex, ex);
 
           if (i !== l) {
             i++;
