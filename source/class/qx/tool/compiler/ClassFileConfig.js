@@ -36,8 +36,8 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
     },
 
     manglePrivates: {
-      init: true,
-      check: "Boolean"
+      init: "readable",
+      check: ["off", "readable", "unreadable"]
     },
 
     symbols: {
@@ -51,7 +51,7 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
       let config = new qx.tool.compiler.ClassFileConfig();
       config.setBabelConfig(analyser.getBabelConfig());
       config.setApplicationTypes(analyser.getApplicationTypes());
-      config.setFontNames(analyser.getFontNames());
+      config.setFontNames(Object.keys(analyser.getFonts()));
       config.setEnvironment(analyser.getEnvironment());
       config.setAddCreatedAt(analyser.getAddCreatedAt());
       config.setVerboseCreatedAt(analyser.getVerboseCreatedAt());

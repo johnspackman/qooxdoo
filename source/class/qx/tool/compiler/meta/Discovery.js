@@ -32,14 +32,14 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      * @typedef ClassMeta
      * @property {String} classname - The name of the class
      * @property {String} packageName - The package name of the class
-     * @property {String[]} files - The list of files where the class is defined
+     * @property {String[]} filenames - The list of filenames where the class is defined
      * @property {Date} lastModified - The last modified timestamp of the class file
      *
      * @type {Object<String, ClassMeta>} list of ClassMeta objects, indexed by classname
      */
     __classes: null,
 
-    /** @type{String[]} */
+    /** @type{Array<String>} paths that need to be searched / watched */
     __paths: null,
 
     /**
@@ -113,10 +113,10 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
       // Scans a directory recursively to find all .js files
       const scanImpl = async (directoryName, rootDir) => {
         let packageName = path.relative(rootDir, directoryName);
-        for (let i = 0; i < packageName.length; i++) {
-          if (packageName[i] == path.sep) {
-            packageName[i] = ".";
-          }
+        packageName = packageName.split(path.sep);
+        packageName = packageName.join(".");
+        if (packageName == "qx.lang") {
+          debugger;
         }
 
         let filenames = await fs.promises.readdir(directoryName);
@@ -160,6 +160,16 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
     },
 
     /**
+     * Returns the ClassMeta object for the given classname
+     *
+     * @param {String} classname
+     * @returns {ClassMeta|null} the ClassMeta object for the given classname, or null if not found
+     */
+    getDiscoveredClass(classname) {
+      return this.__classes[classname] || null;
+    },
+
+    /**
      * Called when a file change is detected
      *
      * @param {"added"|"unlink"|"change"} event
@@ -168,9 +178,9 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      */
     __onFileChange(event, filename, rootDir) {
       let packageName = path.relative(rootDir, filename);
-      let arr = packageName.split(path.sep);
-      arr.pop();
-      packageName = arr.join(".");
+      packageName = packageName.split(path.sep);
+      packageName.pop();
+      packageName = packageName.join(".");
       let classname = path.basename(filename, ".js");
       if (packageName.length) {
         classname = packageName + "." + classname;
@@ -178,9 +188,8 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
 
       if (event == "unlink") {
         if (this.__classes[classname]) {
-          delete this.__classes[classname];
-          qx.tool.compiler.Console.log(`Removed class ${classname} from discovery.`);
           this.fireDataEvent("classRemoved", classname);
+          delete this.__classes[classname];
         }
       } else if (event == "add") {
         if (filename.endsWith(".js")) {
@@ -191,11 +200,9 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
             packageName: packageName,
             classname: classname
           };
-          qx.tool.compiler.Console.log(`Added class ${classname} to discovery.`);
           this.fireDataEvent("classAdded", classname);
         }
       } else if (event == "change") {
-        qx.tool.compiler.Console.log(`Detected change to class ${classname} in discovery.`);
         this.fireDataEvent("classChanged", classname);
       }
     }

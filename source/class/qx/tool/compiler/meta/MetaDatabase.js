@@ -62,11 +62,14 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     /** @type{Object<String, String>} map of symbol types, just a quick lookup */
     __symbolTypesLookup: null,
 
+    /** @type{Object<String, String>} map of symbol types, just a quick lookup */
+    __symbolTypesLookup: null,
+
     /**
      * Saves the database
      */
     async save() {
-      await qx.tool.utils.Utils.makeDirs(this.getRootDir());
+      await fs.promises.mkdir(this.getRootDir(), { recursive: true });
       this.__database.classnames = Object.keys(this.__metaByClassname);
       await qx.tool.utils.Json.saveJsonAsync(this.getRootDir() + "/db.json", this.__database);
     },
@@ -98,18 +101,16 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         }
         let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
         if (fs.existsSync(filename)) {
-          filesToLoad.push({ filename, classname });
+          await qx.tool.utils.Utils.makeParentDir(filename);
+          let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
+          await metaReader.loadMeta(filename);
+          this.__metaByClassname[classname] = metaReader;
+          let classFilename = metaReader.getMetaData().classFilename;
+          classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
+
+          this.__metaByFilename[classFilename] = metaReader;
         }
       }
-      await qx.tool.utils.Promisify.poolEachOf(filesToLoad, 100, async fileToLoad => {
-        let { filename, classname } = fileToLoad;
-        let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
-        await metaReader.loadMeta(filename);
-        this.__metaByClassname[classname] = metaReader;
-        let classFilename = metaReader.getMetaData().classFilename;
-        classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
-        this.__metaByFilename[classFilename] = metaReader;
-      });
     },
 
     /**
@@ -250,7 +251,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @returns {SymbolType}
      */
     getSymbolType(name) {
-      var symbolType = this.__knownSymbols[name];
+      var symbolType = this.__symbolTypesLookup[name];
 
       if (symbolType) {
         return {
@@ -284,7 +285,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
           return result;
         }
       }
-      for (let envCheck of this.getEnvironmentChecks()) {
+      for (let envCheck of Object.values(this.getEnvironmentChecks())) {
         let result = testEnvironment(envCheck);
         if (result) {
           return result;
@@ -292,9 +293,11 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       }
 
       let segs = name.split(".");
-      for (let i = segs.length - 2; i >= 0; i--) {
-        let tmpname = segs.slice(0, i).join(".");
-        if (this.__knownSymbols[tmpname] == "class") {
+      while (segs.length > 1) {
+        segs.pop();
+        let tmpname = segs.join(".");
+        symbolType = this.__symbolTypesLookup[tmpname];
+        if (symbolType == "class") {
           return {
             symbolType: "member",
             className: tmpname,
@@ -304,6 +307,10 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       }
 
       return null;
+    },
+
+    getKnownSymbols() {
+      return this.__symbolTypesLookup;
     },
 
     /**

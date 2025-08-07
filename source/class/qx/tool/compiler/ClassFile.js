@@ -552,7 +552,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       if (fontNames.length) {
         dbClassInfo.fonts = fontNames;
         for (let fontName in this.__requiredFonts) {
-          if (!this.__compileConfig.getFonts().includes(fontName)) {
+          if (!this.__compileConfig.getFontNames().includes(fontName)) {
             t.addMarker("fonts.unresolved#" + fontName, this.__requiredFonts[fontName].loc.start, fontName);
           }
         }

@@ -223,7 +223,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
     },
 
     async __copyFiles(srcDir, destDir, sourceMaps) {
-      await qx.tool.utils.Utils.makeDirs(destDir);
+      await fs.promises.mkdir(destDir, { recursive: true });
       let files = await fs.readdirAsync(srcDir);
       await qx.tool.utils.Promisify.eachOf(files, async file => {
         let from = path.join(srcDir, file);

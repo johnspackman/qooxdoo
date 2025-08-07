@@ -210,19 +210,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      *  application {qx.tool.compiler.app.Application} the app
      *  enviroment: {Object} enviroment data
      */
-    checkEnvironment: "qx.event.type.Data",
-
-    /**
-     * Fired when an application is about to be serialized to disk; the appMeta is fully
-     * populated, and this is an opportunity to amend the meta data before it is serialized
-     * into files on disk
-     */
-    writingApplication: "qx.event.type.Event",
-
-    /**
-     * Fired when an application has been serialized to disk
-     */
-    writtenApplication: "qx.event.type.Event"
+    checkEnvironment: "qx.event.type.Data"
   },
 
   members: {
@@ -373,7 +361,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       const requiredLibs = application.getRequiredLibraries();
 
-      await qx.tool.utils.Utils.makeDirs(appRootDir);
+      await fs.promises.mkdir(appRootDir, { recursive: true });
 
       appMeta.setEnvironment({
         "qx.application": application.getClassName(),
@@ -472,10 +460,8 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
           let transpiledClassFilename = path.join(this.getOutputDir(), "transpiled", classFilename);
 
-          let db = analyser.getDatabase();
-          let dbClassInfo = db.classInfo[classname];
-          let library = analyser.findLibrary(dbClassInfo.libraryName);
-          let sourcePath = library.getFilename(classFilename);
+          let dbClassInfo = analyser.getDbClassInfo(classname);
+          let sourcePath = path.resolve(dbClassInfo.filename);
           let jsMeta = new qx.tool.compiler.targets.meta.Javascript(appMeta, transpiledClassFilename, sourcePath);
 
           let packageName = matchBundle(classname) ? "__bundle" : partData.name;
@@ -839,7 +825,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       appMeta.getPackages().forEach(pkg => {
         pkg.getClassnames().forEach(classname => {
-          var dbClassInfo = db.classInfo[classname];
+          var dbClassInfo = analyser.getDbClassInfo(classname);
           if (!dbClassInfo.translations) {
             return;
           }
@@ -928,8 +914,6 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       await fs.writeFileAsync(appRootDir + "/compile-info.json", JSON.stringify(appSummary, null, 2) + "\n", {
         encoding: "utf8"
       });
-
-      await this.fireEventAsync("writtenApplication");
     },
 
     /**

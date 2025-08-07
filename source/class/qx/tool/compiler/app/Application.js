@@ -421,7 +421,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           }
           checked[classname] = true;
 
-          var info = db.classInfo[classname];
+          var info = analyser.getDbClassInfo(classname);
           if (info && info.dependsOn) {
             for (var depName in info.dependsOn) {
               var dd = info.dependsOn[depName];
@@ -450,7 +450,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           return;
         }
 
-        var info = db.classInfo[classname];
+        var info = analyser.getDbClassInfo(classname);
         if (!info) {
           return;
         }
@@ -595,7 +595,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
 
       var requiredLibs = {};
       this.__loadDeps.forEach(classname => {
-        let classInfo = db.classInfo[classname];
+        let classInfo = analyser.getDbClassInfo(classname);
         if (classInfo.assets) {
           classInfo.assets.forEach(asset => {
             var pos = asset.indexOf("/");
@@ -642,16 +642,13 @@ qx.Class.define("qx.tool.compiler.app.Application", {
      * @returns {String[]}
      */
     getUris() {
-      var uris = [];
-      var db = this.getAnalyser().getDatabase();
+      let uris = [];
+      let analyser = this.getAnalyser();
 
-      function add(classname) {
-        var def = db.classInfo[classname];
-        uris.push(
-          def.libraryName + ":" + classname.replace(/\./g, "/") + ".js"
-        );
+      for (let classname of this.__loadDeps) {
+        let dbClassInfo = analyser.getDbClassInfo(classname);
+        uris.push(dbClassInfo.libraryName + ":" + classname.replace(/\./g, "/") + ".js");
       }
-      this.__loadDeps.forEach(add);
 
       return uris;
     },
@@ -697,7 +694,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
       // Compile theme resource aliases
       var aliases = {};
       function getAliases(classname) {
-        var tmp = db.classInfo[classname];
+        var tmp = analyser.getDbClassInfo(classname);
         if (tmp) {
           if (tmp.aliases) {
             for (var alias in tmp.aliases) {
@@ -709,7 +706,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           }
         }
       }
-      var themeInfo = db.classInfo[this.getTheme()];
+      var themeInfo = analyser.getDbClassInfo(this.getTheme());
       if (themeInfo && themeInfo.themeMeta) {
         for (let name in themeInfo.themeMeta) {
           getAliases(themeInfo.themeMeta[name]);
@@ -723,7 +720,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
       var classNames = this.__loadDeps.slice();
       for (let i = 0; i < classNames.length; i++) {
         var classname = classNames[i];
-        var classInfo = db.classInfo[classname];
+        var classInfo = analyser.getDbClassInfo(classname);
         var tmp = classInfo.assets;
         if (tmp) {
           tmp.forEach(function (uri) {
@@ -842,13 +839,12 @@ qx.Class.define("qx.tool.compiler.app.Application", {
     getFonts() {
       var fonts = {};
       var analyser = this.getAnalyser();
-      var db = analyser.getDatabase();
-      this.__loadDeps.forEach(classname => {
-        var classInfo = db.classInfo[classname];
+      for (let classname of this.__loadDeps) {
+        var classInfo = analyser.getDbClassInfo(classname);
         if (classInfo.fonts) {
           classInfo.fonts.forEach(fontName => (fonts[fontName] = true));
         }
-      });
+      }
       return Object.keys(fonts);
     },
 
@@ -927,6 +923,8 @@ qx.Class.define("qx.tool.compiler.app.Application", {
     __expandClassnames(names) {
       var t = this;
       var result = {};
+      let metaDb = this.getAnalyser().getController().getMetaDb();
+      let knownSymbols = metaDb.getKnownSymbols();
       names.forEach(function (name) {
         var pos = name.indexOf("*");
         if (pos < 0) {
@@ -934,29 +932,19 @@ qx.Class.define("qx.tool.compiler.app.Application", {
         } else {
           var prefix = name.substring(0, pos);
           if (prefix) {
-            t.getAnalyser()
-              .getLibraries()
-              .forEach(function (lib) {
-                var symbols = lib.getKnownSymbols();
-                for (var symbol in symbols) {
-                  if (symbols[symbol] == "class" && symbol.startsWith(prefix)) {
-                    result[symbol] = true;
-                  }
-                }
-              });
+            for (var symbol in knownSymbols) {
+              if (knownSymbols[symbol] == "class" && symbol.startsWith(prefix)) {
+                result[symbol] = true;
+              }
+            }
           }
           var postfix = name.substring(pos + 1);
           if (postfix) {
-            t.getAnalyser()
-              .getLibraries()
-              .forEach(function (lib) {
-                var symbols = lib.getKnownSymbols();
-                for (var symbol in symbols) {
-                  if (symbols[symbol] == "class" && symbol.endsWith(postfix)) {
-                    result[symbol] = true;
-                  }
-                }
-              });
+            for (var symbol in knownSymbols) {
+              if (knownSymbols[symbol] == "class" && symbol.endsWith(postfix)) {
+                result[symbol] = true;
+              }
+            }
           }
         }
       });
