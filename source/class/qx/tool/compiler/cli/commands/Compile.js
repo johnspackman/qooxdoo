@@ -408,35 +408,39 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         qx.tool.compiler.resources.ScssConverter.COPY_ORIGINAL_FILES = true;
       }
 
-      await this._loadConfigAndStartMaking();
+      let controller = await this._loadConfigAndCreateController();
 
       if (!this.argv.watch) {
-        let success = this.__makers.every(maker => maker.getSuccess());
-        let hasWarnings = this.__makers.every(maker => maker.getHasWarnings());
-        if (success && hasWarnings && this.argv.warnAsError) {
-          success = false;
-        }
-        if (
-          !this.argv.deploying &&
-          !this.argv["machine-readable"] &&
-          this.argv["feedback"] &&
-          this.__outputDirWasCreated &&
-          this.argv.target === "build"
-        ) {
-          qx.tool.compiler.Console.warn(
-            "   *******************************************************************************************\n" +
-              "   **                                                                                       **\n" +
-              "   **  Your compilation will include temporary files that are only necessary during         **\n" +
-              "   **  development; these files speed up the compilation, but take up space that you would  **\n" +
-              "   **  probably not want to put on a production server.                                     **\n" +
-              "   **                                                                                       **\n" +
-              "   **  When you are ready to deploy, try running `qx deploy` to get a minimised version     **\n" +
-              "   **                                                                                       **\n" +
-              "   *******************************************************************************************"
-          );
-        }
-        process.exitCode = success ? 0 : 1;
+        controller.addListenerOnce("allMakersMade", () => {
+          let success = this.__makers.every(maker => maker.getSuccess());
+          let hasWarnings = this.__makers.every(maker => maker.getHasWarnings());
+          if (success && hasWarnings && this.argv.warnAsError) {
+            success = false;
+          }
+          if (
+            !this.argv.deploying &&
+            !this.argv["machine-readable"] &&
+            this.argv["feedback"] &&
+            this.__outputDirWasCreated &&
+            this.argv.target === "build"
+          ) {
+            qx.tool.compiler.Console.warn(
+              "   *******************************************************************************************\n" +
+                "   **                                                                                       **\n" +
+                "   **  Your compilation will include temporary files that are only necessary during         **\n" +
+                "   **  development; these files speed up the compilation, but take up space that you would  **\n" +
+                "   **  probably not want to put on a production server.                                     **\n" +
+                "   **                                                                                       **\n" +
+                "   **  When you are ready to deploy, try running `qx deploy` to get a minimised version     **\n" +
+                "   **                                                                                       **\n" +
+                "   *******************************************************************************************"
+            );
+          }
+          process.exitCode = success ? 0 : 1;
+          process.exit();
+        });
       }
+      await controller.start();
     },
 
     /**
@@ -444,7 +448,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
      *
      * @return {Boolean} true if all makers succeeded
      */
-    async _loadConfigAndStartMaking() {
+    async _loadConfigAndCreateController() {
       var config = this.getCompilerApi().getConfiguration();
       var makers = (this.__makers = await this.createMakersFromConfig(config));
       if (!makers || !makers.length) {
@@ -482,7 +486,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
 
         controller.addMaker(maker);
       }
-      await controller.start();
+      return controller;
     },
 
     /**

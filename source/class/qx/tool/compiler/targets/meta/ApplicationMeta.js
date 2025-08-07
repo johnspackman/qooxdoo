@@ -201,7 +201,10 @@ qx.Class.define("qx.tool.compiler.targets.meta.ApplicationMeta", {
      * @return {qx.tool.compiler.app.Library}
      */
     getAppLibrary() {
-      let appLibrary = this.__application.getAnalyser().findLibraryForClassname(this.__application.getClassName());
+      let appLibrary = this.__application
+        .getAnalyser()
+        .getController()
+        .findLibraryForClassname(this.__application.getClassName());
       return appLibrary;
     },
 

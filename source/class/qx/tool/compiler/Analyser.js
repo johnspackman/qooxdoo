@@ -508,26 +508,6 @@ qx.Class.define("qx.tool.compiler.Analyser", {
     },
 
     /**
-     * Find a library for a given classname
-     *
-     * @param {String} classname
-     * @returns {qx.tool.compiler.app.Library?} the library for the given classname, or null if not found
-     */
-    findLibraryForClassname(classname) {
-      let metaDb = this.getController().getMetaDb();
-      let classmeta = metaDb.getMetaData(classname);
-      let filename = classmeta.classFilename;
-      filename = path.resolve(path.join(metaDb.getRootDir(), filename));
-      for (let library of this.__libraries) {
-        let libRootDir = path.resolve(library.getRootDir());
-        if (filename.startsWith(libRootDir)) {
-          return library;
-        }
-      }
-      return null;
-    },
-
-    /**
      * Updates all translations to include all msgids found in code
      * @param appLibrary {qx.tool.compiler.app.Library} the library to update
      * @param locales {String[]} locales

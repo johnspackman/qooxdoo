@@ -22,7 +22,13 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
     classRemoved: "qx.event.type.Data",
 
     /** Fired when a class file changes, data is {ClassMeta} */
-    classChanged: "qx.event.type.Data"
+    classChanged: "qx.event.type.Data",
+
+    /** Fired when the discovery process is starting */
+    starting: "qx.event.type.Event",
+
+    /** Fired when the discover process has completed it initial scan and is watching for changes */
+    started: "qx.event.type.Event"
   },
 
   members: {
@@ -70,6 +76,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
       if (this.__started) {
         throw new Error("Discovery has already been started.");
       }
+      this.fireEvent("starting");
       this.__started = true;
       this.__watchedPaths = {};
       for (let filename of this.__paths) {
@@ -148,6 +155,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
       for (let watchedPath of Object.values(this.__watchedPaths)) {
         await scanImpl(watchedPath.path, watchedPath.path);
       }
+      this.fireEvent("started");
     },
 
     /**
