@@ -39,6 +39,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     this.__dirtyClasses = {};
     this.__database = {};
     this.__symbolTypesLookup = {};
+    this.__startupDetectedOutOfDate = {};
   },
 
   properties: {
@@ -47,6 +48,14 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       init: "compiled/meta",
       check: "String"
     }
+  },
+
+  events: {
+    /** Fired when the meta database is loading up */
+    starting: "qx.event.type.Event",
+
+    /** Fired when the database has loaded and is ready for use */
+    started: "qx.event.type.Event"
   },
 
   members: {
@@ -65,6 +74,8 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     /** @type{Object<String, String>} map of symbol types, just a quick lookup */
     __symbolTypesLookup: null,
 
+    __startupDetectedOutOfDate: null,
+
     /**
      * Saves the database
      */
@@ -82,35 +93,63 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * Loads the database and all of the meta data
      */
     async load() {
+      /*
+       * Performance testing and various trials of how to speed up the loading of the meta database indicate
+       * that the greatest cost is multiple file i/o to load all of the meta datas for each class.  We are
+       * loading them all here so that we can access them later without having to await for each one to load;
+       * this is crucial because babel is synchronous only, and we must have the data available.
+       *
+       * My guess is that lots of small file i/o operations are expensive, and that this method is expensive
+       * because of the latency of the file i/o operations, not the actual parsing of the files.
+       *
+       * I've tried various ways to speed this up, but it seems to come down to i/o each time.
+       *
+       * Keeping each class' meta data in individual files is really useful while developing the compiler, so
+       * performance boost here is probably by creating a pluggable file i/o system so that we can configure at
+       * rumtime whether to use a single huge file or multiple small files.
+       *
+       * Incidentally, that kind of virtual file system mechanism could be really useful if, for example, it
+       * was designed so that we could have implementations for (a) pass through to the real file system, and
+       * (b) go via a server / API so that browser code can be given file system access, and (c) a browser
+       * can have a virtual disk stored in browser local storage, and (d) implementation backed by github / gists
+       * etc.
+       */
+      this.fireEvent("starting");
       let filename = this.getRootDir() + "/db.json";
-      if (!fs.existsSync(filename)) {
-        return;
-      }
-      this.__metaByClassname = {};
-      this.__dirtyClasses = {};
-      let data = await qx.tool.utils.Json.loadJsonAsync(filename);
-      this.__database = data;
+      if (fs.existsSync(filename)) {
+        this.__metaByClassname = {};
+        this.__dirtyClasses = {};
+        let data = await qx.tool.utils.Json.loadJsonAsync(filename);
+        this.__database = data;
 
-      let filesToLoad = [];
-      for (let classname of data.classnames) {
-        let segs = classname.split(".");
-        this.__symbolTypesLookup[classname] = "class";
-        for (let i = 0; i < segs.length - 1; i++) {
-          let seg = segs.slice(0, i + 1).join(".");
-          this.__symbolTypesLookup[seg] = "package";
-        }
-        let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
-        if (fs.existsSync(filename)) {
-          await qx.tool.utils.Utils.makeParentDir(filename);
-          let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
-          await metaReader.loadMeta(filename);
-          this.__metaByClassname[classname] = metaReader;
-          let classFilename = metaReader.getMetaData().classFilename;
-          classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
+        let classnamesToLoad = data.classnames || [];
+        await qx.tool.utils.Promisify.poolEachOf(classnamesToLoad, 20, async classname => {
+          let segs = classname.split(".");
+          this.__symbolTypesLookup[classname] = "class";
+          for (let i = 0; i < segs.length - 1; i++) {
+            let seg = segs.slice(0, i + 1).join(".");
+            this.__symbolTypesLookup[seg] = "package";
+          }
+          let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
+          if (fs.existsSync(filename)) {
+            await qx.tool.utils.Utils.mkParentDir(filename);
+            let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
+            await metaReader.loadMeta(filename);
+            if (await metaReader.isOutOfDate()) {
+              this.__startupDetectedOutOfDate[filename] = true;
+            }
+            this.__metaByClassname[classname] = metaReader;
+            let classFilename = metaReader.getMetaData().classFilename;
+            classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
 
-          this.__metaByFilename[classFilename] = metaReader;
+            this.__metaByFilename[classFilename] = metaReader;
+          }
+        });
+
+        for (let classname of data.classnames) {
         }
       }
+      this.fireEvent("started");
     },
 
     /**
@@ -158,6 +197,22 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       }
 
       return type;
+    },
+
+    /**
+     * Quickly adds a file to the database, without parsing it unless necessary.  This is used only to speed up
+     * startup and relies on tests during `load()` which are presumed to not be out of date.
+     *
+     * Unless you are sure that this method is appropriate, you should use `addFile()` instead.
+     *
+     * @param {String} filename
+     */
+    async fastAddFile(filename) {
+      filename = path.resolve(filename);
+      if (!this.__metaByFilename[filename] || this.__startupDetectedOutOfDate[filename]) {
+        delete this.__startupDetectedOutOfDate[filename];
+        await this.addFile(filename, true);
+      }
     },
 
     /**

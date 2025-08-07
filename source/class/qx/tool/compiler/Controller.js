@@ -66,12 +66,22 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * Fired after writing of all meta data; data is an object containing:
      *   maker {qx.tool.compiler.Maker}
      */
-    writtenMetaData: "qx.event.type.Data"
+    writtenMetaData: "qx.event.type.Data",
+
+    /** Fired when everything has been built and the controller is now idle */
+    allMakersMade: "qx.event.type.Event",
+
+    /** Fired when starting */
+    starting: "qx.event.type.Event",
+
+    /** Fired when startup is complete, initial compile has finished, and watching for changes */
+    started: "qx.event.type.Event"
   },
 
   properties: {
     metaDir: {
-      check: "String"
+      check: "String",
+      apply: "_applyMetaDir"
     }
   },
 
@@ -96,6 +106,19 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
     /** @type{String,Promise} list of makers currently making, indexed by hash code */
     __makingMakers: null,
+
+    /**
+     * Apply for `metaDir`
+     */
+    _applyMetaDir(value, old) {
+      if (value) {
+        this.__metaDb = new qx.tool.compiler.meta.MetaDatabase().set({
+          rootDir: value
+        });
+      } else {
+        this.__metaDb = null;
+      }
+    },
 
     /**
      * Adds a maker to the discovery process, which will then
@@ -140,14 +163,16 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * as files are added/edited/removed.
      */
     async start() {
-      let metaDb = new qx.tool.compiler.meta.MetaDatabase().set({
-        rootDir: this.getMetaDir()
-      });
+      let metaDb = this.__metaDb;
+
+      this.fireEvent("starting");
       await metaDb.load();
-      this.__metaDb = metaDb;
+      this.fireEvent("metaDbLoaded");
       await this.__discovery.start();
+      this.fireEvent("discoveryStarted");
 
       // Store the libraries in the meta database
+      this.fireEvent("metaDbConfiguring");
       metaDb.getDatabase().libraries = {};
       let environmentChecks = {};
       for (let lib of Object.values(this.__libraries)) {
@@ -161,12 +186,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
         }
       }
       metaDb.getDatabase().environmentChecks = environmentChecks;
+      this.fireEvent("metaDbConfigured");
 
       // Scan the discovered classes and add them to the meta database
       let discoveredClasses = qx.lang.Array.clone(this.__discovery.getDiscoveredClasses());
       await qx.tool.utils.Promisify.poolEachOf(discoveredClasses, 20, async classmeta => {
-        await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], false);
+        await metaDb.fastAddFile(classmeta.filenames[classmeta.filenames.length - 1], false);
       });
+      this.fireEvent("addedDiscoveredClasses");
 
       this.__discovery.addListener("classAdded", async evt => {
         let classname = evt.getData();
@@ -204,7 +231,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       for (let maker of makers) {
         await this.__makeMaker(maker);
       }
-      await this.fireDataEventAsync("writtenMetaData", metaDb);
+      this.fireEvent("started");
     },
 
     /**
@@ -277,6 +304,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
         .then(() => {
           if (promise === this.__makingMakers[hashKey]) {
             delete this.__makingMakers[hashKey];
+            if (
+              Object.keys(this.__makingMakers).length === 0 &&
+              Object.keys(this.__dirtyMakers).length === 0 &&
+              Object.keys(this.__compilingClasses).length === 0
+            ) {
+              this.fireEvent("allMakersMade");
+            }
             return true;
           } else {
             delete this.__makingMakers[hashKey];
@@ -286,6 +320,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         .catch(err => {
           delete this.__makingMakers[hashKey];
           console.error("Error making maker " + maker.toHashCode() + ": " + err.stack);
+          process.exit(1);
           throw err;
         });
 
@@ -333,6 +368,26 @@ qx.Class.define("qx.tool.compiler.Controller", {
     },
 
     /**
+     * Find a library for a given classname
+     *
+     * @param {String} classname
+     * @returns {qx.tool.compiler.app.Library?} the library for the given classname, or null if not found
+     */
+    findLibraryForClassname(classname) {
+      let metaDb = this.getMetaDb();
+      let classmeta = metaDb.getMetaData(classname);
+      let filename = classmeta.classFilename;
+      filename = path.resolve(path.join(metaDb.getRootDir(), filename));
+      for (let library of Object.values(this.__libraries)) {
+        let libRootDir = path.resolve(library.getRootDir());
+        if (filename.startsWith(libRootDir)) {
+          return library;
+        }
+      }
+      return null;
+    },
+
+    /**
      * Implements the actual compilation of a class.
      *
      * @param {qx.tool.compiler.Analyser} analyser
@@ -376,9 +431,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
       this.fireDataEvent("compilingClass", { classname, analyser });
 
       let src = await fs.promises.readFile(sourceClassFilename, "utf8");
+      let library = this.findLibraryForClassname(classname);
       dbClassInfo = {
         mtime: sourceStat.mtime,
-        //libraryName: library.getNamespace(),
+        libraryName: library.getNamespace(),
         filename: sourceClassFilename
       };
 
