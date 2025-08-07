@@ -125,8 +125,7 @@
   "devDependencies": {
     "dirsum": "^0.1.1",
     "source-map-support": "^0.5.21",
-    "tape": "^5.7.1",
-    "why-is-node-running": "^3.2.2"
+    "tape": "^5.7.1"
   },
   "engine": "node >= 12"
 }
