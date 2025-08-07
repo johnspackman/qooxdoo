@@ -41,13 +41,13 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
       if (this.__commonjsModules === null) {
         let commonjsModules = new Set();
         let references = {};
-        const db = this.getAppMeta().getAnalyser().getDatabase();
-        const localModules =
-          this.getAppMeta().getApplication().getLocalModules() || {};
+        let analyser = this.getAppMeta().getAnalyser();
+        let localModules = this.getAppMeta().getApplication().getLocalModules() || {};
+
         // Get a Set of unique `require`d CommonJS module names from
         // all classes
-        for (let className in db.classInfo) {
-          let classInfo = db.classInfo[className];
+        for (let className of analyser.getCompiledClassnames()) {
+          let classInfo = analyser.getDbClassInfo(className);
           if (classInfo.commonjsModules) {
             Object.keys(classInfo.commonjsModules).forEach(moduleName => {
               // Ignore this found `require()` if its a local modules

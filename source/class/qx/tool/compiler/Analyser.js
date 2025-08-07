@@ -56,10 +56,11 @@ qx.Class.define("qx.tool.compiler.Analyser", {
    * @param dbFilename
    *          {String} the name of the database, defaults to "db.json"
    */
-  construct(dbFilename) {
+  construct(dbFilename, maker) {
     super();
 
     this.__dbFilename = dbFilename || "db.json";
+    this.__maker = maker;
     this.__libraries = [];
     this.__librariesByNamespace = {};
     this.__initialClassesToScan = new qx.tool.utils.IndexedArray();
@@ -68,6 +69,7 @@ qx.Class.define("qx.tool.compiler.Analyser", {
     this.__classFiles = {};
     this.__environmentChecks = {};
     this.__fonts = {};
+    this.__cachedClassInfo = {};
   },
 
   properties: {
@@ -168,15 +170,6 @@ qx.Class.define("qx.tool.compiler.Analyser", {
 
   events: {
     /**
-     * Fired when a class is about to be compiled; data is a map:
-     *
-     * dbClassInfo: {Object} the newly populated class info
-     * oldDbClassInfo: {Object} the previous populated class info
-     * classFile - {ClassFile} the qx.tool.compiler.ClassFile instance
-     */
-    compilingClass: "qx.event.type.Data",
-
-    /**
      * Fired when a class is compiled; data is a map:
      * dbClassInfo: {Object} the newly populated class info
      * oldDbClassInfo: {Object} the previous populated class info
@@ -199,10 +192,15 @@ qx.Class.define("qx.tool.compiler.Analyser", {
   },
 
   members: {
+    /** @type{qx.tool.compiler.Maker} */
+    __maker: null,
+
     __opened: false,
     __resManager: null,
     __dbFilename: null,
     __db: null,
+
+    __cachedClassInfo: null,
 
     /** {Library[]} All libraries */
     __libraries: null,
@@ -249,6 +247,10 @@ qx.Class.define("qx.tool.compiler.Analyser", {
 
     setController(controller) {
       this.__controller = controller;
+    },
+
+    getController() {
+      return this.__controller;
     },
 
     /**
@@ -332,6 +334,25 @@ qx.Class.define("qx.tool.compiler.Analyser", {
     },
 
     /**
+     * Returns the DbClassInfo for a given classname, this is only valid after `analyseClasses()` has been called
+     *
+     * @param {String} classname
+     * @returns {*} the DbClassInfo for the given classname, or null if not found
+     */
+    getDbClassInfo(classname) {
+      return this.__cachedClassInfo[classname] || null;
+    },
+
+    /**
+     * The list of all classnames compiled by `analyseClasses()`
+     *
+     * @returns {String[]} a list of all classnames
+     */
+    getCompiledClassnames() {
+      return Object.keys(this.__cachedClassInfo);
+    },
+
+    /**
      * Parses all the source files recursively until all classes and all
      * dependent classes are loaded
      */
@@ -341,18 +362,55 @@ qx.Class.define("qx.tool.compiler.Analyser", {
         this.__db = {};
       }
 
-      // Note that it is important to pre-load the classes in all libraries - this is because
-      //  Babel plugins MUST be synchronous (ie cannot afford an async lookup of files on disk
-      //  in mid parse)
-      await qx.tool.utils.Promisify.map(this.__libraries, async library =>
-        qx.tool.utils.Promisify.call(cb => library.scanForClasses(cb))
-      );
+      // Cache of compiled classes info
+      this.__cachedClassInfo = {};
 
-      var classes = (t.__classes = t.__initialClassesToScan.toArray());
+      // Compiles a class and caches it
+      const compileClass = async classname => {
+        let value = this.__cachedClassInfo[classname];
+        if (value === undefined) {
+          try {
+            value = await this.__controller.compileClass(this, classname);
+          } catch (err) {
+            if (err.code === "ENOCLASSFILE") {
+              qx.tool.compiler.Console.error(err.message);
+            } else {
+              throw err;
+            }
+            value = null;
+          }
+          this.__cachedClassInfo[classname] = value;
+        }
+        return value;
+      };
 
-      const getConstructDependencies = async className => {
+      // Compiles all classes in the list
+      const compileMultipleClasses = async classnames => {
+        let promises = classnames.map(classname => compileClass(classname));
+        return await Promise.all(promises);
+      };
+
+      // List of classes to compile; this will extend as we analyse
+      this.__classes = this.__initialClassesToScan.toArray();
+
+      // Quick lookup of the class names to compile
+      let classesLookup = {};
+      for (let classname of this.__classes) {
+        classesLookup[classname] = true;
+      }
+
+      // Used to add a classname to the list of classes to compile
+      const pushClassname = classname => {
+        if (!classesLookup[classname]) {
+          this.__classes.push(classname);
+          classesLookup[classname] = true;
+        }
+      };
+
+      // Checks the constructor dependencies of a class
+      const getConstructDependencies = async classname => {
         var deps = [];
-        var info = await this.__controller.compileClass(this, className);
+        var info = await compileClass(classname);
         if (info.dependsOn) {
           for (var depName in info.dependsOn) {
             if (info.dependsOn[depName].construct) {
@@ -363,73 +421,49 @@ qx.Class.define("qx.tool.compiler.Analyser", {
         return deps;
       };
 
-      const getIndirectLoadDependencies = async className => {
+      // Gets the indirect load dependencies of a class
+      const getIndirectLoadDependencies = async classname => {
         var deps = [];
-        var info = await t.__controller.compileClass(t, className);
+        var info = await compileClass(classname);
         if (info && info.dependsOn) {
           for (var depName in info.dependsOn) {
             if (info.dependsOn[depName].load) {
               let constructDeps = await getConstructDependencies(depName);
-              constructDeps.forEach(function (className) {
-                deps.push(className);
-              });
+              for (let constructDep of constructDeps) {
+                deps.push(constructDep);
+              }
             }
           }
         }
         return deps;
       };
 
-      for (var classIndex = 0; classIndex < classes.length; classIndex++) {
-        try {
-          let dbClassInfo = await this.controller.compileClass(this, classes[classIndex]);
+      // Compile all classes; the `__classes` array will be extended as we go
+      for (var classIndex = 0; classIndex < this.__classes.length; classIndex++) {
+        let dbClassInfo = await compileClass(this.__classes[classIndex]);
 
-          if (dbClassInfo) {
-            var deps = dbClassInfo.dependsOn;
-            for (var depName in deps) {
-              t._addRequiredClass(depName);
-            }
-          }
-        } catch (err) {
-          if (err.code === "ENOCLASSFILE") {
-            qx.tool.compiler.Console.error(err.message);
-          } else {
-            throw err;
+        if (dbClassInfo?.dependsOn) {
+          await compileMultipleClasses(Object.keys(dbClassInfo.dependsOn));
+          for (var depName in dbClassInfo.dependsOn) {
+            pushClassname(depName);
           }
         }
       }
 
-      for (let className of classes) {
-        let info = await this.controller.compileClass(this, className);
-        var deps = await getIndirectLoadDependencies(className);
-        deps.forEach(function (depName) {
-          if (!info.dependsOn) {
-            info.dependsOn = {};
+      for (let classname of this.__classes) {
+        let dbClassInfo = await compileClass(classname);
+        let dependsOnClassnames = await getIndirectLoadDependencies(classname);
+        await compileMultipleClasses(dependsOnClassnames);
+
+        for (let dependsOnClassname of dependsOnClassnames) {
+          if (!dbClassInfo.dependsOn) {
+            dbClassInfo.dependsOn = {};
           }
-          if (!info.dependsOn[depName]) {
-            info.dependsOn[depName] = {};
+          if (!dbClassInfo.dependsOn[dependsOnClassname]) {
+            dbClassInfo.dependsOn[dependsOnClassname] = {};
           }
-          info.dependsOn[depName].load = true;
-        });
-      }
-    },
-
-    /**
-     * Called when a reference to a class is made
-     * @param className
-     * @private
-     */
-    _addRequiredClass(className) {
-      let t = this;
-
-      // __classes will be null if analyseClasses has not formally been called; this would be if the
-      //  analyser is only called externally for getClass()
-      if (!t.__classes) {
-        t.__classes = [];
-      }
-
-      // Add it
-      if (t.__classes.indexOf(className) == -1) {
-        t.__classes.push(className);
+          dbClassInfo.dependsOn[dependsOnClassname].load = true;
+        }
       }
     },
 
@@ -474,6 +508,26 @@ qx.Class.define("qx.tool.compiler.Analyser", {
     },
 
     /**
+     * Find a library for a given classname
+     *
+     * @param {String} classname
+     * @returns {qx.tool.compiler.app.Library?} the library for the given classname, or null if not found
+     */
+    findLibraryForClassname(classname) {
+      let metaDb = this.getController().getMetaDb();
+      let classmeta = metaDb.getMetaData(classname);
+      let filename = classmeta.classFilename;
+      filename = path.resolve(path.join(metaDb.getRootDir(), filename));
+      for (let library of this.__libraries) {
+        let libRootDir = path.resolve(library.getRootDir());
+        if (filename.startsWith(libRootDir)) {
+          return library;
+        }
+      }
+      return null;
+    },
+
+    /**
      * Updates all translations to include all msgids found in code
      * @param appLibrary {qx.tool.compiler.app.Library} the library to update
      * @param locales {String[]} locales
@@ -508,80 +562,83 @@ qx.Class.define("qx.tool.compiler.Analyser", {
             unusedEntries[msgid] = true;
           }
 
-          await qx.Promise.all(
-            this.__classes.map(async classname => {
-              let isAppClass = appLibrary.isClass(classname);
-              let classLibrary = (!isAppClass && libraries.find(lib => lib.isClass(classname))) || null;
-              if (!isAppClass && !classLibrary) {
-                return;
+          let metaDb = this.getController().getMetaDb();
+
+          for (let classname of this.__classes) {
+            let isAppClass = metaDb.getSymbolType(classname) === "class";
+            let classLibrary = (!isAppClass && libraries.find(lib => lib.isClass(classname))) || null;
+            if (!isAppClass && !classLibrary) {
+              return;
+            }
+
+            let dbClassInfo = this.__cachedClassInfo[classname];
+            if (!dbClassInfo) {
+              throw new Error(`Class ${classname} not found in cache by Analyser.updateTranslations`);
+            }
+
+            if (!dbClassInfo.translations) {
+              return;
+            }
+
+            function isEmpty(entry) {
+              if (!entry) {
+                return true;
               }
-
-              let dbClassInfo = await this.controller.compileClass(this, classname);
-
-              if (!dbClassInfo.translations) {
-                return;
+              if (qx.lang.Type.isArray(entry.msgstr)) {
+                return entry.msgstr.every(value => !value);
               }
+              return !entry.msgstr;
+            }
 
-              function isEmpty(entry) {
-                if (!entry) {
-                  return true;
-                }
-                if (qx.lang.Type.isArray(entry.msgstr)) {
-                  return entry.msgstr.every(value => !value);
-                }
-                return !entry.msgstr;
-              }
+            dbClassInfo.translations.forEach(function (src) {
+              delete unusedEntries[src.msgid];
 
-              dbClassInfo.translations.forEach(function (src) {
-                delete unusedEntries[src.msgid];
-
-                if (classLibrary) {
-                  let entry = translation.getEntry(src.msgid);
-                  if (!isEmpty(entry)) {
-                    return;
-                  }
-                  let libTranslation = libTranslations[classLibrary.toHashCode()];
-                  let libEntry = libTranslation.getEntry(src.msgid);
-                  if (isEmpty(libEntry) || copyAllMsgs) {
-                    if (!entry) {
-                      entry = translation.getOrCreateEntry(src.msgid);
-                    }
-                    if (libEntry !== null) {
-                      Object.assign(entry, libEntry);
-                    }
-                  }
+              if (classLibrary) {
+                let entry = translation.getEntry(src.msgid);
+                if (!isEmpty(entry)) {
                   return;
                 }
-
-                let entry = translation.getOrCreateEntry(src.msgid);
-                if (src.msgid_plural) {
-                  entry.msgid_plural = src.msgid_plural;
-                }
-                if (!entry.comments) {
-                  entry.comments = {};
-                }
-                entry.comments.extracted = src.comment;
-                entry.comments.reference = {};
-                let ref = entry.comments.reference;
-                const fileName = classname.replace(/\./g, "/") + ".js";
-                const fnAddReference = lineNo => {
-                  let arr = ref[fileName];
-                  if (!arr) {
-                    arr = ref[fileName] = [];
+                let libTranslation = libTranslations[classLibrary.toHashCode()];
+                let libEntry = libTranslation.getEntry(src.msgid);
+                if (isEmpty(libEntry) || copyAllMsgs) {
+                  if (!entry) {
+                    entry = translation.getOrCreateEntry(src.msgid);
                   }
-
-                  if (!arr.includes(src.lineNo)) {
-                    arr.push(lineNo);
+                  if (libEntry !== null) {
+                    Object.assign(entry, libEntry);
                   }
-                };
-                if (qx.lang.Type.isArray(src.lineNo)) {
-                  src.lineNo.forEach(fnAddReference);
-                } else {
-                  fnAddReference(src.lineNo);
                 }
-              });
-            })
-          );
+                return;
+              }
+
+              let entry = translation.getOrCreateEntry(src.msgid);
+              if (src.msgid_plural) {
+                entry.msgid_plural = src.msgid_plural;
+              }
+              if (!entry.comments) {
+                entry.comments = {};
+              }
+              entry.comments.extracted = src.comment;
+              entry.comments.reference = {};
+              let ref = entry.comments.reference;
+              const fileName = classname.replace(/\./g, "/") + ".js";
+              const fnAddReference = lineNo => {
+                let arr = ref[fileName];
+                if (!arr) {
+                  arr = ref[fileName] = [];
+                }
+
+                if (!arr.includes(src.lineNo)) {
+                  arr.push(lineNo);
+                }
+              };
+              if (qx.lang.Type.isArray(src.lineNo)) {
+                src.lineNo.forEach(fnAddReference);
+              } else {
+                fnAddReference(src.lineNo);
+              }
+            });
+          }
 
           Object.keys(unusedEntries).forEach(msgid => {
             var entry = translation.getEntry(msgid);
@@ -709,29 +766,6 @@ qx.Class.define("qx.tool.compiler.Analyser", {
      */
     removeClass(classname) {
       this.__initialClassesToScan.remove(classname);
-    },
-
-    /**
-     * Returns the library for a given classname, supports private files
-     * @param className
-     * @returns {*}
-     */
-    getLibraryFromClassname(className) {
-      var t = this;
-      var info = this.__classFiles[className];
-      if (info) {
-        return info.library;
-      }
-
-      for (var j = 0; j < t.__libraries.length; j++) {
-        var library = t.__libraries[j];
-        info = library.getSymbolType(className);
-        if (info && (info.symbolType == "class" || info.symbolType == "member")) {
-          return library;
-        }
-      }
-
-      return null;
     },
 
     /**
@@ -890,6 +924,10 @@ qx.Class.define("qx.tool.compiler.Analyser", {
       db.libraries = libraries;
       db.environmentHash = this.__environmentHash;
       db.compilerVersion = qx.tool.config.Utils.getCompilerVersion();
+    },
+
+    getMaker() {
+      return this.__maker;
     }
   }
 });

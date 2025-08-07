@@ -233,7 +233,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       await analyser.open();
       analyser.setEnvironment(compileEnv);
       if (!this.isNoErase() && analyser.isContextChanged()) {
-        console.log("enviroment changed - delete output dir");
+        this.error("enviroment changed - delete output dir");
         await this.eraseOutputDir();
         await qx.tool.utils.Utils.makeParentDir(this.getOutputDir());
         await analyser.resetDatabase();
@@ -311,16 +311,17 @@ qx.Class.define("qx.tool.compiler.Maker", {
         }
         if (!hasWarnings) {
           application.getDependencies().forEach(classname => {
-            if (!db.classInfo[classname] || !db.classInfo[classname].markers) {
+            let dbClassInfo = analyser.getDbClassInfo(classname);
+            if (!dbClassInfo?.markers) {
               return;
             }
-            db.classInfo[classname].markers.forEach(marker => {
+            for (let marker of dbClassInfo.markers) {
               let type = qx.tool.compiler.Console.getInstance().getMessageType(marker.msgId);
-
               if (type == "warning") {
                 hasWarnings = true;
+                break;
               }
-            });
+            }
           });
         }
 
@@ -337,6 +338,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       }
 
       this.updateProgress("maker.writtenApps");
+      await this.fireEventAsync("writtenApplications");
 
       await analyser.saveDatabase();
       await this.fireEventAsync("made");
@@ -387,11 +389,15 @@ qx.Class.define("qx.tool.compiler.Maker", {
         return this._analyser;
       }
       this._analyser = this._createAnalyser();
+      this._analyser.addListener("compiledClass", evt => {
+        let data = evt.getData();
+        this._compiledClasses[data.classFile.getClassName()] = true;
+      });
       return this._analyser;
     },
 
     onClassCompiled(classname) {
-      this.__compiledClasses[classname] = true;
+      this._compiledClasses[classname] = true;
     },
 
     /**
@@ -401,9 +407,9 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @return {Map} list of class names that have been compiled
      */
     getRecentlyCompiledClasses(eraseAfter) {
-      let classes = this.__compiledClasses;
+      let classes = this._compiledClasses;
       if (eraseAfter) {
-        this.__compiledClasses = {};
+        this._compiledClasses = {};
       }
       return classes;
     },
@@ -414,8 +420,9 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @protected
      */
     _createAnalyser() {
-      var analyser = (this._analyser = new qx.tool.compiler.Analyser(
-        path.join(this.getOutputDir(), this.getDbFilename() || "db.json")
+      var analyser = (this.__analyser = new qx.tool.compiler.Analyser(
+        path.join(this.getOutputDir(), this.getDbFilename() || "db.json"),
+        this
       ));
 
       analyser.setOutputDir(this.getOutputDir());

@@ -31,9 +31,8 @@ const path = require("upath");
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
 
-  construct(progress) {
+  construct() {
     super();
-    this.__progress = progress;
     this.__libraries = {};
     this.__makers = [];
     this.__discovery = new qx.tool.compiler.meta.Discovery();
@@ -41,34 +40,42 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__compilingClasses = {};
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
+    this.__makingMakers = {};
+  },
+
+  events: {
+    /** Fired when a maker is added, data is the `qx.tool.compiler.Maker` */
+    addMaker: "qx.event.type.Data",
+
+    /** Fired when a class needs to be recompiled, the data is the classname */
+    classNeedsToBeCompiled: "qx.event.type.Data",
+
+    /**
+     * @typedef {Object} CompilingClassEventData
+     * @property {String} classname - The classname being compiled
+     * @property {qx.tool.compiler.Analyser} analyser - The analyser for the class
+     *
+     * Fired when a class is being compiled, the data is {CompilingClassEventData}
+     */
+    compilingClass: "qx.event.type.Data",
+
+    /** Fired when a class needs to be recompiled, the data is {CompilingClassEventData} */
+    compiledClass: "qx.event.type.Data",
+
+    /**
+     * Fired after writing of all meta data; data is an object containing:
+     *   maker {qx.tool.compiler.Maker}
+     */
+    writtenMetaData: "qx.event.type.Data"
   },
 
   properties: {
     metaDir: {
       check: "String"
-    },
-
-    typescriptFile: {
-      init: null,
-      check: "String",
-      nullable: true
-    },
-
-    enableTypescript: {
-      init: true,
-      check: "Boolean"
     }
   },
 
-  events: {
-    /** Fired when a class needs to be recompiled, the data is the classname */
-    compileClass: "qx.event.type.Data"
-  },
-
   members: {
-    /** @type{qx.tool.compiler.progress.AbstractProgress} the progress output */
-    __progress: null,
-
     /** @type{Object<String, qx.tool.compiler.app.Library} */
     __libraries: null,
 
@@ -95,10 +102,12 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * add all libraries that the maker uses to the discovery.
      */
     addMaker(maker) {
+      this.__makers.push(maker);
       maker.getAnalyser().setController(this);
       for (let lib of maker.getAnalyser().getLibraries()) {
         this.addLibrary(lib);
       }
+      this.fireDataEvent("addMaker", maker);
     },
 
     /**
@@ -126,15 +135,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
     },
 
     /**
-     * Returns the list of libraries that have been added to the controller.
-     *
-     * @returns {qx.tool.compiler.app.Library[]}
-     */
-    getLibraries() {
-      return Object.values(this.__libraries);
-    },
-
-    /**
      * Starts the discovery process, which will scan the libraries and
      * populate the meta database with class metadata, and trigger events
      * as files are added/edited/removed.
@@ -145,15 +145,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
       });
       await metaDb.load();
       this.__metaDb = metaDb;
-      if (this.isEnableTypescript()) {
-        this.__tsWriter = new qx.tool.compiler.targets.TypeScriptWriter(metaDb);
-        if (this.getTypescriptFile()) {
-          this.__tsWriter.setOutputTo(this.getTypescriptFile());
-        } else {
-          this.__tsWriter.setOutputTo(path.join(this.getMetaDir(), "..", "qooxdoo.d.ts"));
-        }
-      }
-
       await this.__discovery.start();
 
       // Store the libraries in the meta database
@@ -177,37 +168,42 @@ qx.Class.define("qx.tool.compiler.Controller", {
         await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], false);
       });
 
-      let pendingChanges = 0;
-      const recompileClass = async classmeta => {
-        pendingChanges++;
+      this.__discovery.addListener("classAdded", async evt => {
+        let classname = evt.getData();
+        let classmeta = this.__discovery.getDiscoveredClass(classname);
         await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
         await metaDb.reparseAll();
         this._onClassNeedsCompile(classmeta.classname);
-        pendingChanges--;
-        if (pendingChanges === 0) {
-          await this.__writeTypescriptDefinitions();
-        }
-      };
-
-      this.__discovery.addListener("classAdded", async evt => await recompileClass(evt.getData()));
-      this.__discovery.addListener("classChanged", async evt => await recompileClass(evt.getData()));
+      });
 
       this.__discovery.addListener("classRemoved", async evt => {
-        let classmeta = evt.getData();
+        let classname = evt.getData();
+        let classmeta = this.__discovery.getDiscoveredClass(classname);
         await metaDb.removeFile(classmeta.filenames[classmeta.filenames.length - 1]);
+      });
+
+      this.__discovery.addListener("classChanged", async evt => {
+        let classname = evt.getData();
+        let classmeta = this.__discovery.getDiscoveredClass(classname);
+        await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
+        await metaDb.reparseAll();
+        this._onClassNeedsCompile(classmeta.classname);
       });
 
       // Process the meta data and save to disk
       await metaDb.reparseAll();
       await metaDb.save();
-      await this.__writeTypescriptDefinitions();
+      await this.fireDataEventAsync("writtenMetaData", metaDb);
 
-      // Initial compile
+      let makers = [];
       for (let maker of this.__makers) {
-        this.__makeMaker(maker);
+        if (!this.__dirtyMakers[maker.toHashCode()]) {
+          makers.push(maker);
+        }
       }
-
-      // Done
+      for (let maker of makers) {
+        await this.__makeMaker(maker);
+      }
       await this.fireDataEventAsync("writtenMetaData", metaDb);
     },
 
@@ -220,9 +216,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let analysers = [];
       for (let maker of this.__makers) {
         for (let app of maker.getApplications()) {
-          if (app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
+          let dependencies = app.getDependencies() || [];
+          if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
             analysers.push(maker.getAnalyser());
-            let hashKey = maker.getAnalyser().getTarget().getOutputDir() + ":" + classname;
+            let hashKey = maker.getTarget().getOutputDir() + ":" + classname;
             this.__dirtyClasses[hashKey] = true;
             break;
           }
@@ -234,6 +231,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
       for (let analyser of analysers) {
         this.compileClass(analyser, classname, true);
       }
+
+      // Notify the makers that the class needs to be compiled
+      this.fireDataEvent("classNeedsToBeCompiled", classname);
     },
 
     /**
@@ -243,87 +243,51 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {String} classname
      */
     _onClassCompiled(analyser, classname) {
-      this.__progress.update("class.compiled", classname);
+      this.fireDataEvent("compiledClass", { classname, analyser });
       for (let maker of this.__makers) {
         if (maker.getAnalyser() === analyser) {
-          maker.onClassCompiled(classname);
           for (let app of maker.getApplications()) {
-            if (app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
-              this.__dirtyMakers[maker.getHash()] = maker;
+            let dependencies = app.getDependencies() || [];
+            if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
+              this.__dirtyMakers[maker.toHashCode()] = maker;
               break;
             }
           }
         }
       }
 
-      const showMarkers = (classname, markers) => {
-        if (markers) {
-          markers.forEach(function (marker) {
-            var str = qx.tool.compiler.Console.decodeMarker(marker);
-            this.__progress.update("class.marker", classname, str);
-          });
-        }
-      };
-
-      let dbClassInfo = this.getDbClassInfo(analyser, classname);
-      showMarkers(classname, dbClassInfo.markers);
-
       let makers = Object.values(this.__dirtyMakers);
       if (makers.length === 0 || Object.keys(this.__compilingClasses).length != 0) {
         return;
       }
       this.__dirtyMakers = {};
-      let usedClasses = {};
       for (let maker of makers) {
-        if (maker.getAnalyser() === analyser) {
-          for (let app of maker.getApplications()) {
-            for (let classname of app.getRequiredClasses()) {
-              usedClasses[classname] = true;
-            }
-          }
-        }
         this.__makeMaker(maker);
       }
-      for (let tmpClassname in usedClasses) {
-        if (tmpClassname != classname) {
-          dbClassInfo = this.getDbClassInfo(analyser, tmpClassname);
-          showMarkers(tmpClassname, dbClassInfo.markers);
-        }
-      }
-      this.__progress.update("maker.writtenApps");
     },
 
-    /**
-     * Writes the TypeScript definitions if enabled.
-     */
-    async __writeTypescriptDefinitions() {
-      if (this.isEnableTypescript()) {
-        qx.tool.compiler.Console.info(`Generating typescript output ...`);
-        await this.__tsWriter.process();
-      }
-    },
-
-    /**
-     * Called to make a Maker
-     *
-     * @param {qx.tool.compiler.Maker} maker
-     */
     __makeMaker(maker) {
-      let hashKey = maker.getHash();
-      if (this.__makingMakers && this.__makingMakers[hashKey]) {
+      let hashKey = maker.toHashCode();
+      if (this.__makingMakers[hashKey]) {
         return this.__makingMakers[hashKey];
       }
 
       let promise = maker.make();
-      promise = promise.then(() => {
-        if (promise === this.__makingMakers[hashKey]) {
+      promise = promise
+        .then(() => {
+          if (promise === this.__makingMakers[hashKey]) {
+            delete this.__makingMakers[hashKey];
+            return true;
+          } else {
+            delete this.__makingMakers[hashKey];
+            return this.__makeMaker(maker);
+          }
+        })
+        .catch(err => {
           delete this.__makingMakers[hashKey];
-          return true;
-        } else {
-          delete this.__makingMakers[hashKey];
-          return this.__makeMaker(maker);
-        }
-      });
+          console.error("Error making maker " + maker.toHashCode() + ": " + err.stack);
+          throw err;
+        });
 
       this.__makingMakers[hashKey] = promise;
       return promise;
@@ -339,7 +303,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @returns {Object} the class information
      */
     async compileClass(analyser, classname, force) {
-      let hashKey = this.__getHashKey(analyser, classname);
+      let hashKey = analyser.getMaker().getTarget().getOutputDir() + ":" + classname;
       let promise = this.__dirtyClasses[hashKey] ? null : this.__compilingClasses[hashKey];
       if (promise) {
         return await promise;
@@ -347,15 +311,23 @@ qx.Class.define("qx.tool.compiler.Controller", {
       delete this.__dirtyClasses[hashKey];
 
       promise = this.__compileClassImpl(analyser, classname, force);
-      promise = promise.then(dbClassInfo => {
-        if (promise === this.__compilingClasses[hashKey]) {
+      promise = promise
+        .then(result => {
+          if (promise === this.__compilingClasses[hashKey]) {
+            delete this.__compilingClasses[hashKey];
+            if (!result.cached) {
+              this._onClassCompiled(analyser, classname);
+            }
+            return result.dbClassInfo;
+          } else {
+            return this.__compilingClasses[hashKey];
+          }
+        })
+        .catch(err => {
           delete this.__compilingClasses[hashKey];
-          this._onClassCompiled(analyser, classname);
-          return dbClassInfo;
-        } else {
-          return this.__compilingClasses[hashKey];
-        }
-      });
+          console.error("Error compiling class " + classname + ": " + err.stack);
+          throw err;
+        });
       this.__compilingClasses[hashKey] = promise;
       return await promise;
     },
@@ -368,18 +340,17 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {Boolean} force
      */
     async __compileClassImpl(analyser, classname, force) {
-      this.__progress.update("class.compiling", classname);
-
-      let meta = this.__metaDb.getClassMeta(classname);
+      let meta = this.__metaDb.getMetaData(classname);
       let compileConfig = qx.tool.compiler.ClassFileConfig.createFromAnalyser(analyser);
 
-      let sourceClassFilename = meta.classFilename;
-      let outputDir = analyser.getTarget().getOutputDir();
+      let sourceClassFilename = path.join(this.__metaDb.getRootDir(), meta.classFilename);
+      let outputDir = analyser.getMaker().getTarget().getOutputDir();
       let outputClassFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".js");
 
       let jsonFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".json");
-      let hashKey = this.__getHashKey(analyser, classname);
+      let hashKey = outputDir + ":" + classname;
       let dbClassInfo = this.__dbClassInfoCache[hashKey] || null;
+      let sourceStat = await qx.tool.utils.files.Utils.safeStat(sourceClassFilename);
 
       if (!dbClassInfo && fs.existsSync(jsonFilename)) {
         dbClassInfo = await qx.tool.utils.Json.loadJsonAsync(jsonFilename);
@@ -396,14 +367,15 @@ qx.Class.define("qx.tool.compiler.Controller", {
           } catch (e) {}
           if (dbMtime && dbMtime.getTime() == sourceStat.mtime.getTime()) {
             if (outputStat.mtime.getTime() >= sourceStat.mtime.getTime()) {
-              return dbClassInfo;
+              return { dbClassInfo, cached: true };
             }
           }
         }
       }
 
+      this.fireDataEvent("compilingClass", { classname, analyser });
+
       let src = await fs.promises.readFile(sourceClassFilename, "utf8");
-      let sourceStat = await qx.tool.utils.files.Utils.safeStat(sourceClassFilename);
       dbClassInfo = {
         mtime: sourceStat.mtime,
         //libraryName: library.getNamespace(),
@@ -411,7 +383,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       };
 
       let classFile = new qx.tool.compiler.ClassFile(this.__metaDb, compileConfig, classname);
-      let compiled = classFile.compile(src);
+      let compiled = await classFile.compile(src, sourceClassFilename);
       classFile.writeDbInfo(dbClassInfo);
 
       let mappingUrl = path.basename(sourceClassFilename) + ".map";
@@ -419,47 +391,23 @@ qx.Class.define("qx.tool.compiler.Controller", {
         mappingUrl += "?dt=" + new Date().getTime();
       }
 
-      await qx.tool.utils.Utils.mkParentPath(outputClassFilename);
-      await fs.promises.writeFile(outputClassFilename, compiled.source + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
+      await qx.tool.utils.Utils.makeParentDir(outputClassFilename);
+      await fs.promises.writeFile(outputClassFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
       await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
       await fs.promises.writeFile(outputClassFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
 
-      return dbClassInfo;
+      return { dbClassInfo, cached: false };
     },
 
     /**
-     * Calculates the hash key for a class based on the analyser and classname.
-     *
-     * @param {qx.tool.compiler.Analyser} analyser
-     * @param {String} classname
-     * @returns {String} the hash key
+     * @returns {qx.tool.compiler.meta.Discovery} the discovery instance
      */
-    __getHashKey(analyser, classname) {
-      return analyser.getTarget().getOutputDir() + ":" + classname;
+    getDiscovery() {
+      return this.__discovery;
     },
 
-    /**
-     * Gets the compiled class information from the database for the given analyser and classname.
-     *
-     * @param {qx.tool.compiler.Analyser} analyser
-     * @param {String} classname
-     * @returns {Object|null} the class information from the database, or null if not found
-     */
-    async getDbClassInfo(analyser, classname) {
-      let hashKey = this.__getHashKey(analyser, classname);
-
-      if (this.__dbClassInfoCache[hashKey]) {
-        return this.__dbClassInfoCache[hashKey];
-      }
-
-      let outputDir = analyser.getTarget().getOutputDir();
-      let jsonFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".json");
-      let dbClassInfo = this.__dbClassInfoCache[hashKey] || null;
-      if (!dbClassInfo && fs.existsSync(jsonFilename)) {
-        dbClassInfo = await qx.tool.utils.Json.loadJsonAsync(jsonFilename);
-        this.__dbClassInfoCache[hashKey] = dbClassInfo;
-      }
-      return dbClassInfo;
+    getMetaDb() {
+      return this.__metaDb;
     }
   }
 });

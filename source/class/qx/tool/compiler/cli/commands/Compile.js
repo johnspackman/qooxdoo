@@ -312,111 +312,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
     }
   },
 
-  events: {
-    /**
-     * Fired when application writing starts
-     */
-    writingApplications: "qx.event.type.Event",
-
-    /**
-     * Fired when writing of single application starts; data is an object containing:
-     *   maker {qx.tool.compiler.Maker}
-     *   target {qx.tool.compiler.targets.Target}
-     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
-     */
-    writingApplication: "qx.event.type.Data",
-
-    /**
-     * Fired when writing of single application is complete; data is an object containing:
-     *   maker {qx.tool.compiler.Maker}
-     *   target {qx.tool.compiler.targets.Target}
-     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
-     *
-     * Note that target.getAppMeta() will return null after this event has been fired
-     */
-    writtenApplication: "qx.event.type.Data",
-
-    /**
-     * Fired after writing of all applications; data is an object containing an array,
-     * each of which has previously been passed with `writeApplication`:
-     *   maker {qx.tool.compiler.Maker}
-     *   target {qx.tool.compiler.targets.Target}
-     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
-     *
-     * Note that target.getAppMeta() will return null after this event has been fired
-     */
-
-    writtenApplications: "qx.event.type.Data",
-
-    /**
-     * Fired when a class is about to be compiled.
-     *
-     * The event data is an object with the following properties:
-     *
-     * dbClassInfo: {Object} the newly populated class info
-     * oldDbClassInfo: {Object} the previous populated class info
-     * classFile - {ClassFile} the qx.tool.compiler.ClassFile instance
-     */
-    compilingClass: "qx.event.type.Data",
-
-    /**
-     * Fired when a class is compiled.
-     *
-     * The event data is an object with the following properties:
-     * dbClassInfo: {Object} the newly populated class info
-     * oldDbClassInfo: {Object} the previous populated class info
-     * classFile - {ClassFile} the qx.tool.compiler.ClassFile instance
-     */
-    compiledClass: "qx.event.type.Data",
-
-    /**
-     * Fired when the database is been saved
-     *
-     *  data:
-     * database: {Object} the database to save
-     */
-    saveDatabase: "qx.event.type.Data",
-
-    /**
-     * Fired after all enviroment data is collected
-     *
-     * The event data is an object with the following properties:
-     *  application {qx.tool.compiler.app.Application} the app
-     *  enviroment: {Object} enviroment data
-     */
-    checkEnvironment: "qx.event.type.Data",
-
-    /**
-     * Fired when making of apps begins
-     */
-    making: "qx.event.type.Event",
-
-    /**
-     * Fired when making of apps is done.
-     */
-    made: "qx.event.type.Event",
-
-    /**
-     * Fired when minification begins.
-     *
-     * The event data is an object with the following properties:
-     *  application {qx.tool.compiler.app.Application} the app being minified
-     *  part: {String} the part being minified
-     *  filename: {String} the part filename
-     */
-    minifyingApplication: "qx.event.type.Data",
-
-    /**
-     * Fired when minification is done.
-     *
-     * The event data is an object with the following properties:
-     *  application {qx.tool.compiler.app.Application} the app being minified
-     *  part: {String} the part being minified
-     *  filename: {String} the part filename
-     */
-    minifiedApplication: "qx.event.type.Data"
-  },
-
   properties: {},
 
   members: {
@@ -424,8 +319,18 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
     __makers: null,
     __libraries: null,
     __outputDirWasCreated: false,
+
     /** @type {Boolean} Whether libraries have had their `.load()` method called yet */
     __librariesNotified: false,
+
+        /** @type{String} the path to the root of the meta files by classname */
+    __metaDir: null,
+
+        /** @type{Boolean} whether the typescript output is enabled */
+    __typescriptEnabled: false,
+
+    /** @type{String} the name of the typescript file to generate */
+    __typescriptFile: null,
 
     /*
      * @Override
@@ -471,6 +376,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           Console.setColorOn(colorOn);
         }
 
+        /*
         if (this.argv["feedback"]) {
           let colorOn = qx.tool.compiler.Console.getInstance().getColorOn();
           
@@ -556,6 +462,8 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           );
         }
       });
+      */
+     //TODO merge this into new compiler
 
       await this._loadConfigAndStartMaking();
 
@@ -613,6 +521,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       };
 
       let isFirstWatcher = true;
+      new qx.tool.compiler.feedback.ConsoleFeedback(controller);
 
       await qx.Promise.all(
         makers.map(async maker => {
@@ -1238,11 +1147,10 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         if (data.environment) {
           maker.setEnvironment(data.environment);
         }
+        if (targetConfig.environment) {
+          target.setEnvironment(targetConfig.environment);
+        }
 
-        /*
-        Libraries have to be added first because there is qx library
-        which includes a framework version
-        */
         for (let ns in libraries) {
           maker.getAnalyser().addLibrary(libraries[ns]);
         }
