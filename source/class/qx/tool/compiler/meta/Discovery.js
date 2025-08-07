@@ -122,9 +122,6 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
         let packageName = path.relative(rootDir, directoryName);
         packageName = packageName.split(path.sep);
         packageName = packageName.join(".");
-        if (packageName == "qx.lang") {
-          debugger;
-        }
 
         let filenames = await fs.promises.readdir(directoryName);
         for (let i = 0; i < filenames.length; i++) {
@@ -156,6 +153,17 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
         await scanImpl(watchedPath.path, watchedPath.path);
       }
       this.fireEvent("started");
+    },
+
+    async stop() {
+      let watchedPaths = Object.values(this.__watchedPaths);
+      this.__watchedPaths = {};
+      for (let watchedPath of watchedPaths) {
+        if (watchedPath.watcher) {
+          await watchedPath.watcher.close();
+        }
+      }
+      this.fireEvent("stopped");
     },
 
     /**

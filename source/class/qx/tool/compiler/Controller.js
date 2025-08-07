@@ -234,6 +234,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
       this.fireEvent("started");
     },
 
+    async stop() {
+      await this.__discovery.stop();
+    },
+
     /**
      * Handler for when a class needs to be compiled.
      *
