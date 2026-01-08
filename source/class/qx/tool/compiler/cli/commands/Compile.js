@@ -313,6 +313,12 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
   },
 
   properties: {},
+  events: {
+    /**
+     * Fired when all applications have made
+     */
+    "made": "qx.event.type.Event"
+  },
 
   members: {
     __progressBar: null,
@@ -382,11 +388,13 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       controller.start();
       await new Promise(resolve => {
         controller.addListenerOnce("allMakersMade", () => {
+          this.fireEvent("made");
           if (!this.argv.watch) {
             this.__exit();
             controller.stop();
+            resolve();
           }
-          resolve();
+          //If we are watching, we never exit so this promise never resolves!
         })
       });
     },

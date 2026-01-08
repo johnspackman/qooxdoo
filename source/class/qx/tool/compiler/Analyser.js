@@ -200,6 +200,10 @@ qx.Class.define("qx.tool.compiler.Analyser", {
     __dbFilename: null,
     __db: null,
 
+    /**
+     * Key is class name, value is DbClassInfo
+     * @type {Object<string, qx.tool.compiler.Controller.DbClassInfo>}
+     */
     __cachedClassInfo: null,
 
     /** {Library[]} All libraries */
@@ -337,7 +341,7 @@ qx.Class.define("qx.tool.compiler.Analyser", {
      * Returns the DbClassInfo for a given classname, this is only valid after `analyseClasses()` has been called
      *
      * @param {String} classname
-     * @returns {*} the DbClassInfo for the given classname, or null if not found
+     * @returns {qx.tool.compiler.Controller.DbClassInfo} the DbClassInfo for the given classname, or null if not found
      */
     getDbClassInfo(classname) {
       return this.__cachedClassInfo[classname] || null;
@@ -345,11 +349,12 @@ qx.Class.define("qx.tool.compiler.Analyser", {
 
     /**
      * The list of all classnames compiled by `analyseClasses()`
+     * Note: 08-01-2026: this filters out classes that failed to compile
      *
      * @returns {String[]} a list of all classnames
      */
     getCompiledClassnames() {
-      return Object.keys(this.__cachedClassInfo);
+      return Object.keys(this.__cachedClassInfo).filter(classname => this.__cachedClassInfo[classname] !== null);
     },
 
     /**
@@ -357,10 +362,7 @@ qx.Class.define("qx.tool.compiler.Analyser", {
      * dependent classes are loaded
      */
     async analyseClasses() {
-      var t = this;
-      if (!this.__db) {
-        this.__db = {};
-      }
+      this.__db ??= {};
 
       // Cache of compiled classes info
       this.__cachedClassInfo = {};
@@ -369,16 +371,7 @@ qx.Class.define("qx.tool.compiler.Analyser", {
       const compileClass = async classname => {
         let value = this.__cachedClassInfo[classname];
         if (value === undefined) {
-          try {
-            value = await this.__controller.compileClass(this, classname);
-          } catch (err) {
-            if (err.code === "ENOCLASSFILE") {
-              qx.tool.compiler.Console.error(err.message);
-            } else {
-              throw err;
-            }
-            value = null;
-          }
+          value = await this.__controller.compileClass(this, classname);
           this.__cachedClassInfo[classname] = value;
         }
         return value;
