@@ -93,6 +93,9 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
       if (this.getMetaRootDir()) {
         classFilename = path.join(this.getMetaRootDir(), classFilename);
       }
+      if (!fs.existsSync(classFilename)) {
+        return true;
+      }
       let stat = await fs.promises.stat(classFilename);
       let lastModified = this.__metaData?.lastModified;
       if (lastModified && lastModified == stat.mtime.getTime()) {

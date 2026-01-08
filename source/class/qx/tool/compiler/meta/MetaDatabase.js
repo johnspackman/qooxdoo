@@ -132,7 +132,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
           }
           let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
           if (fs.existsSync(filename)) {
-            await qx.tool.utils.Utils.mkParentDir(filename);
+            await qx.tool.utils.Utils.makeParentDir(filename);
             let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
             await metaReader.loadMeta(filename);
             if (await metaReader.isOutOfDate()) {

@@ -304,9 +304,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
      * @property {Object} map the source map for the transpiled code
      *
      * @param {String} src the source code to compile
-     * @return {String} the compiled source code
+     * @param {String} filename the filename of the source code
+     * @return {CompileResult?} the compiled source code, if successful
      */
-    async compile(src) {
+    compile(src, filename) {
       var t = this;
       var className = this.__className;
       t.__fatalCompileError = false;
@@ -337,8 +338,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         var config = {
           babelrc: false,
           // I don't *think* we need these two, but it may turn out to be useful for error messages?
-          //sourceFileName: t.getSourcePath(),
-          //filename: t.getSourcePath(),
+          sourceFileName: filename,
+          filename: filename,
           sourceMaps: true,
           presets: [
             [
@@ -376,9 +377,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         if (extraPreset[0].plugins.length) {
           config.presets.push(extraPreset);
         }
-        if (this.__privateMangling == "unreadable") {
-          config.blacklist = ["spec.functionName"];
-        }
+        //Had to comment this out because blacklist is not supported anymore in babel
+        // if (this.__privateMangling == "unreadable") {
+        //   config.blacklist = ["spec.functionName"];
+        // }
         result = babelCore.transform(src, config);
       } catch (ex) {
         qx.tool.compiler.Console.log(ex);
@@ -1326,7 +1328,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                   }
                   checks.forEach(check => {
                     if (!qx.tool.compiler.ClassFile.SYSTEM_CHECKS[check]) {
-                      let symbolData = t.__metaDb.getSymbolType(check);
+                      let symbolData = typeof check === "string" ? t.__metaDb.getSymbolType(check) : null;
                       if (symbolData?.symbolType == "class") {
                         t._requireClass(check, {
                           load: false,
