@@ -10,7 +10,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
       metaDb: 0,
       discovery: 0
     };
-    const now = () => new Date().getTime();
+    const now = () => Date.now();
     const start = type => (startTimes[type] = now());
     const report = (type, name) => {
       let endTime = now();
@@ -48,7 +48,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
   properties: {
     verbose: {
       check: "Boolean",
-      init: true,
+      init: false,
       event: "changeVerbose"
     }
   },

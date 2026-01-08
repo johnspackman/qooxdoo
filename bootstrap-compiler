@@ -11,6 +11,8 @@ const utils = require("./bin/tools/utils");
       options.target = arg.substring(9);
     else if (arg == "--incVersion")
       options.incVersion = true;
+    else if (arg == "--initial-only")
+      options.initialOnly = true;
     else if (arg.startsWith("--"))
       console.error("Invalid argument " + arg);
     else

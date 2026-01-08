@@ -269,7 +269,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       await analyser.analyseClasses();
 
       await analyser.saveDatabase();
-      this.updateProgress("maker.writingApps");
+      await this.fireEventAsync("writingApplications");
 
       // Detect which applications need to be recompiled by looking for classes recently compiled
       //  which is on the application's dependency list.  The first time `.make()` is called there
@@ -332,12 +332,11 @@ qx.Class.define("qx.tool.compiler.Maker", {
         };
 
         allAppInfos.push(appInfo);
-        this.updateProgress("maker.writingApp", application.getName());
+        await this.fireDataEventAsync("writingApplication", appInfo);
         await target.generateApplication(application, appEnv);
-        this.updateProgress("maker.writtenApp", application.getName());
+        await this.fireDataEventAsync("writtenApplication", appInfo);
       }
 
-      this.updateProgress("maker.writtenApps");
       await this.fireEventAsync("writtenApplications");
 
       await analyser.saveDatabase();

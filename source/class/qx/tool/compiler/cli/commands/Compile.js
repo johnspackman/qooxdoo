@@ -379,37 +379,47 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
 
       let controller = await this._loadConfigAndCreateController();
 
-      if (!this.argv.watch) {
+      controller.start();
+      await new Promise(resolve => {
         controller.addListenerOnce("allMakersMade", () => {
-          let success = this.__makers.every(maker => maker.getSuccess());
-          let hasWarnings = this.__makers.every(maker => maker.getHasWarnings());
-          if (success && hasWarnings && this.argv.warnAsError) {
-            success = false;
+          if (!this.argv.watch) {
+            this.__exit();
+            controller.stop();
           }
-          if (
-            !this.argv.deploying &&
-            !this.argv["machine-readable"] &&
-            this.argv["feedback"] &&
-            this.__outputDirWasCreated &&
-            this.argv.target === "build"
-          ) {
-            qx.tool.compiler.Console.warn(
-              "   *******************************************************************************************\n" +
-                "   **                                                                                       **\n" +
-                "   **  Your compilation will include temporary files that are only necessary during         **\n" +
-                "   **  development; these files speed up the compilation, but take up space that you would  **\n" +
-                "   **  probably not want to put on a production server.                                     **\n" +
-                "   **                                                                                       **\n" +
-                "   **  When you are ready to deploy, try running `qx deploy` to get a minimised version     **\n" +
-                "   **                                                                                       **\n" +
-                "   *******************************************************************************************"
-            );
-          }
-          process.exitCode = success ? 0 : 1;
-          controller.stop();
-        });
+          resolve();
+        })
+      });
+    },
+
+    /**
+     * Exits the process with the correct exit code
+     */
+    __exit() {
+      let success = this.__makers.every(maker => maker.getSuccess());
+      let hasWarnings = this.__makers.every(maker => maker.getHasWarnings());
+      if (success && hasWarnings && this.argv.warnAsError) {
+        success = false;
       }
-      await controller.start();
+      if (
+        !this.argv.deploying &&
+        !this.argv["machine-readable"] &&
+        this.argv["feedback"] &&
+        this.__outputDirWasCreated &&
+        this.argv.target === "build"
+      ) {
+        qx.tool.compiler.Console.warn(
+          "   *******************************************************************************************\n" +
+            "   **                                                                                       **\n" +
+            "   **  Your compilation will include temporary files that are only necessary during         **\n" +
+            "   **  development; these files speed up the compilation, but take up space that you would  **\n" +
+            "   **  probably not want to put on a production server.                                     **\n" +
+            "   **                                                                                       **\n" +
+            "   **  When you are ready to deploy, try running `qx deploy` to get a minimised version     **\n" +
+            "   **                                                                                       **\n" +
+            "   *******************************************************************************************"
+        );
+      }
+      process.exitCode = success ? 0 : 1;
     },
 
     /**
@@ -1215,18 +1225,18 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           maker.addApplication(app);
         });
 
-        const CF = qx.tool.compiler.ClassFile;
+        const ClassFile = qx.tool.compiler.ClassFile;
         let globalSymbols = [];
-        qx.lang.Array.append(globalSymbols, CF.QX_GLOBALS);
-        qx.lang.Array.append(globalSymbols, CF.COMMON_GLOBALS);
+        qx.lang.Array.append(globalSymbols, ClassFile.QX_GLOBALS);
+        qx.lang.Array.append(globalSymbols, ClassFile.COMMON_GLOBALS);
         if (allApplicationTypes["browser"]) {
-          qx.lang.Array.append(globalSymbols, CF.BROWSER_GLOBALS);
+          qx.lang.Array.append(globalSymbols, ClassFile.BROWSER_GLOBALS);
         }
         if (allApplicationTypes["node"]) {
-          qx.lang.Array.append(globalSymbols, CF.NODE_GLOBALS);
+          qx.lang.Array.append(globalSymbols, ClassFile.NODE_GLOBALS);
         }
         if (allApplicationTypes["rhino"]) {
-          qx.lang.Array.append(globalSymbols, CF.RHINO_GLOBALS);
+          qx.lang.Array.append(globalSymbols, ClassFile.RHINO_GLOBALS);
         }
         maker.getAnalyser().setGlobalSymbols(globalSymbols);
 

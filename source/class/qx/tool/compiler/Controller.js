@@ -75,7 +75,12 @@ qx.Class.define("qx.tool.compiler.Controller", {
     starting: "qx.event.type.Event",
 
     /** Fired when startup is complete, initial compile has finished, and watching for changes */
-    started: "qx.event.type.Event"
+    started: "qx.event.type.Event",
+    metaDbLoaded: "qx.event.type.Event",
+    discoveryStarted: "qx.event.type.Event",
+    metaDbConfiguring: "qx.event.type.Event",
+    metaDbConfigured: "qx.event.type.Event",
+    addedDiscoveredClasses: "qx.event.type.Event"
   },
 
   properties: {
@@ -86,6 +91,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
   },
 
   members: {
+    /**
+     * @type {qx.tool.compiler.meta.MetaDatabase}
+     */
+    __metaDb: null,
     /** @type{Object<String, qx.tool.compiler.app.Library} */
     __libraries: null,
 
@@ -229,7 +238,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         }
       }
       for (let maker of makers) {
-        await this.__makeMaker(maker);
+        this.__makeMaker(maker);
       }
       this.fireEvent("started");
     },
@@ -325,7 +334,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
           delete this.__makingMakers[hashKey];
           console.error("Error making maker " + maker.toHashCode() + ": " + err.stack);
           process.exit(1);
-          throw err;
         });
 
       this.__makingMakers[hashKey] = promise;
@@ -443,7 +451,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       };
 
       let classFile = new qx.tool.compiler.ClassFile(this.__metaDb, compileConfig, classname);
-      let compiled = await classFile.compile(src, sourceClassFilename);
+      let compiled = classFile.compile(src, sourceClassFilename);
       classFile.writeDbInfo(dbClassInfo);
 
       let mappingUrl = path.basename(sourceClassFilename) + ".map";
