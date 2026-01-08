@@ -78,9 +78,9 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
      * @Override
      */
     async writeToDisk() {
-      const localModules = this.getAppMeta().getApplication().getLocalModules();
+      let localModules = this.getAppMeta().getApplication().getLocalModules();
       let db = this.getAppMeta().getAnalyser().getDatabase();
-      const { commonjsModules } = this.__getCommonjsModules();
+      let { commonjsModules } = this.__getCommonjsModules();
 
       let modules = [];
       let modulesInfo = {};

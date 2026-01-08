@@ -27,6 +27,16 @@ const path = require("upath");
  * Controller for managing the discovery of class files, reading their metadata,
  * compiling them for targets, and relaying information about modifications to the
  * makers
+ * 
+ * @typedef {Object} CompileInfo
+ * @property {DbClassInfo} dbClassInfo - the database class information
+ * @property {Boolean} cached - true if the class was already compiled
+ * 
+ * @typedef {Object} DbClassInfo
+ *  Database class information structure
+ * @property {String} libraryName - The name of the library containing the class
+ * @property {String} filename - The source filename of the class
+ * @property {Date} mtime - The modification time of the source file
  */
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
@@ -322,6 +332,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
               Object.keys(this.__dirtyMakers).length === 0 &&
               Object.keys(this.__compilingClasses).length === 0
             ) {
+              console.log("All applications written.");
               this.fireEvent("allMakersMade");
             }
             return true;
@@ -347,13 +358,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {qx.tool.compiler.Analyser} analyser
      * @param {String} classname
      * @param {Boolean} force
-     * @returns {Object} the class information
+     * @returns {Promise<DbClassInfo>} the class information
+     *      
      */
-    async compileClass(analyser, classname, force) {
+    compileClass(analyser, classname, force) {
       let hashKey = analyser.getMaker().getTarget().getOutputDir() + ":" + classname;
       let promise = this.__dirtyClasses[hashKey] ? null : this.__compilingClasses[hashKey];
       if (promise) {
-        return await promise;
+        return promise;
       }
       delete this.__dirtyClasses[hashKey];
 
@@ -373,10 +385,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
         .catch(err => {
           delete this.__compilingClasses[hashKey];
           console.error("Error compiling class " + classname + ": " + err.stack);
-          throw err;
+          return null;
         });
       this.__compilingClasses[hashKey] = promise;
-      return await promise;
+      return promise;
     },
 
     /**
@@ -405,6 +417,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {qx.tool.compiler.Analyser} analyser
      * @param {String} classname
      * @param {Boolean} force
+     * @returns {Promise<CompileInfo>}
      */
     async __compileClassImpl(analyser, classname, force) {
       let meta = this.__metaDb.getMetaData(classname);
@@ -418,6 +431,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let hashKey = outputDir + ":" + classname;
       let dbClassInfo = this.__dbClassInfoCache[hashKey] || null;
       let sourceStat = await qx.tool.utils.files.Utils.safeStat(sourceClassFilename);
+
+      if (!sourceStat) {
+        throw new Error(`Source file for class ${classname} not found: ${sourceClassFilename}`);
+      }
 
       if (!dbClassInfo && fs.existsSync(jsonFilename)) {
         dbClassInfo = await qx.tool.utils.Json.loadJsonAsync(jsonFilename);
