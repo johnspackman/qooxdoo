@@ -48,7 +48,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
   properties: {
     verbose: {
       check: "Boolean",
-      init: false,
+      init: true,
       event: "changeVerbose"
     }
   },

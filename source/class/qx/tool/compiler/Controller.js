@@ -215,6 +215,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         let added = await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
         if (added) {
           await metaDb.reparseAll();
+          await metaDb.save();
           this._onClassNeedsCompile(classmeta.classname);
         }
       });
@@ -231,6 +232,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         let added = await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
         if (added) {
           await metaDb.reparseAll();
+          await metaDb.save();
           this._onClassNeedsCompile(classmeta.classname);
         }
       });
