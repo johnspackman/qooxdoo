@@ -422,7 +422,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let meta = this.__metaDb.getMetaData(classname);
       let compileConfig = qx.tool.compiler.ClassFileConfig.createFromAnalyser(analyser);
 
-      let sourceClassFilename = path.join(this.__metaDb.getRootDir(), meta.classFilename);
+      let sourceClassFilename = path.resolve(path.join(this.__metaDb.getRootDir(), meta.classFilename));
       let outputDir = analyser.getMaker().getTarget().getOutputDir();
       let outputClassFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".js");
 
@@ -478,8 +478,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
         });
       }
 
+      let mappingUrl;
       if (qx.lang.Array.contains(compileConfig.getApplicationTypes(), "browser")) {
-        mappingUrl += "?dt=" + Date.now();
+        mappingUrl = path.basename(sourceClassFilename) + ".map?dt=" + Date.now();
+      } else {
+        mappingUrl = sourceClassFilename + ".map";
       }
 
       await qx.tool.utils.Utils.makeParentDir(outputClassFilename);
