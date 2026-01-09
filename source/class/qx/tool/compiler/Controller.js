@@ -32,11 +32,6 @@ const path = require("upath");
  * @property {DbClassInfo} dbClassInfo - the database class information
  * @property {Boolean} cached - true if the class was already compiled
  * 
- * @typedef {Object} DbClassInfo
- *  Database class information structure
- * @property {String} libraryName - The name of the library containing the class
- * @property {String} filename - The source filename of the class
- * @property {Date} mtime - The modification time of the source file
  */
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
@@ -105,25 +100,25 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @type {qx.tool.compiler.meta.MetaDatabase}
      */
     __metaDb: null,
-    /** @type{Object<String, qx.tool.compiler.app.Library} */
+    /** @type {Object<String, qx.tool.compiler.app.Library} */
     __libraries: null,
 
-    /** @type{qx.tool.compiler.Maker[]} list of makers */
+    /** @type {qx.tool.compiler.Maker[]} list of makers */
     __makers: null,
 
-    /** @type{String,Object} list of cached dbClassInfo, indexed by a hash key which is the target directory and classname, eg "source:mypkg.MyClass" */
+    /** @type {Object<string,qx.tool.compiler.ClassFile.DbClassInfo>} list of cached dbClassInfo, indexed by a hash key which is the target directory and classname, eg "source:mypkg.MyClass" */
     __dbClassInfoCache: null,
 
-    /** @type{String,Promise} classes currently being compiled, index by hash of target directory and classname eg "source:mypkg.MyClass" */
+    /** @type {Object<String,Promise>} classes currently being compiled, index by hash of target directory and classname eg "source:mypkg.MyClass" */
     __compilingClasses: null,
 
-    /** @type{String,Boolean} classes which are dirty and must be recompiled */
+    /** @type {Object<String,Boolean>} classes which are dirty and must be recompiled */
     __dirtyClasses: null,
 
-    /** @type{String,qx.tool.compiler.Maker} list of makers which need to be 'made', indexed by hash code */
+    /** @type {Object<String,qx.tool.compiler.Maker>} list of makers which need to be 'made', indexed by hash code */
     __dirtyMakers: null,
 
-    /** @type{String,Promise} list of makers currently making, indexed by hash code */
+    /** @type {Object<String,Promise>} list of makers currently making, indexed by hash code */
     __makingMakers: null,
 
     /**
@@ -217,9 +212,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
       this.__discovery.addListener("classAdded", async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
-        await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
-        await metaDb.reparseAll();
-        this._onClassNeedsCompile(classmeta.classname);
+        let added = await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
+        if (added) {
+          await metaDb.reparseAll();
+          this._onClassNeedsCompile(classmeta.classname);
+        }
       });
 
       this.__discovery.addListener("classRemoved", async evt => {
@@ -231,9 +228,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
       this.__discovery.addListener("classChanged", async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
-        await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
-        await metaDb.reparseAll();
-        this._onClassNeedsCompile(classmeta.classname);
+        let added = await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
+        if (added) {
+          await metaDb.reparseAll();
+          this._onClassNeedsCompile(classmeta.classname);
+        }
       });
 
       // Process the meta data and save to disk
@@ -473,14 +472,15 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       let mappingUrl = path.basename(sourceClassFilename) + ".map";
       if (qx.lang.Array.contains(compileConfig.getApplicationTypes(), "browser")) {
-        mappingUrl += "?dt=" + new Date().getTime();
+        mappingUrl += "?dt=" + Date.now();
       }
 
       await qx.tool.utils.Utils.makeParentDir(outputClassFilename);
-      await fs.promises.writeFile(outputClassFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
+      if (compiled) {
+        await fs.promises.writeFile(outputClassFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
+        await fs.promises.writeFile(outputClassFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
+      }
       await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
-      await fs.promises.writeFile(outputClassFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
-
       return { dbClassInfo, cached: false };
     },
 
