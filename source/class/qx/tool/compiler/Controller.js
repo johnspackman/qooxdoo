@@ -357,7 +357,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {qx.tool.compiler.Analyser} analyser
      * @param {String} classname
      * @param {Boolean} force
-     * @returns {Promise<DbClassInfo>} the class information
+     * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>} the class information
      *      
      */
     compileClass(analyser, classname, force) {
@@ -435,8 +435,12 @@ qx.Class.define("qx.tool.compiler.Controller", {
         throw new Error(`Source file for class ${classname} not found: ${sourceClassFilename}`);
       }
 
-      if (!dbClassInfo && fs.existsSync(jsonFilename)) {
-        dbClassInfo = await qx.tool.utils.Json.loadJsonAsync(jsonFilename);
+      if (!dbClassInfo) {
+        if (fs.existsSync(jsonFilename)) {
+          dbClassInfo = await qx.tool.utils.Json.loadJsonAsync(jsonFilename);
+        } else {
+          dbClassInfo = {};
+        }
         this.__dbClassInfoCache[hashKey] = dbClassInfo;
       }
 
@@ -460,11 +464,12 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       let src = await fs.promises.readFile(sourceClassFilename, "utf8");
       let library = this.findLibraryForClassname(classname);
-      dbClassInfo = {
+      Object.assign(dbClassInfo, {
         mtime: sourceStat.mtime,
         libraryName: library.getNamespace(),
         filename: sourceClassFilename
-      };
+      });
+      
 
       let classFile = new qx.tool.compiler.ClassFile(this.__metaDb, compileConfig, classname);
       let compiled = classFile.compile(src, sourceClassFilename);
