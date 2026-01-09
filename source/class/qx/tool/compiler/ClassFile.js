@@ -190,7 +190,22 @@ function formatValueAsCode(value) {
  * @property {string} implement
  * @property {*} environment
  * @property {boolean} hasDefer
+ * @property {Marker[]} markers
  * and many more
+ * 
+ * @typedef {Object} Marker
+ * @property {qx.tool.compiler.Console.msgId} msgId - the marker message ID
+ * @property {Array} args - arguments for the marker message
+ * @property {Range?} pos
+ * 
+ * @typedef {Object} Range
+ * @property {Position} start
+ * @property {Position} end
+ * 
+ * @typedef {Object} Position
+ * @property {Number} line
+ * @property {Number} column
+ * 
  * 
  * TODO complete this
  * 
@@ -273,6 +288,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     __inConstruct: false,
     __taskQueue: null,
     __taskQueueDrains: null,
+
+    /**
+     * @type {Marker[]} list of markers (warnings/errors) added during compilation
+     */
     __markers: null,
     __haveMarkersFor: null,
     __classMeta: null,
@@ -401,7 +420,6 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         // }
         result = babelCore.transform(src, config);
       } catch (ex) {
-        qx.tool.compiler.Console.log(ex);
         t.addMarker("compiler.syntaxError", ex.loc, ex.message);
         t.__fatalCompileError = true;
         t._compileDbClassInfo();
@@ -2538,8 +2556,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     /**
      * Adds a marker (eg warning or error)
      *
-     * @param msgId {String} the marker message ID (@see qx.tool.compiler.Marker)
-     * @param pos {Object||null} position map; may contain a Map containing
+     * @param {string} msgId the marker message ID. This is like `qx.tool.compiler.Console.msgId`, but without the `qx.tool.compiler.` prefix.
+     * @param {Position|Range|null} pos position map; may contain a Map containing
      *  {line,column?}, or a Map {start:{line,column}, end: {line,column}}.
      */
     addMarker(msgId, pos) {
