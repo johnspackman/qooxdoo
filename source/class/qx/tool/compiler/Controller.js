@@ -470,7 +470,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let compiled = classFile.compile(src, sourceClassFilename);
       classFile.writeDbInfo(dbClassInfo);
 
-      let mappingUrl = path.basename(sourceClassFilename) + ".map";
+      let markers = dbClassInfo.markers;
+      if (markers) {
+        markers.forEach(function (marker) {
+          var str = qx.tool.compiler.Console.decodeMarker(marker);
+          console.warn(classname + ": " + str);
+        });
+      }
+
       if (qx.lang.Array.contains(compileConfig.getApplicationTypes(), "browser")) {
         mappingUrl += "?dt=" + Date.now();
       }
