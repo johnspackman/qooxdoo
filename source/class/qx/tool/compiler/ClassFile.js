@@ -249,7 +249,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     this.__blockedPrivates = {};
     this.__privateMangling = this.__compileConfig.getManglePrivates();
 
-    for (let key in this.__compileConfig.getSymbols()) {
+    for (let key of this.__compileConfig.getSymbols()) {
       this.__globalSymbols[key] = true;
     }
   },

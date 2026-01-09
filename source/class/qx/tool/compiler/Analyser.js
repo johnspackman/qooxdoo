@@ -206,13 +206,19 @@ qx.Class.define("qx.tool.compiler.Analyser", {
      */
     __cachedClassInfo: null,
 
-    /** {Library[]} All libraries */
+    /** @type {Library[]} All libraries */
     __libraries: null,
 
-    /** {Map{String,Library}} Lookup of libraries, indexed by namespace */
+    /** @type {Map<String,Library>} Lookup of libraries, indexed by namespace */
     __librariesByNamespace: null,
 
+    /**
+     * @type {String[]}
+     */
     __classes: null,
+    /**
+     * @type {qx.tool.utils.IndexedArray}
+     */
     __initialClassesToScan: null,
     __locales: null,
     __translations: null,
@@ -367,7 +373,11 @@ qx.Class.define("qx.tool.compiler.Analyser", {
       // Cache of compiled classes info
       this.__cachedClassInfo = {};
 
-      // Compiles a class and caches it
+      /**
+       * @param {String} classname
+       * @return {Promise<qx.tool.compiler.Controller.DbClassInfo>}
+       * Compiles a class and caches it
+       */
       const compileClass = async classname => {
         let value = this.__cachedClassInfo[classname];
         if (value === undefined) {
@@ -377,7 +387,10 @@ qx.Class.define("qx.tool.compiler.Analyser", {
         return value;
       };
 
-      // Compiles all classes in the list
+      /**
+       * Compiles all classes in the list
+       * @param {String[]} classnames
+       */
       const compileMultipleClasses = async classnames => {
         let promises = classnames.map(classname => compileClass(classname));
         return await Promise.all(promises);
@@ -392,7 +405,10 @@ qx.Class.define("qx.tool.compiler.Analyser", {
         classesLookup[classname] = true;
       }
 
-      // Used to add a classname to the list of classes to compile
+      /**
+       * @param {String} classname
+       * Used to add a classname to the list of classes to compile 
+       */
       const pushClassname = classname => {
         if (!classesLookup[classname]) {
           this.__classes.push(classname);
@@ -400,7 +416,10 @@ qx.Class.define("qx.tool.compiler.Analyser", {
         }
       };
 
-      // Checks the constructor dependencies of a class
+      /**
+       * Checks the constructor dependencies of a class
+       * @param {String} classname
+       */
       const getConstructDependencies = async classname => {
         var deps = [];
         var info = await compileClass(classname);
@@ -414,7 +433,10 @@ qx.Class.define("qx.tool.compiler.Analyser", {
         return deps;
       };
 
-      // Gets the indirect load dependencies of a class
+      /**
+       * Gets the indirect load dependencies of a class
+       * @param {String} classname
+       */
       const getIndirectLoadDependencies = async classname => {
         var deps = [];
         var info = await compileClass(classname);
