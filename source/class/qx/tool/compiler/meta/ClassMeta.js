@@ -46,7 +46,10 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
   },
 
   members: {
-    /** @type{Object} the parsed data*/
+    /**
+     * @type {qx.tool.compiler.meta.StdClassParser.MetaData} 
+     * the parsed data
+     */
     __metaData: null,
 
     /**
@@ -76,7 +79,7 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
     /**
      * Returns the actual meta data
      *
-     * @returns {*}
+     * @returns {qx.tool.compiler.meta.StdClassParser.MetaData}
      */
     getMetaData() {
       return this.__metaData;
@@ -108,7 +111,7 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
      * Parses the file and returns the metadata
      *
      * @param {String} classFilename the .js file to parse
-     * @return {Object}
+     * @return {qx.tool.compiler.meta.StdClassParser.MetaData}
      */
     async parse(classFilename) {
       classFilename = await qx.tool.utils.files.Utils.correctCase(

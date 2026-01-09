@@ -28,6 +28,13 @@ const path = require("upath");
  * strictly does not persist state (outside of the `parse()` method) so that it
  * can be used in a multi-threaded environment, ie we can use Node Workers to
  * parse multiple files at once.
+ * 
+ * @typedef {Object} MetaData
+ * @property {number} version - The version of the metadata format
+ * @property {number} lastModified - The last modified timestamp of the class file
+ * @property {string} lastModifiedIso - The last modified timestamp of the class file in ISO format
+ * @property {string} classFilename - The filename of the class, relative to the meta root dir
+ * 
  *
  */
 qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
@@ -39,14 +46,17 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
   },
 
   members: {
-    /** The metadata, only valid during `parse()` */
+    /**
+     * @type {MetaData} 
+     * The metadata, only valid during `parse()` 
+     * */
     __metaData: null,
 
     /**
      * Parses the file and returns the metadata
      *
      * @param {String} classFilename the .js file to parse
-     * @return {Object}
+     * @return {MetaData}
      */
     async parse(metaRootDir, classFilename) {
       classFilename = await qx.tool.utils.files.Utils.correctCase(classFilename);

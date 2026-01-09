@@ -59,19 +59,19 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   },
 
   members: {
-    /** @type{Map<String,qx.tool.compiler.meta.ClassMeta>} list of meta indexed by classname */
+    /** @type {Object<String,qx.tool.compiler.meta.ClassMeta>} list of meta indexed by classname */
     __metaByClassname: null,
 
-    /** @type{Map<String,Boolean} list of classes which need to have their second pass */
+    /** @type {Object<String,Boolean>} list of classes which need to have their second pass */
     __dirtyClasses: null,
 
     /** The database */
     __database: null,
 
-    /** @type{Object<String, String>} map of symbol types, just a quick lookup */
+    /** @type {Object<String, String>} map of symbol types, just a quick lookup */
     __symbolTypesLookup: null,
 
-    /** @type{Object<String, String>} map of symbol types, just a quick lookup */
+    /** @type {Object<String, String>} map of symbol types, just a quick lookup */
     __symbolTypesLookup: null,
 
     __startupDetectedOutOfDate: null,
@@ -219,20 +219,29 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * Adds a file to the database
      *
      * @param {String} filename
-     * @param {Boolean} force
+     * @param {Boolean} force Always recompute the meta, even if it's up to date
+     * @returns {Promise<boolean>} Whether the file was added successfully. 
      */
     async addFile(filename, force) {
       filename = await qx.tool.utils.files.Utils.correctCase(filename);
       filename = path.resolve(filename);
       let meta = this.__metaByFilename[filename];
       if (meta && !force && !(await meta.isOutOfDate())) {
-        return;
+        return false;
       }
+
       meta = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
-      let metaData = await meta.parse(filename);
+
+      try {
+        var metaData = await meta.parse(filename);
+      } catch (ex) {
+        console.error("Failed to parse meta data for file " + filename + ": " + ex.message);
+        return false;
+      }
+
       let classname = metaData.className;
       if (metaData.className === undefined) {
-        return;
+        return false;
       }
       this.__metaByClassname[metaData.className] = meta;
       this.__metaByFilename[filename] = meta;
@@ -244,6 +253,8 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         let seg = segs.slice(0, i + 1).join(".");
         this.__symbolTypesLookup[seg] = "package";
       }
+
+      return true;
     },
 
     /**
@@ -389,7 +400,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         }
       }
 
-      for (let className of classnames) {
+      await Promise.all(classnames.map(async className => {
         let metaReader = this.__metaByClassname[className];
         let metaData = metaReader.getMetaData();
 
@@ -407,11 +418,14 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
 
         let filename = this.getRootDir() + "/" + className.replace(/\./g, "/") + ".json";
         await metaReader.saveMeta(filename);
-      }
+      }));
     },
 
+    /**
+     * @returns {Object<String, Set<String>>} An object mapping names of classy objects (i.e. classes, mixins, interfaces) to names of their child (derived) classy objects.
+     */
     __createDerivedClassLookup() {
-      const lookup = {};
+      let lookup = {};
 
       const add = (key, item) => {
         lookup[key] ??= new Set();
@@ -511,7 +525,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     /**
      * Discovers data about the members in the hierarchy, eg whether overridden etc
      *
-     * @param {*} metaData
+     * @param {qx.tool.compiler.meta.StdClassParser.MetaData} metaData
      */
     __fixupMembers(metaData) {
       if (!metaData.members) {
@@ -546,7 +560,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     /**
      * Detects the superlike (class/mixin/interface) appearances and includes the
      * mixin entries into the class metadata
-     * @param {*} metaData
+     * @param {qx.tool.compiler.meta.StdClassParser.MetaData} metaData
      * @param {string} kind
      */
     __fixupEntries(metaData, kind) {

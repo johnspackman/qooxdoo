@@ -179,6 +179,21 @@ function formatValueAsCode(value) {
  * A class file is parsed and anaysed into an instance of ClassFile; it is intended to be
  * used entirely standalone, with configuration passed in via the `compileConfig` - this is
  * to allow the ClassFile to be used in an isolated manner, such as in a Node Worker.
+ * 
+ * @typedef {Object} DbClassInfo
+ * @property {String} libraryName - The name of the library containing the class
+ * @property {String} filename - The source filename of the class
+ * @property {Date} mtime - The modification time of the source file
+ * @property {Object} dependsOn
+ * @property {string} extends
+ * @property {string} include
+ * @property {string} implement
+ * @property {*} environment
+ * @property {boolean} hasDefer
+ * and many more
+ * 
+ * TODO complete this
+ * 
  */
 qx.Class.define("qx.tool.compiler.ClassFile", {
   extend: qx.core.Object,
@@ -265,6 +280,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     __metaDefinitions: null,
     __fatalCompileError: false,
     __translations: null,
+    /**
+     * @type {DbClassInfo} information about the class to be stored in the database
+     */
     __dbClassInfo: null,
     __hasDefer: null,
     __definingType: null,
@@ -408,7 +426,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     /**
      * Writes the data for the database; updates the record, which may have been previously
      * used (so needs to be zero'd out)
-     * @param dbClassInfo {Map}
+     * @param {DbClassInfo} dbClassInfo
      */
     writeDbInfo(dbClassInfo) {
       delete dbClassInfo.unresolved;
@@ -425,6 +443,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
     /**
      * Compiles the DbInfo POJO to be stored in the database about this class
+     * @returns {DbClassInfo}
      * */
     _compileDbClassInfo() {
       var t = this;
