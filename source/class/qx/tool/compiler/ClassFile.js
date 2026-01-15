@@ -337,8 +337,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
      * Loads the source, transpiles and analyses the code, storing the result in outputPath
      *
      * @typedef {Object} CompileResult
-     * @property {String} source the transpiled source code
+     * @property {String} code the transpiled source code
      * @property {Object} map the source map for the transpiled code
+     * @property {DbClassInfo} dbClassInfo information about the class to be stored in the database
      *
      * @param {String} src the source code to compile
      * @param {String} filename the filename of the source code
@@ -414,11 +415,12 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         if (extraPreset[0].plugins.length) {
           config.presets.push(extraPreset);
         }
-        //Had to comment this out because blacklist is not supported anymore in babel
+        //2026-01-08 - Had to comment this out because blacklist is not supported anymore in babel
         // if (this.__privateMangling == "unreadable") {
         //   config.blacklist = ["spec.functionName"];
         // }
-        result = babelCore.transform(src, config);
+        let transform = babelCore.transform(src, config);
+        result = {code: transform.code, map: transform.map};
       } catch (ex) {
         t.addMarker("compiler.syntaxError", ex.loc, ex.message);
         t.__fatalCompileError = true;
@@ -438,25 +440,17 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         t._compileDbClassInfo();
       }
 
+      result.dbClassInfo = this.__dbClassInfo;
+
       return result;
     },
 
     /**
-     * Writes the data for the database; updates the record, which may have been previously
-     * used (so needs to be zero'd out)
-     * @param {DbClassInfo} dbClassInfo
+     * 
+     * @returns {DbClassInfo}
      */
-    writeDbInfo(dbClassInfo) {
-      delete dbClassInfo.unresolved;
-      delete dbClassInfo.dependsOn;
-      delete dbClassInfo.assets;
-      delete dbClassInfo.translations;
-      delete dbClassInfo.markers;
-      delete dbClassInfo.fatalCompileError;
-      delete dbClassInfo.commonjsModules;
-      for (var key in this.__dbClassInfo) {
-        dbClassInfo[key] = this.__dbClassInfo[key];
-      }
+    getDbInfo() {
+      return this.__dbClassInfo;
     },
 
     /**

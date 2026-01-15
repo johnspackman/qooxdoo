@@ -22,6 +22,7 @@
 
 const fs = require("fs");
 const path = require("upath");
+const workerpool = require("workerpool");
 
 /**
  * Controller for managing the discovery of class files, reading their metadata,
@@ -46,6 +47,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
     this.__makingMakers = {};
+    this.__transpilerPool = workerpool.pool(process.argv[1], {
+      workerType: "thread",
+      workerThreadOpts: {
+        argv: ["transpiler-worker"]
+      },
+      minWorkers: "max"      
+    });
   },
 
   events: {
@@ -96,6 +104,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
   },
 
   members: {
+    /**
+     * @type {import("workerpool").Pool}
+     * The pool of transpiler workers which invoke Babel to do the transpilation
+     */
+    __transpilerPool: null,
     /**
      * @type {qx.tool.compiler.meta.MetaDatabase}
      */
@@ -205,14 +218,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
       // Scan the discovered classes and add them to the meta database
       let discoveredClasses = qx.lang.Array.clone(this.__discovery.getDiscoveredClasses());
       await qx.tool.utils.Promisify.poolEachOf(discoveredClasses, 20, async classmeta => {
-        await metaDb.fastAddFile(classmeta.filenames[classmeta.filenames.length - 1], false);
+        await metaDb.fastAddFile(classmeta.filenames.at(-1), false);
       });
       this.fireEvent("addedDiscoveredClasses");
 
       this.__discovery.addListener("classAdded", async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
-        let added = await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
+        let added = await metaDb.addFile(classmeta.filenames.at(-1), true);
         if (added) {
           await metaDb.reparseAll();
           await metaDb.save();
@@ -223,13 +236,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
       this.__discovery.addListener("classRemoved", async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
-        await metaDb.removeFile(classmeta.filenames[classmeta.filenames.length - 1]);
+        await metaDb.removeFile(classmeta.filenames.at(-1));
       });
 
       this.__discovery.addListener("classChanged", async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
-        let added = await metaDb.addFile(classmeta.filenames[classmeta.filenames.length - 1], true);
+        let added = await metaDb.addFile(classmeta.filenames.at(-1), true);
         if (added) {
           await metaDb.reparseAll();
           await metaDb.save();
@@ -360,7 +373,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {String} classname
      * @param {Boolean} force
      * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>} the class information
-     *      
+     *
      */
     compileClass(analyser, classname, force) {
       let hashKey = analyser.getMaker().getTarget().getOutputDir() + ":" + classname;
@@ -464,18 +477,40 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       this.fireDataEvent("compilingClass", { classname, analyser });
 
-      let src = await fs.promises.readFile(sourceClassFilename, "utf8");
       let library = this.findLibraryForClassname(classname);
       Object.assign(dbClassInfo, {
         mtime: sourceStat.mtime,
         libraryName: library.getNamespace(),
         filename: sourceClassFilename
       });
-      
 
-      let classFile = new qx.tool.compiler.ClassFile(this.__metaDb, compileConfig, classname);
-      let compiled = classFile.compile(src, sourceClassFilename);
-      classFile.writeDbInfo(dbClassInfo);
+
+      let source = await fs.promises.readFile(sourceClassFilename, "utf8");
+
+      let context = {
+        metaTimestamp: this.__metaDb.getLastSerialized(),
+        metaData: this.__metaDb.getSerialized(),
+        classFileConfig: compileConfig.serialize()
+      };
+      let sourceInfo = {
+        classname,
+        filename: sourceClassFilename,
+        source
+      };
+      let compiled = await this.__transpilerPool.exec("translate", [sourceInfo, context]);
+
+      //Update dbClassInfo
+      delete dbClassInfo.unresolved;
+      delete dbClassInfo.dependsOn;
+      delete dbClassInfo.assets;
+      delete dbClassInfo.translations;
+      delete dbClassInfo.markers;
+      delete dbClassInfo.fatalCompileError;
+      delete dbClassInfo.commonjsModules;
+
+      for (var key in compiled.dbClassInfo) {
+        dbClassInfo[key] = compiled.dbClassInfo[key];
+      }
 
       let markers = dbClassInfo.markers;
       if (markers) {

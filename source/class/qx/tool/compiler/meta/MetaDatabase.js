@@ -27,6 +27,9 @@ const path = require("upath");
  * MetaDatabase is used to store the metadata for all classes in a qooxdoo compilation;
  * it covers all classes in all libraries, and has scope to incorporate pre-compilers
  * in the future.
+ * 
+ * @typedef {Object} Database
+ * @property {string[]} classnames List of all class names in the database
  */
 qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   extend: qx.core.Object,
@@ -35,10 +38,10 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     super();
     this.__metaByClassname = {};
     this.__metaByFilename = {};
-    this.__cachedMeta = {};
+    this.__packages = {};
     this.__dirtyClasses = {};
     this.__database = {};
-    this.__symbolTypesLookup = {};
+    this.__lastSerialized = 0;
     this.__startupDetectedOutOfDate = {};
   },
 
@@ -59,20 +62,43 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   },
 
   members: {
+    /**
+     * @type {Boolean} whether the database is read-only. This is the case if loaded from serialized form.
+     */
+    __readOnly: false,
+
     /** @type {Object<String,qx.tool.compiler.meta.ClassMeta>} list of meta indexed by classname */
     __metaByClassname: null,
+
+    /**
+     * @type {Object<String,boolean>} list of all packages
+     */
+    __packages: null,
 
     /** @type {Object<String,Boolean>} list of classes which need to have their second pass */
     __dirtyClasses: null,
 
-    /** The database */
+    /** 
+     * @type {Database} 
+     * The database 
+     */
     __database: null,
 
-    /** @type {Object<String, String>} map of symbol types, just a quick lookup */
-    __symbolTypesLookup: null,
+    /**
+     * @type {number?} Unix timestamp of the last time the database was serialized using `__updateSerialized`
+     */
+    __lastSerialized: null,
 
-    /** @type {Object<String, String>} map of symbol types, just a quick lookup */
-    __symbolTypesLookup: null,
+    /**
+     * @type {SharedArrayBuffer?} serialized form of the database.
+     * This is necessary in order to provide the meta database to compilation worker threads
+     * in an efficient way which does not involve copying large amounts of data.
+     * 
+     * The meta database is serialized when it's saved or loaded.
+     * We can deserialize it in worker threads using the static method `deserialize`.
+     * The deserialized reconstructed metadatabase will be read-only and not have functionalities like addFile, save, or load.
+     */
+    __serialized: null,    
 
     __startupDetectedOutOfDate: null,
 
@@ -83,8 +109,20 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       await fs.promises.mkdir(this.getRootDir(), { recursive: true });
       this.__database.classnames = Object.keys(this.__metaByClassname);
       await qx.tool.utils.Json.saveJsonAsync(this.getRootDir() + "/db.json", this.__database);
+      this.__updateSerialized();
     },
 
+    /**
+     * 
+     * @returns {number?} Unix timestamp of the last time the database was serialized.
+     */
+    getLastSerialized() {
+      return this.__lastSerialized;
+    },
+
+    /**
+     * @returns {Database?}
+     */
     getDatabase() {
       return this.__database;
     },
@@ -118,17 +156,21 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       let filename = this.getRootDir() + "/db.json";
       if (fs.existsSync(filename)) {
         this.__metaByClassname = {};
+        this.__metaByFilename = {};
+        this.__packages = {};
         this.__dirtyClasses = {};
+        this.__startupDetectedOutOfDate = {};
         let data = await qx.tool.utils.Json.loadJsonAsync(filename);
         this.__database = data;
 
         let classnamesToLoad = data.classnames || [];
-        await qx.tool.utils.Promisify.poolEachOf(classnamesToLoad, 20, async classname => {
+        //2026-01-15 - I don't think we need to limit concurrency here? - NodeJs should be able to handle load of parallel disk IO operations
+        await Promise.all(classnamesToLoad.map(async classname => {
           let segs = classname.split(".");
-          this.__symbolTypesLookup[classname] = "class";
+          
           for (let i = 0; i < segs.length - 1; i++) {
             let seg = segs.slice(0, i + 1).join(".");
-            this.__symbolTypesLookup[seg] = "package";
+            this.__packages[seg] = true;
           }
           let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
           if (fs.existsSync(filename)) {
@@ -144,12 +186,38 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
 
             this.__metaByFilename[classFilename] = metaReader;
           }
-        });
-
-        for (let classname of data.classnames) {
-        }
+        }));
       }
+      this.__updateSerialized();
       this.fireEvent("started");
+    },
+
+    /**
+     * 
+     * @returns {SharedArrayBuffer} A serialized form of the database, useful for passing efficiently to node workers.
+     * The MetaDataBase object can then be reconstructed using the static method `deserialize`.
+     */
+    getSerialized() {
+      return this.__serialized;
+    },
+
+    /**
+     * Updates the serialized form of the database
+     * @returns {SharedArrayBuffer} The updated serialized form
+     */
+    __updateSerialized() {
+      let pojo ={
+        metaByClassname: qx.lang.Object.map(this.__metaByClassname, meta => meta.getMetaData()),
+        packages: this.__packages,
+        environmentChecks: this.__database.environmentChecks || {}
+      };
+      
+      let encoded = new TextEncoder().encode(JSON.stringify(pojo));
+      let sab = new SharedArrayBuffer(encoded.byteLength);
+      new Uint8Array(sab).set(encoded);
+
+      this.__lastSerialized = Date.now();
+      return this.__serialized = sab;
     },
 
     /**
@@ -248,10 +316,9 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       this.__dirtyClasses[metaData.className] = true;
 
       let segs = classname.split(".");
-      this.__symbolTypesLookup[classname] = "class";
       for (let i = 0; i < segs.length - 1; i++) {
         let seg = segs.slice(0, i + 1).join(".");
-        this.__symbolTypesLookup[seg] = "package";
+        this.__packages[seg] = true;
       }
 
       return true;
@@ -317,12 +384,13 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @returns {SymbolType}
      */
     getSymbolType(name) {
-      var symbolType = this.__symbolTypesLookup[name];
+      var classInfo = this.__metaByClassname[name];
+      var packageInfo = this.__packages[name];
 
-      if (symbolType) {
+      if (classInfo || packageInfo) {
         return {
-          symbolType: symbolType,
-          className: symbolType == "class" ? name : null,
+          symbolType: classInfo ? "class" : "package",
+          className: classInfo ? name : null,
           name
         };
       }
@@ -362,8 +430,8 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       while (segs.length > 1) {
         segs.pop();
         let tmpname = segs.join(".");
-        symbolType = this.__symbolTypesLookup[tmpname];
-        if (symbolType == "class") {
+        classInfo = this.__metaByClassname[tmpname];
+        if (classInfo) {
           return {
             symbolType: "member",
             className: tmpname,
@@ -375,8 +443,12 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       return null;
     },
 
-    getKnownSymbols() {
-      return this.__symbolTypesLookup;
+    /**
+     * @readonly
+     * @returns {Object<String, qx.tool.compiler.meta.ClassMeta>} map of class name to ClassMeta
+     */
+    getMetaByClassname() {
+      return this.__metaByClassname;
     },
 
     /**
@@ -630,6 +702,28 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       }
 
       return data;
+    }
+  },
+
+  statics: {
+    /**
+     * Reconstructs the MetaDatabase from its SharedArrayBuffer representation
+     * @param {ShardArrayBuffer} buffer 
+     * @returns {qx.tool.compiler.meta.MetaDatabase}
+     */
+    deserialize(buffer) {   
+      let json = new TextDecoder().decode(new Uint8Array(buffer));
+      let dataObj = JSON.parse(json);
+      let metaDb = new qx.tool.compiler.meta.MetaDatabase();
+      //2026-01-15 TODO for now, the new meta will have POJOs not ClassMeta instances
+      //We don't need full ClassMeta instances in the workers yet
+      metaDb.__metaByClassname = dataObj.metaByClassname;
+      metaDb.__packages = dataObj.packages;
+      metaDb.__database = {
+        environmentChecks: dataObj.environmentChecks
+      };
+      metaDb.__readOnly = true;
+      return metaDb;
     }
   }
 });

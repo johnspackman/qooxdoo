@@ -924,7 +924,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
       var t = this;
       var result = {};
       let metaDb = this.getAnalyser().getController().getMetaDb();
-      let knownSymbols = metaDb.getKnownSymbols();
+      let classMetas = metaDb.getMetaByClassname();
       names.forEach(function (name) {
         var pos = name.indexOf("*");
         if (pos < 0) {
@@ -932,16 +932,16 @@ qx.Class.define("qx.tool.compiler.app.Application", {
         } else {
           var prefix = name.substring(0, pos);
           if (prefix) {
-            for (var symbol in knownSymbols) {
-              if (knownSymbols[symbol] == "class" && symbol.startsWith(prefix)) {
+            for (var symbol in classMetas) {
+              if (classMetas[symbol] && symbol.startsWith(prefix)) {
                 result[symbol] = true;
               }
             }
           }
           var postfix = name.substring(pos + 1);
           if (postfix) {
-            for (var symbol in knownSymbols) {
-              if (knownSymbols[symbol] == "class" && symbol.endsWith(postfix)) {
+            for (var symbol in classMetas) {
+              if (classMetas[symbol] && symbol.endsWith(postfix)) {
                 result[symbol] = true;
               }
             }

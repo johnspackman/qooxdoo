@@ -28,6 +28,7 @@ require("app-module-path").addPath(process.cwd() + "/node_modules");
 
 /**
  * Handles compilation of the project
+ * @ignore(setImmediate)
  */
 qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
   extend: qx.tool.compiler.cli.Command,
