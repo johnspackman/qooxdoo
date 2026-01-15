@@ -46,6 +46,17 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
     }
   },
 
+  members: {
+    /**
+     * Converts the config to a native object
+     * @returns {Object}
+     */
+    serialize() {
+      //We will use the qx.util.Serializer for now, but this may change later
+      return qx.util.Serializer.toNativeObject(this);
+    }
+  },
+
   statics: {
     createFromAnalyser(analyser) {
       let config = new qx.tool.compiler.ClassFileConfig();
@@ -77,6 +88,14 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
       config.setManglePrivates(analyser.getManglePrivates());
 
       return config;
+    },
+    /**
+     * Reconstructs a ClassFileConfig from a native object
+     * @param {Object} obj
+     * @returns {qx.tool.compiler.ClassFileConfig}
+     */
+    deserialize(obj) {
+      return new qx.tool.compiler.ClassFileConfig().set(obj);
     }
   }
 });
