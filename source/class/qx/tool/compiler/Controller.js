@@ -434,7 +434,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
     async __compileClassImpl(classname, force) {
       let analyser = this.getAnalyzer();
       let meta = this.__metaDb.getMetaData(classname);
-      let compileConfig = qx.tool.compiler.ClassFileConfig.createFromAnalyser(analyser);
 
       let sourceClassFilename = path.resolve(path.join(this.__metaDb.getRootDir(), meta.classFilename));
       let outputDir = analyser.getMaker().getTarget().getOutputDir();
@@ -483,13 +482,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
         filename: sourceClassFilename
       });
 
-
-      let source = await fs.promises.readFile(sourceClassFilename, "utf8");
-
       let sourceInfo = {
         classname,
-        filename: sourceClassFilename,
-        source
+        sourceFilename: sourceClassFilename,
+        outputFilename: outputClassFilename
       };
       let compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo]);
 
@@ -514,19 +510,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
         });
       }
 
-      let mappingUrl;
-      if (qx.lang.Array.contains(compileConfig.getApplicationTypes(), "browser")) {
-        mappingUrl = path.basename(sourceClassFilename) + ".map?dt=" + Date.now();
-      } else {
-        mappingUrl = sourceClassFilename + ".map";
-      }
-
-      await qx.tool.utils.Utils.makeParentDir(outputClassFilename);
-      if (compiled) {
-        await fs.promises.writeFile(outputClassFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
-        await fs.promises.writeFile(outputClassFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
-      }
-      await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
       return { dbClassInfo, cached: false };
     },
 
