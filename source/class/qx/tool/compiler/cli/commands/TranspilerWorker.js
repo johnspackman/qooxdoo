@@ -31,6 +31,8 @@
  */
 const workerpool = require("workerpool");
 const { isMainThread, threadId } = require("worker_threads");
+const fs = require("fs");
+const path = require("path");
 
 qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
   extend: qx.tool.cli.commands.Command,
@@ -70,29 +72,46 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
          * @param {SourceInfo} sourceInfo
          * @returns {qx.tool.compiler.ClassFile.CompileResult}
          */
-        transpile(sourceInfo) {          
-          let cf = new qx.tool.compiler.ClassFile(this.__metaDb, this.__classFileConfig, sourceInfo.classname);
-          let result = cf.compile(sourceInfo.source, sourceInfo.filename);
-          return result;
-        },
+        transpile(sourceInfo) {
+          let { classname, outputFilename, sourceFilename } = sourceInfo;
 
+          let source = fs.readFileSync(sourceFilename, "utf8");
+
+          let cf = new qx.tool.compiler.ClassFile(this.__metaDb, this.__classFileConfig, classname);
+          let compiled = cf.compile(source, sourceFilename);
+
+          let mappingUrl;
+          if (this.__classFileConfig.applicationTypes.includes("browser")) {
+            mappingUrl = path.basename(sourceFilename) + ".map?dt=" + Date.now();
+          } else {
+            mappingUrl = sourceFilename + ".map";
+          }
+
+          fs.mkdirSync(path.dirname(outputFilename), { recursive: true });
+          if (compiled) {
+            fs.writeFileSync(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
+            fs.writeFileSync(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
+          }
+          let jsonFilename = outputFilename.replace(/\.js$/, ".json");
+          fs.writeFileSync(jsonFilename, JSON.stringify(compiled.dbClassInfo, null, 2), "utf8");
+          return { dbClassInfo: compiled.dbClassInfo };
+        },
         /**
-         * 
-         * @param {SharedArrayBuffer} serializedMetaData 
+         *
+         * @param {SharedArrayBuffer} serializedMetaData
          */
         updateClassMeta(serializedMetaData) {
           this.__metaDb = qx.tool.compiler.meta.MetaDatabase.deserialize(serializedMetaData);
         },
 
         /**
-         * 
-         * @param {Object} serializedClassFileConfig 
+         *
+         * @param {Object} serializedClassFileConfig
          */
         updateClassFileConfig(serializedClassFileConfig) {
           this.__classFileConfig = qx.tool.compiler.ClassFileConfig.deserialize(serializedClassFileConfig);
         }
       });
-
       await new Promise(() => {}); //hang until process quits
     }
   }
