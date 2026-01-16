@@ -22,7 +22,6 @@
 
 const fs = require("fs");
 const path = require("upath");
-const workerpool = require("workerpool");
 
 /**
  * Controller for managing the discovery of class files, reading their metadata,
@@ -47,13 +46,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
     this.__makingMakers = {};
-    this.__transpilerPool = workerpool.pool(process.argv[1], {
-      workerType: "thread",
-      workerThreadOpts: {
-        argv: ["transpiler-worker"]
-      },
-      minWorkers: "max"      
-    });
+    this.__transpilerPool = new qx.tool.compiler.TranspilerPool();
   },
 
   events: {
@@ -100,12 +93,17 @@ qx.Class.define("qx.tool.compiler.Controller", {
     metaDir: {
       check: "String",
       apply: "_applyMetaDir"
+    },
+
+    analyzer: {
+      check: "qx.tool.compiler.Analyser",
+      apply: "_applyAnalyzer"
     }
   },
 
   members: {
     /**
-     * @type {import("workerpool").Pool}
+     * @type {qx.tool.compiler.TranspilerPool}
      * The pool of transpiler workers which invoke Babel to do the transpilation
      */
     __transpilerPool: null,
@@ -145,6 +143,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
       } else {
         this.__metaDb = null;
       }
+    },
+
+    async _applyAnalyzer(value, old) {
+      if (qx.core.Environment.get("qx.debug")) {
+        this.assertEquals(0, Object.keys(this.__compilingClasses).length, "No classes should be compiling when changing the analyzer");
+      }
+      await this.__transpilerPool.callAllWorkers("updateClassFileConfig", [value.getClassFileConfig().serialize()]);
     },
 
     /**
@@ -222,32 +227,24 @@ qx.Class.define("qx.tool.compiler.Controller", {
       });
       this.fireEvent("addedDiscoveredClasses");
 
-      this.__discovery.addListener("classAdded", async evt => {
+      const recompile = async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
         let added = await metaDb.addFile(classmeta.filenames.at(-1), true);
         if (added) {
           await metaDb.reparseAll();
           await metaDb.save();
+          await this.onMetaDbChanged();
           this._onClassNeedsCompile(classmeta.classname);
         }
-      });
+      };
+      this.__discovery.addListener("classAdded", recompile);
+      this.__discovery.addListener("classChanged", recompile);
 
       this.__discovery.addListener("classRemoved", async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
         await metaDb.removeFile(classmeta.filenames.at(-1));
-      });
-
-      this.__discovery.addListener("classChanged", async evt => {
-        let classname = evt.getData();
-        let classmeta = this.__discovery.getDiscoveredClass(classname);
-        let added = await metaDb.addFile(classmeta.filenames.at(-1), true);
-        if (added) {
-          await metaDb.reparseAll();
-          await metaDb.save();
-          this._onClassNeedsCompile(classmeta.classname);
-        }
       });
 
       // Process the meta data and save to disk
@@ -293,7 +290,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         return;
       }
       for (let analyser of analysers) {
-        this.compileClass(analyser, classname, true);
+        this.setAnalyzerAsync(analyser).then(() => this.compileClass(classname, true));
       }
 
       // Notify the makers that the class needs to be compiled
@@ -303,10 +300,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
     /**
      * Handler for when a class has been compiled.
      *
-     * @param {qx.tool.compiler.Analyser} analyser
      * @param {String} classname
      */
-    _onClassCompiled(analyser, classname) {
+    _onClassCompiled(classname) {
+      let analyser = this.getAnalyzer();
       this.fireDataEvent("compiledClass", { classname, analyser });
       for (let maker of this.__makers) {
         if (maker.getAnalyser() === analyser) {
@@ -375,7 +372,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>} the class information
      *
      */
-    compileClass(analyser, classname, force) {
+    compileClass(classname, force) {
+      let analyser = this.getAnalyzer();
       let hashKey = analyser.getMaker().getTarget().getOutputDir() + ":" + classname;
       let promise = this.__dirtyClasses[hashKey] ? null : this.__compilingClasses[hashKey];
       if (promise) {
@@ -383,13 +381,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
       delete this.__dirtyClasses[hashKey];
 
-      promise = this.__compileClassImpl(analyser, classname, force);
+      promise = this.__compileClassImpl(classname, force);
       promise = promise
         .then(result => {
           if (promise === this.__compilingClasses[hashKey]) {
             delete this.__compilingClasses[hashKey];
             if (!result.cached) {
-              this._onClassCompiled(analyser, classname);
+              this._onClassCompiled(classname);
             }
             return result.dbClassInfo;
           } else {
@@ -433,7 +431,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {Boolean} force
      * @returns {Promise<CompileInfo>}
      */
-    async __compileClassImpl(analyser, classname, force) {
+    async __compileClassImpl(classname, force) {
+      let analyser = this.getAnalyzer();
       let meta = this.__metaDb.getMetaData(classname);
       let compileConfig = qx.tool.compiler.ClassFileConfig.createFromAnalyser(analyser);
 
@@ -487,17 +486,12 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       let source = await fs.promises.readFile(sourceClassFilename, "utf8");
 
-      let context = {
-        metaTimestamp: this.__metaDb.getLastSerialized(),
-        metaData: this.__metaDb.getSerialized(),
-        classFileConfig: compileConfig.serialize()
-      };
       let sourceInfo = {
         classname,
         filename: sourceClassFilename,
         source
       };
-      let compiled = await this.__transpilerPool.exec("translate", [sourceInfo, context]);
+      let compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo]);
 
       //Update dbClassInfo
       delete dbClassInfo.unresolved;
@@ -534,6 +528,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
       await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
       return { dbClassInfo, cached: false };
+    },
+
+    async onMetaDbChanged() {
+      if (qx.core.Environment.get("qx.debug")) {
+        this.assertEquals(0, Object.keys(this.__compilingClasses).length, "No classes should be compiling when calling onMetaDbChanged");
+      }
+      await this.__transpilerPool.callAllWorkers("updateClassMeta", [this.__metaDb.getSerialized()]);
     },
 
     /**
