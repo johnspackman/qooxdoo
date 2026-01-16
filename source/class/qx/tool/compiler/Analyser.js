@@ -70,6 +70,7 @@ qx.Class.define("qx.tool.compiler.Analyser", {
     this.__environmentChecks = {};
     this.__fonts = {};
     this.__cachedClassInfo = {};
+    this.__classFileConfig = null;
   },
 
   properties: {
@@ -231,6 +232,18 @@ qx.Class.define("qx.tool.compiler.Analyser", {
     __inDefer: false,
     __qooxdooVersion: null,
     __environmentHash: null,
+    __classFileConfig: null,
+
+    /**
+     * 
+     * @returns {qx.tool.compiler.ClassFileConfig}
+     */
+    getClassFileConfig() {
+      if (!this.__classFileConfig) {
+        this.__classFileConfig = qx.tool.compiler.ClassFileConfig.createFromAnalyser(this);
+      }
+      return this.__classFileConfig;
+    },
 
     /**
      * Opens the analyser, loads database etc
@@ -381,7 +394,7 @@ qx.Class.define("qx.tool.compiler.Analyser", {
       const compileClass = async classname => {
         let value = this.__cachedClassInfo[classname];
         if (value === undefined) {
-          value = await this.__controller.compileClass(this, classname);
+          value = await this.__controller.compileClass(classname);
           this.__cachedClassInfo[classname] = value;
         }
         return value;
@@ -453,6 +466,8 @@ qx.Class.define("qx.tool.compiler.Analyser", {
         return deps;
       };
 
+      await this.__controller.setAnalyzerAsync(this);
+      await this.__controller.onMetaDbChanged();
       // Compile all classes; the `__classes` array will be extended as we go
       for (var classIndex = 0; classIndex < this.__classes.length; classIndex++) {
         let dbClassInfo = await compileClass(this.__classes[classIndex]);

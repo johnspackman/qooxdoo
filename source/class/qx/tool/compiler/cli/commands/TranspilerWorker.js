@@ -27,7 +27,7 @@
  * @property {number} metaTimestamp
  * @property {SharedArrayBuffer} metaData Serialized MetaDatabase
  * @property {Object} classFileConfig Serialized instance of qx.tool.compiler.ClassFileConfig, using toNativeObject()
- * 
+ *
  */
 const workerpool = require("workerpool");
 const { isMainThread, threadId } = require("worker_threads");
@@ -65,29 +65,34 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
         return;
       }
 
-      workerpool.worker({
+      qx.tool.compiler.TranspilerPool.registerMethods({
         /**
          * @param {SourceInfo} sourceInfo
-         * @param {CompilationContext} context
          * @returns {qx.tool.compiler.ClassFile.CompileResult}
          */
-        translate(sourceInfo, context) {
-          //We check if the meta database has changed by comparing timestamps
-          //For optimization reasons, we only re-create the meta database if it has changed
-          if (context.metaTimestamp !== this.__metaTimestamp) {
-            this.__metaDb = qx.tool.compiler.meta.MetaDatabase.deserialize(context.metaData);
-            this.__metaTimestamp = context.metaTimestamp;
-          }
-
-          if (!this.__classFileConfig) {
-            //assume classFileConfig will never change during program's lifetime
-            this.__classFileConfig = qx.tool.compiler.ClassFileConfig.deserialize(context.classFileConfig);
-          }
+        transpile(sourceInfo) {          
           let cf = new qx.tool.compiler.ClassFile(this.__metaDb, this.__classFileConfig, sourceInfo.classname);
           let result = cf.compile(sourceInfo.source, sourceInfo.filename);
           return result;
+        },
+
+        /**
+         * 
+         * @param {SharedArrayBuffer} serializedMetaData 
+         */
+        updateClassMeta(serializedMetaData) {
+          this.__metaDb = qx.tool.compiler.meta.MetaDatabase.deserialize(serializedMetaData);
+        },
+
+        /**
+         * 
+         * @param {Object} serializedClassFileConfig 
+         */
+        updateClassFileConfig(serializedClassFileConfig) {
+          this.__classFileConfig = qx.tool.compiler.ClassFileConfig.deserialize(serializedClassFileConfig);
         }
       });
+
       await new Promise(() => {}); //hang until process quits
     }
   }
