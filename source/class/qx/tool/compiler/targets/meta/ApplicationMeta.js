@@ -168,7 +168,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.ApplicationMeta", {
     /**
      * Returns the Analyser
      *
-     * @return {qx.tool.compiler.Analyser}
+     * @return {qx.tool.compiler.Analyzer}
      */
     getAnalyser() {
       return this.__application.getAnalyser();
