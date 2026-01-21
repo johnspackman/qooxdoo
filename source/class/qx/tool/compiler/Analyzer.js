@@ -33,18 +33,18 @@ const { promisify } = require("util");
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
 
-var log = qx.tool.utils.LogManager.createLog("analyser");
+var log = qx.tool.utils.LogManager.createLog("analyzer");
 
 /**
- * Entry point for analysing source files; maintains a list of known libraries
+ * Entry point for analyzing source files; maintains a list of known libraries
  * (eg a qooxdoo application, packages, qooxdoo framework etc.), known classes
  * (and the files and library in which the class is defined, and environment
  * checks which have been used (env checks imply a dependency).
  *
- * In practice, each instance of an Analyser is used specific to a given target; this
+ * In practice, each instance of an Analyzer is used specific to a given target; this
  * is not necessarily true, because you could in theory have multiple Makers (each of
  * which is definitely for a specific target and set of applications), which share an
- * Analyser.  Whether that has any actual use is debatable, and is not supported by the
+ * Analyzer.  Whether that has any actual use is debatable, and is not supported by the
  * CLI and compile.json.
  */
 qx.Class.define("qx.tool.compiler.Analyzer", {
@@ -240,13 +240,13 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
      */
     getClassFileConfig() {
       if (!this.__classFileConfig) {
-        this.__classFileConfig = qx.tool.compiler.ClassFileConfig.createFromAnalyser(this);
+        this.__classFileConfig = qx.tool.compiler.ClassFileConfig.createFromAnalyzer(this);
       }
       return this.__classFileConfig;
     },
 
     /**
-     * Opens the analyser, loads database etc
+     * Opens the analyzer, loads database etc
      *
      * @async
      */
@@ -357,7 +357,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     },
 
     /**
-     * Returns the DbClassInfo for a given classname, this is only valid after `analyseClasses()` has been called
+     * Returns the DbClassInfo for a given classname, this is only valid after `analyzeClasses()` has been called
      *
      * @param {String} classname
      * @returns {qx.tool.compiler.Controller.DbClassInfo} the DbClassInfo for the given classname, or null if not found
@@ -367,7 +367,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     },
 
     /**
-     * The list of all classnames compiled by `analyseClasses()`
+     * The list of all classnames compiled by `analyzeClasses()`
      * Note: 08-01-2026: this filters out classes that failed to compile
      *
      * @returns {String[]} a list of all classnames
@@ -380,7 +380,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
      * Parses all the source files recursively until all classes and all
      * dependent classes are loaded
      */
-    async analyseClasses() {
+    async analyzeClasses() {
       this.__db ??= {};
 
       // Cache of compiled classes info
@@ -409,7 +409,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
         return await Promise.all(promises);
       };
 
-      // List of classes to compile; this will extend as we analyse
+      // List of classes to compile; this will extend as we analyze
       this.__classes = this.__initialClassesToScan.toArray();
 
       // Quick lookup of the class names to compile
@@ -583,7 +583,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
 
             let dbClassInfo = this.__cachedClassInfo[classname];
             if (!dbClassInfo) {
-              throw new Error(`Class ${classname} not found in cache by Analyser.updateTranslations`);
+              throw new Error(`Class ${classname} not found in cache by Analyzer.updateTranslations`);
             }
 
             if (!dbClassInfo.translations) {
@@ -762,7 +762,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     },
 
     /**
-     * Adds a required class to be analysed by analyseClasses()
+     * Adds a required class to be analyzed by analyzeClasses()
      *
      * @param classname
      */
@@ -771,7 +771,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     },
 
     /**
-     * Removes a class from the list of required classes to analyse
+     * Removes a class from the list of required classes to analyze
      * @param classname {String}
      */
     removeClass(classname) {

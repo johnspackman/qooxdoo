@@ -58,26 +58,26 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
   },
 
   statics: {
-    createFromAnalyser(analyser) {
+    createFromAnalyzer(analyzer) {
       let config = new qx.tool.compiler.ClassFileConfig();
-      config.setBabelConfig(analyser.getBabelConfig());
-      config.setApplicationTypes(analyser.getApplicationTypes());
-      config.setFontNames(Object.keys(analyser.getFonts()));
-      config.setEnvironment(analyser.getEnvironment());
-      config.setAddCreatedAt(analyser.getAddCreatedAt());
-      config.setVerboseCreatedAt(analyser.getVerboseCreatedAt());
-      config.setIgnores(analyser.getIgnores());
+      config.setBabelConfig(analyzer.getBabelConfig());
+      config.setApplicationTypes(analyzer.getApplicationTypes());
+      config.setFontNames(Object.keys(analyzer.getFonts()));
+      config.setEnvironment(analyzer.getEnvironment());
+      config.setAddCreatedAt(analyzer.getAddCreatedAt());
+      config.setVerboseCreatedAt(analyzer.getVerboseCreatedAt());
+      config.setIgnores(analyzer.getIgnores());
 
       let symbols;
-      if (analyser.getGlobalSymbols().length) {
-        symbols = analyser.getGlobalSymbols();
+      if (analyzer.getGlobalSymbols().length) {
+        symbols = analyzer.getGlobalSymbols();
       } else {
         const CF = qx.tool.compiler.ClassFile;
         symbols = [...CF.QX_GLOBALS, ...CF.COMMON_GLOBALS, ...CF.BROWSER_GLOBALS];
       }
       config.setSymbols(symbols);
 
-      let db = analyser.getDatabase();
+      let db = analyzer.getDatabase();
       if (!db.manglePrefixes) {
         db.manglePrefixes = {
           nextPrefix: 1,
@@ -85,7 +85,7 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
         };
       }
       config.setManglePrefixes(db.manglePrefixes);
-      config.setManglePrivates(analyser.getManglePrivates());
+      config.setManglePrivates(analyzer.getManglePrivates());
 
       return config;
     },

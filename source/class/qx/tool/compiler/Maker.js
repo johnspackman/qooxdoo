@@ -116,8 +116,8 @@ qx.Class.define("qx.tool.compiler.Maker", {
   },
 
   members: {
-    /** {Analyser} current analyser (created on demand) */
-    _analyser: null,
+    /** {Analyzer} current analyzer (created on demand) */
+    _analyzer: null,
 
     /** Lookup of classes which have been compiled this session; this is a map where the keys are
      * the class name and the value is `true`, it is erased periodically
@@ -143,7 +143,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
     },
 
     updateProgress(type, ...args) {
-      this.getAnalyser()
+      this.getAnalyzer()
         .getController()
         .getProgress()
         .update(type, ...args);
@@ -154,7 +154,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
      *
      */
     async make() {
-      var analyser = this.getAnalyser();
+      var analyzer = this.getAnalyzer();
       let target = this.getTarget();
 
       this.setSuccess(null);
@@ -162,7 +162,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       let success = true;
       let hasWarnings = false;
 
-      // merge all environment settings for the analyser
+      // merge all environment settings for the analyzer
       let compileEnv = qx.tool.utils.Values.merge(
         {},
         qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS,
@@ -230,29 +230,29 @@ qx.Class.define("qx.tool.compiler.Maker", {
         }
       });
 
-      await analyser.open();
-      analyser.setEnvironment(compileEnv);
-      if (!this.isNoErase() && analyser.isContextChanged()) {
+      await analyzer.open();
+      analyzer.setEnvironment(compileEnv);
+      if (!this.isNoErase() && analyzer.isContextChanged()) {
         this.error("enviroment changed - delete output dir");
         await this.eraseOutputDir();
         await qx.tool.utils.Utils.makeParentDir(this.getOutputDir());
-        await analyser.resetDatabase();
+        await analyzer.resetDatabase();
       }
 
-      await qx.tool.utils.Utils.promisifyThis(analyser.initialScan, analyser);
-      await analyser.updateEnvironmentData();
+      await qx.tool.utils.Utils.promisifyThis(analyzer.initialScan, analyzer);
+      await analyzer.updateEnvironmentData();
 
-      target.setAnalyser(analyser);
-      this.__applications.forEach(app => app.setAnalyser(analyser));
+      target.setAnalyzer(analyzer);
+      this.__applications.forEach(app => app.setAnalyzer(analyzer));
       await target.open();
 
-      for (let library of analyser.getLibraries()) {
+      for (let library of analyzer.getLibraries()) {
         let fontsData = library.getFontsData();
         for (let fontName in fontsData) {
           let fontData = fontsData[fontName];
-          let font = analyser.getFont(fontName);
+          let font = analyzer.getFont(fontName);
           if (!font) {
-            font = analyser.getFont(fontName, true);
+            font = analyzer.getFont(fontName, true);
             await font.updateFromManifest(fontData, library);
           }
         }
@@ -260,15 +260,15 @@ qx.Class.define("qx.tool.compiler.Maker", {
 
       this.__applications.forEach(function (app) {
         app.getRequiredClasses().forEach(function (className) {
-          analyser.addClass(className);
+          analyzer.addClass(className);
         });
         if (app.getTheme()) {
-          analyser.addClass(app.getTheme());
+          analyzer.addClass(app.getTheme());
         }
       });
-      await analyser.analyseClasses();
+      await analyzer.analyzeClasses();
 
-      await analyser.saveDatabase();
+      await analyzer.saveDatabase();
       await this.fireEventAsync("writingApplications");
 
       // Detect which applications need to be recompiled by looking for classes recently compiled
@@ -276,7 +276,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       //  will be no dependencies so we just compile anyway, but `qx compile --watch` will call it
       //  multiple times
       let compiledClasses = this.getRecentlyCompiledClasses(true);
-      let db = analyser.getDatabase();
+      let db = analyzer.getDatabase();
 
       var appsThisTime = await this.__applications.filter(async app => {
         let loadDeps = app.getDependencies();
@@ -311,7 +311,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
         }
         if (!hasWarnings) {
           application.getDependencies().forEach(classname => {
-            let dbClassInfo = analyser.getDbClassInfo(classname);
+            let dbClassInfo = analyzer.getDbClassInfo(classname);
             if (!dbClassInfo?.markers) {
               return;
             }
@@ -327,7 +327,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
 
         let appInfo = {
           application,
-          analyser,
+          analyzer,
           maker: this
         };
 
@@ -339,7 +339,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
 
       await this.fireEventAsync("writtenApplications");
 
-      await analyser.saveDatabase();
+      await analyzer.saveDatabase();
       await this.fireEventAsync("made");
       this.setSuccess(success);
       this.setHasWarnings(hasWarnings);
@@ -374,25 +374,25 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @private
      */
     __applyDbFilename(value, oldValue) {
-      if (this._analyser) {
-        throw new Error("Cannot change the database filename once an Analyser has been created");
+      if (this._analyzer) {
+        throw new Error("Cannot change the database filename once an Analyzer has been created");
       }
     },
 
     /**
-     * Gets the analyser, creating it if necessary
-     * @returns {Analyser}
+     * Gets the analyzer, creating it if necessary
+     * @returns {Analyzer}
      */
-    getAnalyser() {
-      if (this._analyser) {
-        return this._analyser;
+    getAnalyzer() {
+      if (this._analyzer) {
+        return this._analyzer;
       }
-      this._analyser = this._createAnalyser();
-      this._analyser.addListener("compiledClass", evt => {
+      this._analyzer = this._createAnalyzer();
+      this._analyzer.addListener("compiledClass", evt => {
         let data = evt.getData();
         this._compiledClasses[data.classFile.getClassName()] = true;
       });
-      return this._analyser;
+      return this._analyzer;
     },
 
     onClassCompiled(classname) {
@@ -414,18 +414,18 @@ qx.Class.define("qx.tool.compiler.Maker", {
     },
 
     /**
-     * Creates the analyser
-     * @returns {Analyser}
+     * Creates the analyzer
+     * @returns {Analyzer}
      * @protected
      */
-    _createAnalyser() {
-      var analyser = (this.__analyser = new qx.tool.compiler.Analyzer(
+    _createAnalyzer() {
+      var analyzer = (this.__analyzer = new qx.tool.compiler.Analyzer(
         path.join(this.getOutputDir(), this.getDbFilename() || "db.json"),
         this
       ));
 
-      analyser.setOutputDir(this.getOutputDir());
-      return analyser;
+      analyzer.setOutputDir(this.getOutputDir());
+      return analyzer;
     },
 
     /*
@@ -442,8 +442,8 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @private
      */
     __applyTarget(value, oldValue) {
-      if (this._analyser) {
-        this._analyser.setOutputDir(value ? value.getOutputDir() : null);
+      if (this._analyzer) {
+        this._analyzer.setOutputDir(value ? value.getOutputDir() : null);
       }
       if (value) {
         value.set({

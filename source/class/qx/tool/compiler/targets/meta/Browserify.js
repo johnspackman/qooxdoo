@@ -41,13 +41,13 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
       if (this.__commonjsModules === null) {
         let commonjsModules = new Set();
         let references = {};
-        let analyser = this.getAppMeta().getAnalyser();
+        let analyzer = this.getAppMeta().getAnalyzer();
         let localModules = this.getAppMeta().getApplication().getLocalModules() || {};
 
         // Get a Set of unique `require`d CommonJS module names from
         // all classes
-        for (let className of analyser.getCompiledClassnames()) {
-          let classInfo = analyser.getDbClassInfo(className);
+        for (let className of analyzer.getCompiledClassnames()) {
+          let classInfo = analyzer.getDbClassInfo(className);
           if (classInfo.commonjsModules) {
             Object.keys(classInfo.commonjsModules).forEach(moduleName => {
               // Ignore this found `require()` if its a local modules
@@ -79,7 +79,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
      */
     async writeToDisk() {
       let localModules = this.getAppMeta().getApplication().getLocalModules();
-      let db = this.getAppMeta().getAnalyser().getDatabase();
+      let db = this.getAppMeta().getAnalyzer().getDatabase();
       let { commonjsModules } = this.__getCommonjsModules();
 
       let modules = [];
@@ -112,7 +112,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
       doIt ||= modulesInfo.modulesHash !== (db?.modulesInfo?.modulesHash || "");
       if (doIt) {
         db.modulesInfo = modulesInfo;
-        await this.getAppMeta().getAnalyser().saveDatabase();
+        await this.getAppMeta().getAnalyzer().saveDatabase();
       }
       this.setNeedsWriteToDisk(doIt);
       return super.writeToDisk();
@@ -166,7 +166,7 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
         };
         qx.lang.Object.mergeWith(
           options,
-          this.getAppMeta().getAnalyser().getBrowserifyConfig()?.options || {},
+          this.getAppMeta().getAnalyzer().getBrowserifyConfig()?.options || {},
           false
         );
         let b = browserify([], options);

@@ -59,7 +59,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     /**
      * @typedef {Object} CompilingClassEventData
      * @property {String} classname - The classname being compiled
-     * @property {qx.tool.compiler.Analyzer} analyser - The analyser for the class
+     * @property {qx.tool.compiler.Analyzer} analyzer - The analyzer for the class
      *
      * Fired when a class is being compiled, the data is {CompilingClassEventData}
      */
@@ -158,8 +158,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
      */
     addMaker(maker) {
       this.__makers.push(maker);
-      maker.getAnalyser().setController(this);
-      for (let lib of maker.getAnalyser().getLibraries()) {
+      maker.getAnalyzer().setController(this);
+      for (let lib of maker.getAnalyzer().getLibraries()) {
         this.addLibrary(lib);
       }
       this.fireDataEvent("addMaker", maker);
@@ -274,23 +274,23 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {String} classname
      */
     _onClassNeedsCompile(classname) {
-      let analysers = [];
+      let analyzers = [];
       for (let maker of this.__makers) {
         for (let app of maker.getApplications()) {
           let dependencies = app.getDependencies() || [];
           if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
-            analysers.push(maker.getAnalyser());
+            analyzers.push(maker.getAnalyzer());
             let hashKey = maker.getTarget().getOutputDir() + ":" + classname;
             this.__dirtyClasses[hashKey] = true;
             break;
           }
         }
       }
-      if (analysers.length === 0) {
+      if (analyzers.length === 0) {
         return;
       }
-      for (let analyser of analysers) {
-        this.setAnalyzerAsync(analyser).then(() => this.compileClass(classname, true));
+      for (let analyzer of analyzers) {
+        this.setAnalyzerAsync(analyzer).then(() => this.compileClass(classname, true));
       }
 
       // Notify the makers that the class needs to be compiled
@@ -303,10 +303,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {String} classname
      */
     _onClassCompiled(classname) {
-      let analyser = this.getAnalyzer();
-      this.fireDataEvent("compiledClass", { classname, analyser });
+      let analyzer = this.getAnalyzer();
+      this.fireDataEvent("compiledClass", { classname, analyzer });
       for (let maker of this.__makers) {
-        if (maker.getAnalyser() === analyser) {
+        if (maker.getAnalyzer() === analyzer) {
           for (let app of maker.getApplications()) {
             let dependencies = app.getDependencies() || [];
             if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
@@ -363,18 +363,18 @@ qx.Class.define("qx.tool.compiler.Controller", {
     },
 
     /**
-     * Compiles a class for the given analyser and classname.  If the class is already compiled,
+     * Compiles a class for the given analyzer and classname.  If the class is already compiled,
      * it will return the cached information unless `force` is true.
      *
-     * @param {qx.tool.compiler.Analyzer} analyser
+     * @param {qx.tool.compiler.Analyzer} analyzer
      * @param {String} classname
      * @param {Boolean} force
      * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>} the class information
      *
      */
     compileClass(classname, force) {
-      let analyser = this.getAnalyzer();
-      let hashKey = analyser.getMaker().getTarget().getOutputDir() + ":" + classname;
+      let analyzer = this.getAnalyzer();
+      let hashKey = analyzer.getMaker().getTarget().getOutputDir() + ":" + classname;
       let promise = this.__dirtyClasses[hashKey] ? null : this.__compilingClasses[hashKey];
       if (promise) {
         return promise;
@@ -426,17 +426,17 @@ qx.Class.define("qx.tool.compiler.Controller", {
     /**
      * Implements the actual compilation of a class.
      *
-     * @param {qx.tool.compiler.Analyzer} analyser
+     * @param {qx.tool.compiler.Analyzer} analyzer
      * @param {String} classname
      * @param {Boolean} force
      * @returns {Promise<CompileInfo>}
      */
     async __compileClassImpl(classname, force) {
-      let analyser = this.getAnalyzer();
+      let analyzer = this.getAnalyzer();
       let meta = this.__metaDb.getMetaData(classname);
 
       let sourceClassFilename = path.resolve(path.join(this.__metaDb.getRootDir(), meta.classFilename));
-      let outputDir = analyser.getMaker().getTarget().getOutputDir();
+      let outputDir = analyzer.getMaker().getTarget().getOutputDir();
       let outputClassFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".js");
 
       let jsonFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".json");
@@ -473,7 +473,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         }
       }
 
-      this.fireDataEvent("compilingClass", { classname, analyser });
+      this.fireDataEvent("compilingClass", { classname, analyzer });
 
       let library = this.findLibraryForClassname(classname);
       Object.assign(dbClassInfo, {

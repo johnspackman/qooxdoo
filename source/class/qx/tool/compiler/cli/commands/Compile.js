@@ -460,23 +460,23 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
 
       await qx.Promise.all(
         makers.map(async maker => {
-          var analyser = maker.getAnalyser();
+          var analyzer = maker.getAnalyzer();
           let cfg = await qx.tool.cli.ConfigDb.getInstance();
-          analyser.setWritePoLineNumbers(
+          analyzer.setWritePoLineNumbers(
             cfg.db("qx.translation.strictPoCompatibility", false)
           );
 
-        if (!(await fs.existsAsync(maker.getOutputDir()))) {
-          this.__outputDirWasCreated = true;
-        }
-        if (this.argv["clean"]) {
-          await maker.eraseOutputDir();
-          await qx.tool.utils.files.Utils.safeUnlink(analyser.getDbFilename());
+          if (!(await fs.existsAsync(maker.getOutputDir()))) {
+            this.__outputDirWasCreated = true;
+          }
+          if (this.argv["clean"]) {
+            await maker.eraseOutputDir();
+            await qx.tool.utils.files.Utils.safeUnlink(analyzer.getDbFilename());
 
-            await qx.tool.utils.files.Utils.safeUnlink(analyser.getResDbFilename());
+            await qx.tool.utils.files.Utils.safeUnlink(analyzer.getResDbFilename());
           }
           if (config.ignores) {
-            analyser.setIgnores(config.ignores);
+            analyzer.setIgnores(config.ignores);
           }
 
           var target = maker.getTarget();
@@ -1055,22 +1055,22 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         var manglePrivates = chooseValue(targetConfig["mangle-privates"], t.argv["mangle-privates"]);
 
         if (typeof manglePrivates == "string") {
-          maker.getAnalyser().setManglePrivates(manglePrivates);
+          maker.getAnalyzer().setManglePrivates(manglePrivates);
         } else if (typeof manglePrivates == "boolean") {
           if (manglePrivates) {
             maker
-              .getAnalyser()
+              .getAnalyzer()
               .setManglePrivates(target instanceof qx.tool.compiler.targets.BuildTarget ? "unreadable" : "readable");
           } else {
-            maker.getAnalyser().setManglePrivates("off");
+            maker.getAnalyzer().setManglePrivates("off");
           }
         }
 
         if (targetConfig["application-types"]) {
-          maker.getAnalyser().setApplicationTypes(targetConfig["application-types"]);
+          maker.getAnalyzer().setApplicationTypes(targetConfig["application-types"]);
         }
         if (targetConfig["proxySourcePath"]) {
-          maker.getAnalyser().setProxySourcePath(targetConfig["proxySourcePath"]);
+          maker.getAnalyzer().setProxySourcePath(targetConfig["proxySourcePath"]);
         }
 
         maker.setLocales(data.locales || ["en"]);
@@ -1087,11 +1087,11 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         }
 
         for (let ns in libraries) {
-          maker.getAnalyser().addLibrary(libraries[ns]);
+          maker.getAnalyzer().addLibrary(libraries[ns]);
         }
 
         let targetEnvironment = {
-          "qx.version": maker.getAnalyser().getQooxdooVersion(),
+          "qx.version": maker.getAnalyzer().getQooxdooVersion(),
           "qx.compiler.targetType": target.getType(),
           "qx.compiler.outputDir": target.getOutputDir(),
           "qx.target.privateArtifacts": !!data["private-artifacts"]
@@ -1131,18 +1131,20 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         babelConfig.options = babelConfig.options || {};
         qx.lang.Object.mergeWith(babelConfig.options, targetConfig.babelOptions || {});
 
-        maker.getAnalyser().setBabelConfig(babelConfig);
+        maker.getAnalyzer().setBabelConfig(babelConfig);
 
         let browserifyConfig = qx.lang.Object.clone(data.browserify || {}, true);
         browserifyConfig.options = browserifyConfig.options || {};
         qx.lang.Object.mergeWith(browserifyConfig.options, targetConfig.browserifyOptions || {});
-        maker.getAnalyser().setBrowserifyConfig(browserifyConfig);
-
-
+        maker.getAnalyzer().setBrowserifyConfig(browserifyConfig);
 
         var addCreatedAt = targetConfig["addCreatedAt"] || t.argv["addCreatedAt"];
         if (addCreatedAt) {
-          maker.getAnalyser().setAddCreatedAt(true);
+          maker.getAnalyzer().setAddCreatedAt(true);
+        }
+        const verboseCreatedAt = targetConfig["verboseCreatedAt"] || t.argv["verboseCreatedAt"];
+        if (verboseCreatedAt) {
+          maker.getAnalyzer().setVerboseCreatedAt(true);
         }
 
         let allApplicationTypes = {};
@@ -1247,7 +1249,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         if (allApplicationTypes["rhino"]) {
           qx.lang.Array.append(globalSymbols, ClassFile.RHINO_GLOBALS);
         }
-        maker.getAnalyser().setGlobalSymbols(globalSymbols);
+        maker.getAnalyzer().setGlobalSymbols(globalSymbols);
 
         if (
           targetConfig.defaultAppConfig &&

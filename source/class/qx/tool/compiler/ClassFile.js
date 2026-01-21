@@ -29,7 +29,7 @@ var types = require("@babel/types");
 var babylon = require("@babel/parser");
 var async = require("async");
 
-var log = qx.tool.utils.LogManager.createLog("analyser");
+var log = qx.tool.utils.LogManager.createLog("analyzer");
 
 /**
  * Helper method that collapses the MemberExpression into a string
@@ -334,7 +334,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     },
 
     /**
-     * Loads the source, transpiles and analyses the code, storing the result in outputPath
+     * Loads the source, transpiles and analyzes the code, storing the result in outputPath
      *
      * @typedef {Object} CompileResult
      * @property {String} code the transpiled source code
