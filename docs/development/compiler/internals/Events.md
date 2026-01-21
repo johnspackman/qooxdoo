@@ -17,7 +17,7 @@ which your code can listen. Here is a list of events with a brief explanation:
 
 ## Analyzer
 
-`qx.tool.compiler.Analyser` instances fire the following events:
+`qx.tool.compiler.Analyzer` instances fire the following events:
 - `compilingClass`: Fired when a class is about to be compiled.
 - `compiledClass`: Fired when a class is compiled.
 - `alreadyCompiledClass`: Fired when a class is already compiled (but needed for compilation)

@@ -36,7 +36,7 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
   /**
    * Constructor
    *
-   * @param analyser {qx.tool.compiler.Analyser}
+   * @param analyser {qx.tool.compiler.Analyzer}
    */
   construct(analyser) {
     super();

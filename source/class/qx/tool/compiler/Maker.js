@@ -419,7 +419,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @protected
      */
     _createAnalyser() {
-      var analyser = (this.__analyser = new qx.tool.compiler.Analyser(
+      var analyser = (this.__analyser = new qx.tool.compiler.Analyzer(
         path.join(this.getOutputDir(), this.getDbFilename() || "db.json"),
         this
       ));

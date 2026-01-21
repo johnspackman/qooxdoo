@@ -47,7 +47,7 @@ var log = qx.tool.utils.LogManager.createLog("analyser");
  * Analyser.  Whether that has any actual use is debatable, and is not supported by the
  * CLI and compile.json.
  */
-qx.Class.define("qx.tool.compiler.Analyser", {
+qx.Class.define("qx.tool.compiler.Analyzer", {
   extend: qx.core.Object,
 
   /**

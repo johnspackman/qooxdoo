@@ -59,7 +59,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     /**
      * @typedef {Object} CompilingClassEventData
      * @property {String} classname - The classname being compiled
-     * @property {qx.tool.compiler.Analyser} analyser - The analyser for the class
+     * @property {qx.tool.compiler.Analyzer} analyser - The analyser for the class
      *
      * Fired when a class is being compiled, the data is {CompilingClassEventData}
      */
@@ -96,7 +96,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     },
 
     analyzer: {
-      check: "qx.tool.compiler.Analyser",
+      check: "qx.tool.compiler.Analyzer",
       apply: "_applyAnalyzer"
     }
   },
@@ -366,7 +366,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * Compiles a class for the given analyser and classname.  If the class is already compiled,
      * it will return the cached information unless `force` is true.
      *
-     * @param {qx.tool.compiler.Analyser} analyser
+     * @param {qx.tool.compiler.Analyzer} analyser
      * @param {String} classname
      * @param {Boolean} force
      * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>} the class information
@@ -426,7 +426,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     /**
      * Implements the actual compilation of a class.
      *
-     * @param {qx.tool.compiler.Analyser} analyser
+     * @param {qx.tool.compiler.Analyzer} analyser
      * @param {String} classname
      * @param {Boolean} force
      * @returns {Promise<CompileInfo>}
