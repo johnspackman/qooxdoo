@@ -285,6 +285,15 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       );
 
       cmd.addFlag(
+        new qx.tool.cli.Flag("write-compile-info").set({
+          description:
+            "Write application summary information to the script, used mostly for unit tests",
+          type: "boolean",
+          value: false
+        })
+      );
+
+      cmd.addFlag(
         new qx.tool.cli.Flag("bundling").set({
           shortCode: "b",
           description: "Whether bundling is enabled",
@@ -361,6 +370,12 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
 
       if (this.argv["feedback"] === null) {
         this.argv["feedback"] = configDb.db("qx.default.feedback", true);
+      }
+
+      if(this.argv.jobs != null && this.argv.jobs < 1) {
+        qx.tool.compiler.Console.error("Number of jobs (-j) must be > 0");
+        process.exitCode = 1;
+        return;
       }
 
       if (this.argv.verbose) {
@@ -448,6 +463,11 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         throw new qx.tool.utils.Utils.UserError("Error: Cannot find anything to make");
       }
 
+      let controller = new qx.tool.compiler.Controller().set({
+        metaDir: this.__metaDir
+      });
+
+      //TODO: this is others' code that was merged
       let countMaking = 0;
       const collateDispatchEvent = evt => {
         if (countMaking == 1) {
