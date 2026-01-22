@@ -389,45 +389,27 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
       /**
        * @param {String} classname
        * @return {Promise<qx.tool.compiler.Controller.DbClassInfo>}
+       * @param {Boolean} sync Forces to return synchronously. Class must have been compiled already.
        * Compiles a class and caches it
        */
-      const compileClass = async classname => {
+      const compileClass = (classname, sync) => {
         let value = this.__cachedClassInfo[classname];
         if (value === undefined) {
-          value = await this.__controller.compileClass(this, classname);
+          value = this.__controller.compileClass(this, classname).then(v => {
+            return (this.__cachedClassInfo[classname] = v);
+          });
           this.__cachedClassInfo[classname] = value;
+        }
+        if (qx.core.Environment.get("qx.debug")) {
+          if (sync && value instanceof Promise) {
+            throw new Error(`Class ${classname} has not been compiled yet`);
+          }
         }
         return value;
       };
 
-      /**
-       * Compiles all classes in the list
-       * @param {String[]} classnames
-       */
-      const compileMultipleClasses = async classnames => {
-        let promises = classnames.map(classname => compileClass(classname));
-        return await Promise.all(promises);
-      };
-
       // List of classes to compile; this will extend as we analyze
       this.__classes = this.__initialClassesToScan.toArray();
-
-      // Quick lookup of the class names to compile
-      let classesLookup = {};
-      for (let classname of this.__classes) {
-        classesLookup[classname] = true;
-      }
-
-      /**
-       * @param {String} classname
-       * Used to add a classname to the list of classes to compile 
-       */
-      const pushClassname = classname => {
-        if (!classesLookup[classname]) {
-          this.__classes.push(classname);
-          classesLookup[classname] = true;
-        }
-      };
 
       /**
        * Checks the constructor dependencies of a class
@@ -452,7 +434,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
        */
       const getIndirectLoadDependencies = async classname => {
         var deps = [];
-        var info = await compileClass(classname);
+        let info = compileClass(classname, true);
         if (info && info.dependsOn) {
           for (var depName in info.dependsOn) {
             if (info.dependsOn[depName].load) {
@@ -466,32 +448,59 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
         return deps;
       };
 
-      // Compile all classes; the `__classes` array will be extended as we go
-      for (var classIndex = 0; classIndex < this.__classes.length; classIndex++) {
-        let dbClassInfo = await compileClass(this.__classes[classIndex]);
+      /**
+       * @type {Object<string, Promise>}
+       * Classes currently being processed
+       */
+      let processingClasses = {};
 
-        if (dbClassInfo?.dependsOn) {
-          await compileMultipleClasses(Object.keys(dbClassInfo.dependsOn));
-          for (var depName in dbClassInfo.dependsOn) {
-            pushClassname(depName);
-          }
-        }
-      }
-
-      for (let classname of this.__classes) {
+      /**
+       * Compiles a class and ensures its dependencies are processed as well.
+       *
+       * This function is faster and more efficient than the previous implementation because
+       * as soon as a class is compiled, its begins to process its dependencies straight away.
+       * Previously, we compiled classes in batches, so we've had to wait for the entire batch to finish
+       * before starting the next.
+       * @param {string} classname
+       */
+      const processClass = async classname => {
         let dbClassInfo = await compileClass(classname);
+        if (dbClassInfo?.dependsOn) {
+          Object.keys(dbClassInfo.dependsOn).forEach(depName => ensureProcessed(depName));
+        }
         let dependsOnClassnames = await getIndirectLoadDependencies(classname);
-        await compileMultipleClasses(dependsOnClassnames);
-
         for (let dependsOnClassname of dependsOnClassnames) {
-          if (!dbClassInfo.dependsOn) {
-            dbClassInfo.dependsOn = {};
-          }
-          if (!dbClassInfo.dependsOn[dependsOnClassname]) {
-            dbClassInfo.dependsOn[dependsOnClassname] = {};
-          }
+          dbClassInfo.dependsOn ??= {};
+          dbClassInfo.dependsOn[dependsOnClassname] ??= {};
           dbClassInfo.dependsOn[dependsOnClassname].load = true;
         }
+        await Promise.all(dependsOnClassnames.map(cn => compileClass(cn)));
+      };
+
+      /**
+       * Ensures a class is processed if it's not already
+       * @param {string} classname
+       */
+      const ensureProcessed = classname => {
+        if (processingClasses[classname] === undefined) {
+          this.__classes.push(classname);
+          processingClasses[classname] = processClass(classname);
+        }
+      };
+
+      this.__initialClassesToScan.toArray().forEach(cn => ensureProcessed(cn));
+
+      //Wait until all classes are processed
+      //All the classes are already compiling
+      //This just waits until they are done
+      for (var classIndex = 0; classIndex < this.__classes.length; classIndex++) {
+        let classname = this.__classes[classIndex];
+        if (qx.core.Environment.get("qx.debug")) {
+          this.assertNotUndefined(processingClasses[classname], `Internal error: class ${classname} is not being processed`);
+        }
+        //We have to await them in series.
+        //We can't use Promise.all because this.__classes grows as we compile
+        await processingClasses[classname];
       }
     },
 
