@@ -116,6 +116,12 @@ qx.Class.define("qx.tool.compiler.Maker", {
   },
 
   members: {
+    __initted: false,
+
+    /**
+     * @type {Object}
+     */
+    __appEnvironments: null,    
     /** {Analyzer} current analyzer (created on demand) */
     _analyzer: null,
 
@@ -150,19 +156,13 @@ qx.Class.define("qx.tool.compiler.Maker", {
     },
 
     /**
-     * Makes the application
-     *
+     * This method is called per maker when the compiler starts up.
+     * It must be called before we send the class file config to the workers
      */
-    async make() {
-      var analyzer = this.getAnalyzer();
-      let target = this.getTarget();
-
-      this.setSuccess(null);
-      this.setHasWarnings(null);
-      let success = true;
-      let hasWarnings = false;
-
+    async init() {
+      this.__initted = true;
       // merge all environment settings for the analyzer
+      let target = this.getTarget();
       let compileEnv = qx.tool.utils.Values.merge(
         {},
         qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS,
@@ -189,6 +189,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
       this.getApplications().forEach(app => {
         appEnvironments[app.toHashCode()] = qx.tool.utils.Values.merge({}, compileEnv, app.getCalculatedEnvironment());
       });
+      this.__appEnvironments = appEnvironments;
 
       // Analyze the list of environment variables, detect which are shared between all apps
       let allAppEnv = {};
@@ -230,8 +231,30 @@ qx.Class.define("qx.tool.compiler.Maker", {
         }
       });
 
+      let analyzer = this.getAnalyzer();
       await analyzer.open();
       analyzer.setEnvironment(compileEnv);
+    },
+
+    /**
+     * Makes the application
+     *
+     */
+    async make() {
+      if (qx.core.Environment.get("qx.debug")) {
+        if (!this.__initted) {
+          throw new Error("Maker must be initialized by calling init() before make()");
+        }
+      }
+      var analyzer = this.getAnalyzer();
+      let target = this.getTarget();
+
+      this.setSuccess(null);
+      this.setHasWarnings(null);
+      let success = true;
+      let hasWarnings = false;
+      let compileEnv = analyzer.getEnvironment();
+
       if (!this.isNoErase() && analyzer.isContextChanged()) {
         this.error("enviroment changed - delete output dir");
         await this.eraseOutputDir();
@@ -300,7 +323,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
         if (application.getType() != "browser" && !compileEnv["qx.headless"]) {
           qx.tool.compiler.Console.print("qx.tool.compiler.maker.appNotHeadless", application.getName());
         }
-        var appEnv = qx.tool.utils.Values.merge({}, compileEnv, appEnvironments[application.toHashCode()]);
+        var appEnv = qx.tool.utils.Values.merge({}, compileEnv, this.__appEnvironments[application.toHashCode()]);
 
         application.calcDependencies();
         if (application.getFatalCompileErrors()) {
