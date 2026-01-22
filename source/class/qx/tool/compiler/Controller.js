@@ -36,7 +36,11 @@ const path = require("upath");
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
 
-  construct() {
+  /**
+   * 
+   * @param {number} nTranspilerThreads Number of threads to use for compilation
+   */
+  construct(nTranspilerThreads) {
     super();
     this.__libraries = {};
     this.__makers = [];
@@ -46,7 +50,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
     this.__makingMakers = {};
-    this.__transpilerPool = new qx.tool.compiler.TranspilerPool();
+    this.__transpilerPool = new qx.tool.compiler.TranspilerPool(nTranspilerThreads);
   },
 
   events: {
