@@ -26,7 +26,14 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
       this.__createWorker();
     }
   },
+  events: {
+    allReady: "qx.event.type.Event"
+  },
   members: {
+    /**
+     * Number of ready workers
+     */
+    __nReady: 0,
     /**
      * @type {WorkerTracker[]}
      * Array of workers in the pool
@@ -43,6 +50,52 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
      * Calls which were requested but are waiting for an available worker
      */
     __queue: null,
+
+    /**
+     * Calls a remote method on an available worker.
+     * Queues the call if no worker is available.
+     * @param {string} methodName
+     * @param {Array} args
+     * @returns {Promise} A promise which resolves with the method's return value
+     */
+    callMethod(methodName, args) {
+      args ??= [];
+      return new Promise((resolve, reject) => {
+        let tracker = {
+          methodName: methodName,
+          args: args,
+          promise: { resolve, reject }
+        };
+        this.__queue.push(tracker);
+        this.__checkQueue();
+      });
+    },
+
+    /**
+     *
+     * @param {string} methodName
+     * @param {Array?} args
+     * @returns {Promise<Array<*>>} Resolves when all workers have returned. Resolves to an array of return values.
+     */
+    callAll(methodName, args) {
+      args ??= [];
+      let promises = [];
+      for (let workerTracker of this.__workers) {
+        if (!workerTracker.ready) {
+          throw new Error("Cannot call `callAll` when some are busy.");
+        }
+        let promise = new Promise((resolve, reject) => {
+          let callTracker = {
+            methodName: methodName,
+            args: args,
+            promise: { resolve, reject }
+          };
+          this.__callMethodOnWorker(callTracker, workerTracker);
+        });
+        promises.push(promise);
+      }
+      return Promise.all(promises);
+    },
 
     /**
      * Creates a new worker and adds it to the pool
@@ -69,63 +122,36 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
         } else if (msg.type === "ready") {
           tracker.ready = true;
           this.__checkQueue(tracker);
+          if (++this.__nReady === this.__workers.length) {
+            this.fireEvent("allReady");
+          }
         }
       });
     },
 
     /**
-     * 
-     * @param {string} methodName 
-     * @param {Array} args 
-     * @returns {Promise<Array>} Resolves when all workers have returned
+     *
+     * @returns {Promise} A promise which resolved when all workers become ready
      */
-    callAllWorkers(methodName, args) {
-      let promises = [];
-      for (let workerTracker of this.__workers) {
-        if (!workerTracker.ready) {
-          throw new Error("Cannot call `callAllWorkers` when some are busy.");
-        }
-        let promise = new Promise((resolve, reject) => {
-          let callTracker = {
-            methodName: methodName,
-            args: args,
-            promise: { resolve, reject }
-          };
-          this.__callMethodOnWorker(callTracker, workerTracker);
-        });
-        promises.push(promise);
+    waitForAllReady() {
+      if (this.__nReady === this.__workers.length) {
+        return Promise.resolve();
       }
-      return Promise.all(promises);
+
+      return new Promise(resolve => {
+        this.addListenerOnce("allReady", resolve);
+      });
     },
 
     /**
-     * 
-     * @param {CallTracker} callTracker 
-     * @param {WorkerTracker} workerTracker 
+     *
+     * @param {CallTracker} callTracker
+     * @param {WorkerTracker} workerTracker
      */
     __callMethodOnWorker(callTracker, workerTracker) {
       workerTracker.worker.postMessage({ type: "callMethod", methodName: callTracker.methodName, args: callTracker.args });
       workerTracker.pendingCall = callTracker;
       workerTracker.ready = false;
-    },
-
-    /**
-     * Calls a remote method on an available worker.
-     * Queues the call if no worker is available.
-     * @param {string} methodName
-     * @param {Array} args
-     * @returns {Promise} A promise which resolves with the method's return value
-     */
-    callMethod(methodName, args) {
-      return new Promise((resolve, reject) => {
-        let tracker = {
-          methodName: methodName,
-          args: args,
-          promise: { resolve, reject }
-        };
-        this.__queue.push(tracker);
-        this.__checkQueue();
-      });
     },
 
     /**

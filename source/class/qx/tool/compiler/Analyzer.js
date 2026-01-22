@@ -394,7 +394,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
       const compileClass = async classname => {
         let value = this.__cachedClassInfo[classname];
         if (value === undefined) {
-          value = await this.__controller.compileClass(classname);
+          value = await this.__controller.compileClass(this, classname);
           this.__cachedClassInfo[classname] = value;
         }
         return value;
@@ -466,8 +466,6 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
         return deps;
       };
 
-      await this.__controller.setAnalyzerAsync(this);
-      await this.__controller.onMetaDbChanged();
       // Compile all classes; the `__classes` array will be extended as we go
       for (var classIndex = 0; classIndex < this.__classes.length; classIndex++) {
         let dbClassInfo = await compileClass(this.__classes[classIndex]);
@@ -499,7 +497,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
 
     /**
      * Returns the full list of required classes
-     * @returns {null}
+     * @returns {string[]}
      */
     getDependentClasses() {
       return this.__classes;
