@@ -130,11 +130,14 @@ qx.Class.define("qx.tool.compiler.Maker", {
      */
     __compiledClasses: null,
 
+    /**
+     * @type {qx.tool.compiler.app.Application[]}
+     */
     __applications: null,
 
     /**
      * Adds an Application to be made
-     * @param app
+     * @param {qx.tool.compiler.app.Application} app
      */
     addApplication(app) {
       this.__applications.push(app);

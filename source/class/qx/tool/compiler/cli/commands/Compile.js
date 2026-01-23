@@ -20,9 +20,10 @@
 const semver = require("semver");
 const process = require("process");
 const cliProgress = require("cli-progress");
+const child_process = require("child_process");
 const path = require("upath");
 const consoleControl = require("console-control-strings");
-const fs = qx.tool.utils.Promisify.fs;
+const path = require("path");
 
 require("app-module-path").addPath(process.cwd() + "/node_modules");
 
@@ -303,6 +304,15 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       );
 
       cmd.addFlag(
+        new qx.tool.cli.Flag("jobs").set({
+          shortCode: "j",
+          description: "Number of threads to use for compilation. By default it's number of CPU cores minus one. If set to zero, uses only the main thread.",
+          type: "number",
+          default: null
+        })
+      );
+
+      cmd.addFlag(
         new qx.tool.cli.Flag("set").set({
           description: "sets an environment value for the compiler",
           type: "string",
@@ -330,28 +340,29 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
     "made": "qx.event.type.Event"
   },
 
-  members: {
+  members: {    
+    /**
+     * @type {Object[]}  The makers created during compilation
+     */
     __progressBar: null,
     __makers: null,
-    __libraries: null,
-    __outputDirWasCreated: false,
-
-    /** @type {Boolean} Whether libraries have had their `.load()` method called yet */
-    __librariesNotified: false,
-
-        /** @type{String} the path to the root of the meta files by classname */
-    __metaDir: null,
-
-        /** @type{Boolean} whether the typescript output is enabled */
-    __typescriptEnabled: false,
-
-    /** @type{String} the name of the typescript file to generate */
-    __typescriptFile: null,
 
     /*
      * @Override
      */
     async process() {
+      await super.process();
+
+      let compileConfig = this.getCompilerApi().getConfiguration();
+      let data = {
+        ...this.argv,
+        config: compileConfig,
+        targetType: this.getTargetType(),
+        qxVersion: await this.getQxVersion()
+      };
+
+      //TODO others' code
+      /*
       let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       if (this.argv.set) {
         this.argv.set.forEach(function (kv) {
@@ -367,13 +378,16 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
           }
         });
       }
+      */
 
+
+      let configDb = await qx.tool.cli.ConfigDb.getInstance();
       if (this.argv["feedback"] === null) {
         this.argv["feedback"] = configDb.db("qx.default.feedback", true);
       }
 
-      if(this.argv.jobs != null && this.argv.jobs < 1) {
-        qx.tool.compiler.Console.error("Number of jobs (-j) must be > 0");
+      if (this.argv.jobs != null && this.argv.jobs < 0) {
+        qx.tool.compiler.Console.error("Number of jobs (-j) must be >= 0");
         process.exitCode = 1;
         return;
       }
@@ -385,7 +399,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       }
 
       if (this.argv["machine-readable"]) {
-        qx.tool.compiler.Console.getInstance().setMachineReadable(true);
+        data.machineReadable = true;
       } else {
         let color = configDb.db("qx.default.color", null);
         if (color) {
@@ -399,15 +413,46 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         }
       }
 
-      let controller = await this._loadConfigAndCreateController();
+      let libPaths = this.getCompilerApi()
+        .getLibraryApis()
+        .map(lib => lib.getRootDir());
+      data.libs = libPaths;
 
-      controller.start();
+      let compiler;
+
+      let customCompiler = compileConfig.applications.find(app => app.compiler);
+      if (customCompiler) {
+        let compilerCompiler = new qx.tool.compiler.Compiler();
+        //make a backup of the config because it will be modified during compilation!
+        let configBak = qx.lang.Object.clone(data.config, true) ;
+        await compilerCompiler.compileOnce({...data, config: configBak, compilerOnly: true, watch: false});    
+
+        let makers = await compilerCompiler.getMakers();
+        let target = makers[0].target;
+        let app = makers[0].applications[0];
+        
+        let compilerPath = path.join(target.outputDir, app.projectDir, "index.js");
+        // let compilerPath = 'compiled/source-node/custom-compiler/index.js';
+        await compilerCompiler.stop();
+        compilerCompiler.dispose();
+        let cp = child_process.fork(compilerPath, ["compiler-server"]);
+
+        compiler = new qx.tool.compiler.IpcCompilerInterface(cp);
+      } else {
+        compiler = new qx.tool.compiler.Compiler();
+      }
+
+      console.log(">>> Starting compilation of project...");
+      compiler.start(data);
       await new Promise(resolve => {
-        controller.addListenerOnce("allMakersMade", () => {
-          this.fireEvent("made");
+        compiler.addListenerOnce("allAppsMade", () => {
+          compiler.getMakers().then(makers => {
+            this.__makers = makers;
+            this.fireEvent("made");
+          });//cbh
           if (!this.argv.watch) {
             this.__exit();
-            controller.stop();
+            compiler.stop();
             resolve();
           }
           //If we are watching, we never exit so this promise never resolves!
@@ -416,14 +461,18 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
     },
 
     /**
+     * Returns the list of makers to make
+     *
+     * @return  {qx.tool.compiler.Maker[]}
+     */
+    getMakers() {
+      return this.__makers;
+    },
+
+    /**
      * Exits the process with the correct exit code
      */
-    __exit() {
-      let success = this.__makers.every(maker => maker.getSuccess());
-      let hasWarnings = this.__makers.every(maker => maker.getHasWarnings());
-      if (success && hasWarnings && this.argv.warnAsError) {
-        success = false;
-      }
+    __exit(success) {
       if (
         !this.argv.deploying &&
         !this.argv["machine-readable"] &&
@@ -448,7 +497,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
 
     /**
      * Loads the configuration and starts the make
-     *
+     * TODO 
      * @return {Boolean} true if all makers succeeded
      */
     async _loadConfigAndCreateController() {

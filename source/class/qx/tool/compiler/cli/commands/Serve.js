@@ -128,20 +128,20 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
      */
     async runWebServer() {
       let makers = this.getMakers().filter(maker =>
-        maker.getApplications().some(app => app.getStandalone())
+        maker.applications.some(app => app.standalone)
       );
 
       let apps = [];
       let defaultMaker = null;
       let firstMaker = null;
       makers.forEach(maker => {
-        maker.getApplications().forEach(app => {
-          if (app.isBrowserApp() && app.getStandalone()) {
+        maker.applications.forEach(app => {
+          if (app.browserApp && app.standalone) {
             apps.push(app);
             if (firstMaker === null) {
               firstMaker = maker;
-            }
-            if (defaultMaker === null && app.getWriteIndexHtmlToRoot()) {
+            }//cbh
+            if (defaultMaker === null && app.writeIndexHtmlToRoot) {
               defaultMaker = maker;
             }
           }
@@ -169,7 +169,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
         next();
       });
       if (!this.__showStartpage) {
-        app.use("/", express.static(defaultMaker.getTarget().getOutputDir()));
+        app.use("/", express.static(defaultMaker.target.outputDir));
       } else {
         let s = await qx.tool.config.Utils.getQxPath();
         if (!(await fs.existsAsync(path.join(s, "docs")))) {
@@ -180,26 +180,26 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
         app.use("/", express.static(this.__website.getTargetDir()));
         var appsData = [];
         makers.forEach(maker => {
-          let target = maker.getTarget();
-          let out = path.normalize("/" + target.getOutputDir());
-          app.use(out, express.static(target.getOutputDir()));
+          let target = maker.target;
+          let out = path.normalize("/" + target.outputDir);
+          app.use(out, express.static(target.outputDir));
           appsData.push({
             target: {
-              type: target.getType(),
+              type: target.type,
               outputDir: out
             },
 
             apps: maker
-              .getApplications()
-              .filter(app => app.getStandalone())
+              .applications
+              .filter(app => app.standalone)
               .map(app => ({
-                isBrowser: app.isBrowserApp(),
-                name: app.getName(),
-                type: app.getType(),
-                title: app.getTitle() || app.getName(),
-                appClass: app.getClassName(),
-                description: app.getDescription(),
-                outputPath: target.getProjectDir(app) // no trailing slash or link will break
+                isBrowser: app.browserApp,
+                name: app.name,
+                type: app.type,
+                title: app.title || app.name,
+                appClass: app.className,
+                description: app.description,
+                outputPath: app.outputPath || app.name // no trailing slash or link will break //!!
               }))
           });
         });
@@ -214,7 +214,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
       this.fireDataEvent("beforeStart", {
         server: server,
         application: app,
-        outputdir: defaultMaker.getTarget().getOutputDir()
+        outputdir: defaultMaker.target.outputDir
       });
       server.on("error", e => {
         if (e.code === "EADDRINUSE") {

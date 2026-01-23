@@ -158,6 +158,11 @@
               "type": "string"
             }
           },
+          "compiler": {
+            "description": "Whether this application is a custom compiler to use for the project",
+            "type": "boolean",
+            "default": false
+          },
           "type": {
             "description": "The type of application",
             "pattern": "^(browser|node|rhino)$",
