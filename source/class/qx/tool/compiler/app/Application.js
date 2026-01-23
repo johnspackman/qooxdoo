@@ -663,6 +663,14 @@ qx.Class.define("qx.tool.compiler.app.Application", {
     },
 
     /**
+     * 
+     * @returns {string}
+     */
+    getProjectDir() {
+      return this.getOutputPath() || this.getName();
+    },
+
+    /**
      * Gets the parts dependencies structures
      *
      * @returns {Object[]}

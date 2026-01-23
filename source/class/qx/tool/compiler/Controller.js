@@ -50,7 +50,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
     this.__makingMakers = {};
-    this.__transpilerPool = new qx.tool.compiler.TranspilerPool(nTranspilerThreads);
+    if (nTranspilerThreads > 0) {
+      this.__transpilerPool = new qx.tool.compiler.TranspilerPool(nTranspilerThreads);
+    }
   },
 
   events: {
@@ -130,13 +132,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
     /** @type {Object<String,Promise>} list of makers currently making, indexed by hash code */
     __makingMakers: null,
-
-    /**
-     * temporary
-     */
-    getPool() {
-      return this.__transpilerPool;
-    },
 
     /**
      * Apply for `metaDir`
@@ -251,7 +246,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
       await metaDb.save();
       await this.fireDataEventAsync("writtenMetaData", metaDb);
 
-      await this.__transpilerPool.waitForAllReady();
+      if (this.__transpilerPool) {
+        await this.__transpilerPool.waitForAllReady();
+      }
       await this.__onMetaDbChanged();
 
       let makers = this.__makers;
@@ -263,7 +260,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
         compilerConfigs[maker.toHashCode()] = maker.getAnalyzer().getClassFileConfig().serialize();
       }));
 
-      await this.__transpilerPool.callAll("setClassFileConfigs", [compilerConfigs]);
+      if (this.__transpilerPool) {
+        await this.__transpilerPool.callAll("setClassFileConfigs", [compilerConfigs]);
+      }
       
       for (let maker of makers) {
         this.__makeMaker(maker);
@@ -273,6 +272,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
     async stop() {
       await this.__discovery.stop();
+      if (this.__transpilerPool) {
+        this.__transpilerPool.dispose();
+      }
     },
 
     /**
@@ -440,17 +442,17 @@ qx.Class.define("qx.tool.compiler.Controller", {
     async __compileClassImpl(analyzer, classname, force) {
       let meta = this.__metaDb.getMetaData(classname);
 
-      let sourceClassFilename = path.resolve(path.join(this.__metaDb.getRootDir(), meta.classFilename));
+      let sourceFilename = path.resolve(path.join(this.__metaDb.getRootDir(), meta.classFilename));
       let outputDir = analyzer.getMaker().getTarget().getOutputDir();
-      let outputClassFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".js");
+      let outputFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".js");
 
       let jsonFilename = path.join(outputDir, "transpiled", classname.replace(/\./g, path.sep) + ".json");
       let hashKey = outputDir + ":" + classname;
       let dbClassInfo = this.__dbClassInfoCache[hashKey] || null;
-      let sourceStat = await qx.tool.utils.files.Utils.safeStat(sourceClassFilename);
+      let sourceStat = await qx.tool.utils.files.Utils.safeStat(sourceFilename);
 
       if (!sourceStat) {
-        throw new Error(`Source file for class ${classname} not found: ${sourceClassFilename}`);
+        throw new Error(`Source file for class ${classname} not found: ${sourceFilename}`);
       }
 
       if (!dbClassInfo) {
@@ -463,7 +465,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
 
       if (!force) {
-        let outputStat = await qx.tool.utils.files.Utils.safeStat(outputClassFilename);
+        let outputStat = await qx.tool.utils.files.Utils.safeStat(outputFilename);
 
         if (dbClassInfo && outputStat) {
           var dbMtime = null;
@@ -484,16 +486,42 @@ qx.Class.define("qx.tool.compiler.Controller", {
       Object.assign(dbClassInfo, {
         mtime: sourceStat.mtime,
         libraryName: library.getNamespace(),
-        filename: sourceClassFilename
+        filename: sourceFilename
       });
 
       let sourceInfo = {
         makerId: analyzer.getMaker().toHashCode(),
         classname,
-        sourceFilename: sourceClassFilename,
-        outputFilename: outputClassFilename
+        sourceFilename: sourceFilename,
+        outputFilename: outputFilename
       };
-      let compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo]);
+
+
+      let compiled;
+      if (this.__transpilerPool) {
+        compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo]);
+      } else {//TODO this code is duplicated in TranspilerWorker.js
+        let source = await fs.promises.readFile(sourceFilename, "utf8");
+        
+        let classFileConfig = analyzer.getClassFileConfig();
+        let cf = new qx.tool.compiler.ClassFile(this.__metaDb, classFileConfig, classname);
+        compiled = cf.compile(source, sourceFilename);
+
+        let mappingUrl;
+        if (classFileConfig.applicationTypes.includes("browser")) {
+          mappingUrl = path.basename(sourceFilename) + ".map?dt=" + Date.now();
+        } else {
+          mappingUrl = sourceFilename + ".map";
+        }
+
+        await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
+        if (compiled) {
+          await fs.promises.writeFile(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
+          await fs.promises.writeFile(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
+        }
+        let jsonFilename = outputFilename.replace(/\.js$/, ".json");
+        await fs.promises.writeFile(jsonFilename, JSON.stringify(compiled.dbClassInfo, null, 2), "utf8");      
+      }
 
       //Update dbClassInfo
       delete dbClassInfo.unresolved;
@@ -523,7 +551,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
       if (qx.core.Environment.get("qx.debug")) {
         this.assertEquals(0, Object.keys(this.__compilingClasses).length, "No classes should be compiling when calling onMetaDbChanged");
       }
-      await this.__transpilerPool.callAll("updateClassMeta", [this.__metaDb.getSerialized()]);
+      if (this.__transpilerPool) {
+        await this.__transpilerPool.callAll("updateClassMeta", [this.__metaDb.getSerialized()]);
+      }
     },
 
     /**

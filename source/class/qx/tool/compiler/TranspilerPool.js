@@ -26,6 +26,13 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
       this.__createWorker();
     }
   },
+
+  destruct() {
+    for (let workerTracker of this.__workers) {
+      workerTracker.worker.terminate();
+    }
+  },
+  
   events: {
     allReady: "qx.event.type.Event"
   },

@@ -124,21 +124,18 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
         await qx.tool.utils.Promisify.eachOfSeries(
           this.getMakers(),
           async maker => {
-            let target = maker.getTarget();
+            let target = maker.target;
 
             await qx.tool.utils.Promisify.eachOfSeries(
-              maker.getApplications(),
+              maker.applications,
               async app => {
-                if (appNames && !appNames[app.getName()]) {
+                if (appNames && !appNames[app.name]) {
                   return;
                 }
-                if (app.getDeploy() === false) {
+                if (app.deploy === false) {
                   return;
                 }
-                let deployDir =
-                  argv.out ||
-                  (typeof target.getDeployDir == "function" &&
-                    target.getDeployDir());
+                let deployDir = argv.out || target.deployDir;
                 if (deployDir) {
                   await qx.tool.utils.files.Utils.deleteRecursive(deployDir);
                 }
@@ -151,25 +148,25 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
       await qx.tool.utils.Promisify.eachOfSeries(
         this.getMakers(),
         async (maker, makerIndex) => {
-          let target = maker.getTarget();
+          let target = maker.target;
 
           await qx.tool.utils.Promisify.eachOfSeries(
-            maker.getApplications(),
+            maker.applications,
             async app => {
-              if (appNames && !appNames[app.getName()]) {
+              if (appNames && !appNames[app.name]) {
                 return;
               }
-              if (app.getDeploy() === false) {
+              if (app.deploy === false) {
                 return;
               }
               let deployDir =
                 argv.out ||
                 (typeof target.getDeployDir == "function" &&
-                  target.getDeployDir());
+                  target.deployDir);
               if (!deployDir) {
                 qx.tool.compiler.Console.print(
                   "qx.tool.compiler.cli.deploy.deployDirNotSpecified",
-                  target.getType()
+                  target.type
                 );
 
                 return;
@@ -178,15 +175,15 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
               let sourceMaps =
                 argv.sourceMaps ||
                 (typeof target.getDeployMap == "function" &&
-                  target.getDeployMap()) ||
+                  target.deployMap) ||
                 (typeof target.getSaveSourceInMap == "function" &&
-                  target.getSaveSourceInMap());
-              let appRoot = target.getApplicationRoot(app);
-              let destRoot = path.join(deployDir, app.getName());
+                  target.saveSourceInMap);
+              let appRoot = path.join(target.outputDir, app.projectDir) + "/"
+              let destRoot = path.join(deployDir, app.name);
               await this.__copyFiles(appRoot, destRoot, sourceMaps);
 
               {
-                let from = path.join(target.getOutputDir(), "resource");
+                let from = path.join(target.outputDir, "resource");
                 if (fs.existsSync(from)) {
                   let to = path.join(deployDir, "resource");
                   if (makerIndex == 0 && argv.clean) {
@@ -196,14 +193,14 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
                 }
               }
               {
-                let from = path.join(target.getOutputDir(), "index.html");
+                let from = path.join(target.outputDir, "index.html");
                 let to = path.join(deployDir, "index.html");
                 if (fs.existsSync(from)) {
                   fs.copyFileSync(from, to);
                 }
               }
               let data = {
-                targetDir: target.getOutputDir(),
+                targetDir: target.outputDir,
                 deployDir: deployDir,
                 argv: argv,
                 application: app

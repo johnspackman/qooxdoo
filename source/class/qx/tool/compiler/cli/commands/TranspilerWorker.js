@@ -71,6 +71,7 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
         process.exitCode = 1;
         return;
       }
+      await super.process();
 
       qx.tool.compiler.TranspilerPool.registerMethods(
         {
