@@ -199,7 +199,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
                 title: app.title || app.name,
                 appClass: app.className,
                 description: app.description,
-                outputPath: app.outputPath || app.name // no trailing slash or link will break //!!
+                outputPath: app.projectDir // no trailing slash or link will break
               }))
           });
         });

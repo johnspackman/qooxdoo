@@ -30,14 +30,18 @@ const path = require("upath");
  * 
  * @typedef {Object} CompileInfo
  * @property {DbClassInfo} dbClassInfo - the database class information
- * @property {Boolean} cached - true if the class was already compiled
+ * 
+ * @typedef {Object} SourceInfo Information regarding the source file to be compiled
+ * @property {string} classname
+ * @property {string} filename Absolute path of source file
+ * @property {string} source The source code itself
  * 
  */
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
 
   /**
-   * 
+   *
    * @param {number} nTranspilerThreads Number of threads to use for compilation
    */
   construct(nTranspilerThreads) {
@@ -50,7 +54,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
     this.__makingMakers = {};
-    if (nTranspilerThreads > 0) {
+    if (nTranspilerThreads == null || nTranspilerThreads > 0) {
       this.__transpilerPool = new qx.tool.compiler.TranspilerPool(nTranspilerThreads);
     }
   },
@@ -490,7 +494,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
       });
 
       let sourceInfo = {
-        makerId: analyzer.getMaker().toHashCode(),
         classname,
         sourceFilename: sourceFilename,
         outputFilename: outputFilename
@@ -499,28 +502,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       let compiled;
       if (this.__transpilerPool) {
-        compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo]);
-      } else {//TODO this code is duplicated in TranspilerWorker.js
-        let source = await fs.promises.readFile(sourceFilename, "utf8");
-        
-        let classFileConfig = analyzer.getClassFileConfig();
-        let cf = new qx.tool.compiler.ClassFile(this.__metaDb, classFileConfig, classname);
-        compiled = cf.compile(source, sourceFilename);
-
-        let mappingUrl;
-        if (classFileConfig.applicationTypes.includes("browser")) {
-          mappingUrl = path.basename(sourceFilename) + ".map?dt=" + Date.now();
-        } else {
-          mappingUrl = sourceFilename + ".map";
-        }
-
-        await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
-        if (compiled) {
-          await fs.promises.writeFile(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
-          await fs.promises.writeFile(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
-        }
-        let jsonFilename = outputFilename.replace(/\.js$/, ".json");
-        await fs.promises.writeFile(jsonFilename, JSON.stringify(compiled.dbClassInfo, null, 2), "utf8");      
+        compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo, analyzer.getMaker().toHashCode()]);
+      } else {
+        compiled = await qx.tool.compiler.Controller.transpile(sourceInfo, analyzer.getClassFileConfig(), this.__metaDb);
       }
 
       //Update dbClassInfo
@@ -565,6 +549,39 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
     getMetaDb() {
       return this.__metaDb;
+    }
+  },
+
+  statics: {
+    /**
+     * 
+     * @param {SourceInfo} sourceInfo 
+     * @param {qx.tool.compiler.ClassFileConfig} classFileConfig 
+     * @param {qx.tool.compiler.meta.MetaDatabase} metaDb 
+     * @returns {Promise<CompileInfo>}
+     */
+    async transpile(sourceInfo, classFileConfig, metaDb) {
+      let { classname, outputFilename, sourceFilename } = sourceInfo;
+      let source = await fs.promises.readFile(sourceFilename, "utf8");
+
+      let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname);
+      let compiled = cf.compile(source, sourceFilename);
+
+      let mappingUrl;
+      if (classFileConfig.applicationTypes.includes("browser")) {
+        mappingUrl = path.basename(sourceFilename) + ".map?dt=" + Date.now();
+      } else {
+        mappingUrl = sourceFilename + ".map";
+      }
+
+      await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
+      if (compiled) {
+        await fs.promises.writeFile(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
+        await fs.promises.writeFile(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
+      }
+      let jsonFilename = outputFilename.replace(/\.js$/, ".json");
+      await fs.promises.writeFile(jsonFilename, JSON.stringify(compiled.dbClassInfo, null, 2), "utf8");
+      return compiled ? { dbClassInfo: compiled.dbClassInfo } : null;
     }
   }
 });

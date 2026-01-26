@@ -249,15 +249,6 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     this.__externals = [];
     this.__commonjsModules = {};
 
-    this.__taskQueueDrains = [];
-    this.__taskQueue = async.queue(function (task, cb) {
-      task(cb);
-    });
-    this.__taskQueue.drain = this._onTaskQueueDrain;
-    this.__taskQueue.error = err => {
-      qx.tool.compiler.Console.error(err.stack || err);
-    };
-
     this.__compileConfig.getIgnores().forEach(s => this.addIgnore(s));
     this.__globalSymbols = {};
     this.__privates = {};
@@ -286,8 +277,6 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     __scope: null,
     __inDefer: false,
     __inConstruct: false,
-    __taskQueue: null,
-    __taskQueueDrains: null,
 
     /**
      * @type {Marker[]} list of markers (warnings/errors) added during compilation
@@ -306,33 +295,11 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     __hasDefer: null,
     __definingType: null,
     __sourceFilename: null,
-    __taskQueueDrain: null,
     __globalSymbols: null,
     __privates: null,
     __blockedPrivates: null,
     __externals: null,
     __commonjsModules: null,
-
-    _onTaskQueueDrain() {
-      var cbs = this.__taskQueueDrain;
-      this.__taskQueueDrain = [];
-      cbs.forEach(function (cb) {
-        cb();
-      });
-    },
-
-    _waitForTaskQueueDrain(cb) {
-      if (this.__taskQueue.length() == 0) {
-        cb();
-      } else {
-        this.__taskQueueDrains.push(cb);
-      }
-    },
-
-    _queueTask(cb) {
-      this.__taskQueue.push(cb);
-    },
-
     /**
      * Loads the source, transpiles and analyzes the code, storing the result in outputPath
      *

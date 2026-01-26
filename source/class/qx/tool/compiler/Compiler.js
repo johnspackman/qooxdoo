@@ -45,12 +45,13 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       if (data["feedback"] === null) {
         data["feedback"] = configDb.db("qx.default.feedback", true);
       }
-
-      // if (data.verbose) {//TODO
-      //   console.log(`
-      //     Compiler:  v${qx.tool.config.Utils.getCompilerVersion()}
-      //     Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
-      // }
+      
+      if (data.verbose) {
+        console.log(`
+          Compiler:  v${qx.tool.config.Utils.getCompilerVersion()}
+          Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}
+        `);
+      }
 
       if (data["machineReadable"]) {
         qx.tool.compiler.Console.getInstance().setMachineReadable(true);
@@ -98,10 +99,14 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         return out;
       }
 
-      const serializeMaker = maker => ({
-        target: serializeTarget(maker.getTarget()),
-        applications: maker.getApplications().map(serializeApp)
-      });
+      const serializeMaker = maker => {
+        let out = {
+          ...qx.util.Serializer.toNativeObject(maker),
+          target: serializeTarget(maker.getTarget()),
+          applications: maker.getApplications().map(serializeApp)
+        };
+        return out;
+      };
       return this.__makers.map(serializeMaker);
     },
 
@@ -112,7 +117,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         throw new qx.tool.utils.Utils.UserError("Error: Cannot find anything to make");
       }
 
-      let controller = new qx.tool.compiler.Controller(this.__data.jobs).set({//TODO njobs
+      let controller = new qx.tool.compiler.Controller(this.__data.nJobs).set({
         metaDir: this.__metaDir
       });
       new qx.tool.compiler.feedback.ConsoleFeedback(controller);
