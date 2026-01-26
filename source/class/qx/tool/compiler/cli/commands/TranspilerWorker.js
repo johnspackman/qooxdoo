@@ -18,16 +18,7 @@
 /**
  * This application runs in the compiler worker thread and creates an instance of ClassFile, which invokes Babel.
  *
- * @typedef {Object} SourceInfo
- * @property {string} makerId
- * @property {string} classname
- * @property {string} filename Absolute path of source file
- * @property {string} source The source code itself
  *
- * @typedef {Object} CompilationContext
- * @property {number} metaTimestamp
- * @property {SharedArrayBuffer} metaData Serialized MetaDatabase
- * @property {Object} classFileConfig Serialized instance of qx.tool.compiler.ClassFileConfig, using toNativeObject()
  *
  */
 const { isMainThread, threadId } = require("worker_threads");
@@ -57,7 +48,9 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
      */
     __metaTimestamp: null,
     /**
-     * Map of the hashcode of the maker to its class file config
+     * Map of the hashcode of the maker to its class file config.
+     * When the compiler initally starts, we pass in this data just once for optimization reasons.
+     * Then each transpile call can look up its class file config because we may be compiling for different makers at once.
      * @type {Object<string, qx.tool.compiler.ClassFileConfig>}
      */
     __classFileConfigs: null,
@@ -77,38 +70,18 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
         {
           /**
            * @param {SourceInfo} sourceInfo
+           * @param {string} makerId ID of the maker so that we can look up the correct class file config
            * @returns {qx.tool.compiler.ClassFile.CompileResult}
            */
-          transpile(sourceInfo) {
+          async transpile(sourceInfo, makerId) {
             let start = Date.now();
             if (!this.__initialStart) {
               this.__initialStart = start;
             }
-            let { classname, outputFilename, sourceFilename, makerId } = sourceInfo;
-            let classFileConfig = this.__classFileConfigs[makerId];
-
-            let source = fs.readFileSync(sourceFilename, "utf8");
-
-            let cf = new qx.tool.compiler.ClassFile(this.__metaDb, classFileConfig, classname);
-            let compiled = cf.compile(source, sourceFilename);
-
-            let mappingUrl;
-            if (classFileConfig.applicationTypes.includes("browser")) {
-              mappingUrl = path.basename(sourceFilename) + ".map?dt=" + Date.now();
-            } else {
-              mappingUrl = sourceFilename + ".map";
-            }
-
-            fs.mkdirSync(path.dirname(outputFilename), { recursive: true });
-            if (compiled) {
-              fs.writeFileSync(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
-              fs.writeFileSync(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
-            }
-            let jsonFilename = outputFilename.replace(/\.js$/, ".json");
-            fs.writeFileSync(jsonFilename, JSON.stringify(compiled.dbClassInfo, null, 2), "utf8");
+            let out = await qx.tool.compiler.Controller.transpile(sourceInfo, this.__classFileConfigs[makerId], this.__metaDb);            
             let end = Date.now();
             this.__stats += `${start - this.__initialStart}-${end - this.__initialStart},`;
-            return { dbClassInfo: compiled.dbClassInfo };
+            return out;
           },
 
           getStats() {

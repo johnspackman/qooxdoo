@@ -208,7 +208,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.Package", {
     /**
      * Returns the cache object, retrieving it from a local file if necessary
      * @return {Object}
-     * @todo use config model API for cache file
      */
     getCache(readFromFile = false) {
       if (!readFromFile && this.__cache && typeof this.__cache == "object") {
