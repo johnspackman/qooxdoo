@@ -389,6 +389,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let hashKey = analyzer.getMaker().getTarget().getOutputDir() + ":" + classname;
       let promise = this.__dirtyClasses[hashKey] ? null : this.__compilingClasses[hashKey];
       if (promise) {
+        debugger;//27-jan-2026: if this code wasn't hit for a long time, remove it
         return promise;
       }
       delete this.__dirtyClasses[hashKey];
@@ -519,6 +520,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
       for (var key in compiled.dbClassInfo) {
         dbClassInfo[key] = compiled.dbClassInfo[key];
       }
+      
+      await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
 
       let markers = dbClassInfo.markers;
       if (markers) {
@@ -579,8 +582,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
         await fs.promises.writeFile(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
         await fs.promises.writeFile(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
       }
-      let jsonFilename = outputFilename.replace(/\.js$/, ".json");
-      await fs.promises.writeFile(jsonFilename, JSON.stringify(compiled.dbClassInfo, null, 2), "utf8");
       return compiled ? { dbClassInfo: compiled.dbClassInfo } : null;
     }
   }
