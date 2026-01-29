@@ -78,6 +78,7 @@ qx.Class.define("qx.tool.utils.Debounce", {
   },
 
   members: {
+    __inRunImpl: false,
     /** @type {Function} the function to call */
     __callback: null,
 
@@ -186,7 +187,14 @@ qx.Class.define("qx.tool.utils.Debounce", {
      * Called to run the actual code
      */
     async _runImpl() {
+      if (qx.core.Environment.get("qx.debug")) {
+        if (this.__inRunImpl) {
+          throw new Error("Internal error: _onTimeout called while already in _runImpl");
+        }
+      }
+      this.__inRunImpl = true;
       await this.__callback();
+      this.__inRunImpl = false;
     }
   }
 });
