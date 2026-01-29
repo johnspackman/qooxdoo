@@ -80,13 +80,6 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
       check: "String"
     },
 
-    /** Directory for proxy source files, if they are to be used */
-    proxySourcePath: {
-      init: null,
-      nullable: true,
-      check: "String"
-    },
-
     /** Supported application types */
     applicationTypes: {
       init: ["node", "browser"],

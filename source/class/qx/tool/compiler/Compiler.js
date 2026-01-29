@@ -3,6 +3,9 @@ const semver = require("semver");
 const path = require("upath");
 
 /**
+ * @use(qx.core.BaseInit)
+ * @use(qx.tool.*)
+ * 
  * @typedef {Object} CompilerData
  * TODO complete
  */
@@ -204,6 +207,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
        * Each target configuration is updated to have `appConfigs[]` and each application configuration
        * is updated to have `targetConfigs[]`.
        */
+
+      //Ensure we only consider the compiler target if we are in compilerOnly mode, and the opposite if we're not
+      config.targets = config.targets.filter(targetConfig => !!data.compilerOnly === !!targetConfig.compiler);
       config.targets.forEach((targetConfig, index) => (targetConfig.index = index));
 
       let targetConfigs = [];
@@ -224,6 +230,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
       let allAppNames = {};
       config.applications.forEach((appConfig, index) => {
+        //Ensure we only consider the compiler application if we are in compilerOnly mode, and the opposite if we're not
+        if (!!data.compilerOnly !== !!appConfig.compiler) return;
+
         if (appConfig.name) {
           if (allAppNames[appConfig.name]) {
             throw new qx.tool.utils.Utils.UserError(`Multiple applications with the same name '${appConfig.name}'`);
@@ -366,10 +375,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           return;
         }
         let appConfigs = targetConfig.appConfigs.filter(appConfig => {
-          if (data.compilerOnly) return appConfig.compiler;
-
-          if (appConfig.compiler) return false;
-
           if (argvAppGroups) {
             let groups = appConfig.group || [];
             if (!groups.find(groupName => !!argvAppGroups[groupName])) {
@@ -407,15 +412,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           maker.setNoErase(true);
         }
 
-        var targetClass = targetConfig.targetClass ? this.resolveTargetClass(targetConfig.targetClass) : null;
-        if (!targetClass && targetConfig.type) {
-          targetClass = this.resolveTargetClass(targetConfig.type);
+        var TargetClass = targetConfig.targetClass ? this.resolveTargetClass(targetConfig.targetClass) : null;
+        if (!TargetClass && targetConfig.type) {
+          TargetClass = this.resolveTargetClass(targetConfig.type);
         }
-        if (!targetClass) {
+        if (!TargetClass) {
           throw new qx.tool.utils.Utils.UserError("Cannot find target class: " + (targetConfig.targetClass || targetConfig.type));
         }
         /* eslint-disable new-cap */
-        var target = new targetClass(outputPath);
+        var target = new TargetClass(outputPath);
         /* eslint-enable new-cap */
         if (targetConfig.uri) {
           qx.tool.compiler.Console.print("qx.tool.cli.compile.deprecatedUri", "target.uri", targetConfig.uri);
@@ -526,9 +531,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         if (targetConfig["application-types"]) {
           maker.getAnalyzer().setApplicationTypes(targetConfig["application-types"]);
         }
-        if (targetConfig["proxySourcePath"]) {
-          maker.getAnalyzer().setProxySourcePath(targetConfig["proxySourcePath"]);
-        }
+
 
         maker.setLocales(config.locales || ["en"]);
         if (config.writeAllTranslations) {
@@ -752,13 +755,13 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         return qx.tool.compiler.targets.SourceTarget;
       }
       if (type) {
-        var targetClass;
+        var TargetClass;
         if (type.indexOf(".") < 0) {
-          targetClass = qx.Class.getByName("qx.tool.compiler.targets." + type);
+          TargetClass = qx.Class.getByName("qx.tool.compiler.targets." + type);
         } else {
-          targetClass = qx.Class.getByName(type);
+          TargetClass = qx.Class.getByName(type);
         }
-        return targetClass;
+        return TargetClass;
       }
       return null;
     },
