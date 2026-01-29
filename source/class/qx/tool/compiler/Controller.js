@@ -572,9 +572,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       let mappingUrl;
       if (classFileConfig.applicationTypes.includes("browser")) {
-        mappingUrl = path.basename(sourceFilename) + ".map?dt=" + Date.now();
+        mappingUrl = path.basename(outputFilename) + ".map?dt=" + Date.now();
       } else {
-        mappingUrl = sourceFilename + ".map";
+        mappingUrl = outputFilename + ".map";
       }
 
       await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
