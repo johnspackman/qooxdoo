@@ -36,6 +36,10 @@ const path = require("upath");
  * @property {string} filename Absolute path of source file
  * @property {string} source The source code itself
  * 
+ * @typedef {Object} MakerInfo
+ * @property {qx.tool.compiler.ISourceTransformer?} transformer
+ * @property {qx.tool.compiler.ClassFileConfig} classFileConfig
+ * 
  */
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
@@ -50,6 +54,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__makers = [];
     this.__discovery = new qx.tool.compiler.meta.Discovery();
     this.__dbClassInfoCache = {};
+    this.__toCompile = [];
     this.__compilingClasses = {};
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
@@ -107,6 +112,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
   },
 
   members: {
+    /**
+     * @type {string[]}
+     * The classes that have been queued up for compilation but are not yet being compiled
+     */
+    __toCompile: null,
     /**
      * @type {qx.tool.compiler.TranspilerPool}
      * The pool of transpiler workers which invoke Babel to do the transpilation
@@ -225,25 +235,54 @@ qx.Class.define("qx.tool.compiler.Controller", {
       });
       this.fireEvent("addedDiscoveredClasses");
 
-      const recompile = async evt => {
+      
+      /**
+       * Updates the meta database and compiles the classes that have been queued up
+       */
+      const recompile = async () => {
+        //We must make sure nothing is compiling before we update the metaDb
+        while (Object.keys(this.__compilingClasses).length > 0) {
+          await this.__flushCompileQueue();
+        }
+        await metaDb.reparseAll();
+        await metaDb.save();
+        await this.__onMetaDbChanged();
+        this.__toCompile.forEach(classname => this._onClassNeedsCompile(classname));
+        this.__toCompile = [];        
+      };
+
+      /**
+       * When we notice changes to the discovered classes,
+       * if we are using workers for compilation,
+       * we have to first wait for the workers to finish compiling and then notify the workers that the meta database has changed
+       * before we compile the classes.
+       * We use a debounces to batch the changed classes, and then after a timeout we update the meta database and begin compilation.
+       * If we are not using workers (should be for debugging purposes only) then it still works the same way.
+       */
+      let debounce = new qx.tool.utils.Debounce(recompile, 100);
+
+      /**
+       * Adds a class to the compilation queue
+       * @param {qx.event.type.Data} evt 
+       */
+      const onAdded = async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
         let added = await metaDb.addFile(classmeta.filenames.at(-1), true);
         if (added) {
-          await metaDb.reparseAll();
-          await metaDb.save();
-          await this.__onMetaDbChanged();
-          this._onClassNeedsCompile(classmeta.classname);
+          this.__toCompile.push(classname);
+          debounce.trigger();
         }
       };
-      this.__discovery.addListener("classAdded", recompile);
-      this.__discovery.addListener("classChanged", recompile);
+
+      this.__discovery.addListener("classAdded", onAdded);
+      this.__discovery.addListener("classChanged", onAdded);
 
       this.__discovery.addListener("classRemoved", async evt => {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
         await metaDb.removeFile(classmeta.filenames.at(-1));
-        await this.__onMetaDbChanged();
+        debounce.trigger();
       });
       // Process the meta data and save to disk
       await metaDb.reparseAll();
@@ -256,16 +295,27 @@ qx.Class.define("qx.tool.compiler.Controller", {
       await this.__onMetaDbChanged();
 
       let makers = this.__makers;
-      let compilerConfigs = {};
 
+      //If we are using Node workers, we need to send the maker info to the workers
+      let infoByMaker = {};
+      
       await Promise.all(makers.map(async maker =>{
         makers.push(maker);
         await maker.init();
-        compilerConfigs[maker.toHashCode()] = maker.getAnalyzer().getClassFileConfig().serialize();
+        if (this.__transpilerPool) {
+          infoByMaker[maker.toHashCode()] = {
+            classFileConfig: maker.getAnalyzer().getClassFileConfig().serialize(),
+            transformerClass: maker.getTransformerClass()
+          };
+        } else if (maker.getTransformer()) { 
+          //Only init the transformer if we are not using workers
+          //because if we are then the workers will create and init the transformers themselves
+          await maker.getTransformer().init();
+        }
       }));
 
       if (this.__transpilerPool) {
-        await this.__transpilerPool.callAll("setClassFileConfigs", [compilerConfigs]);
+        await this.__transpilerPool.callAll("setMakerInfo", [infoByMaker]);
       }
       
       for (let maker of makers) {
@@ -306,8 +356,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
         this.compileClass(analyzer, classname, true);
       }
 
-      // Notify the makers that the class needs to be compiled
       this.fireDataEvent("classNeedsToBeCompiled", classname);
+    },
+
+    /**
+     * Returns a promise which resolves when all the currently compiling classes have finished
+     */
+    async __flushCompileQueue() {
+      await Promise.all(Object.values(this.__compilingClasses));
     },
 
     /**
@@ -389,7 +445,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let hashKey = analyzer.getMaker().getTarget().getOutputDir() + ":" + classname;
       let promise = this.__dirtyClasses[hashKey] ? null : this.__compilingClasses[hashKey];
       if (promise) {
-        debugger;//27-jan-2026: if this code wasn't hit for a long time, remove it
         return promise;
       }
       delete this.__dirtyClasses[hashKey];
@@ -505,7 +560,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
       if (this.__transpilerPool) {
         compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo, analyzer.getMaker().toHashCode()]);
       } else {
-        compiled = await qx.tool.compiler.Controller.transpile(sourceInfo, analyzer.getClassFileConfig(), this.__metaDb);
+        let makerInfo = {
+          classFileConfig: analyzer.getClassFileConfig(),
+          transformer: analyzer.getMaker().getTransformer()
+        };
+        compiled = await qx.tool.compiler.Controller.transpile(sourceInfo, makerInfo, this.__metaDb);
       }
 
       //Update dbClassInfo
@@ -557,15 +616,21 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
   statics: {
     /**
-     * 
+     * Tranforms (if applicable), transpiles and writes output to disk
      * @param {SourceInfo} sourceInfo 
-     * @param {qx.tool.compiler.ClassFileConfig} classFileConfig 
-     * @param {qx.tool.compiler.meta.MetaDatabase} metaDb 
+     * @param {qx.tool.compiler.Controller.MakerInfo} makerInfo
+     * @param {qx.tool.compiler.meta.MetaDatabase} metaDb
      * @returns {Promise<CompileInfo>}
      */
-    async transpile(sourceInfo, classFileConfig, metaDb) {
+    async transpile(sourceInfo, makerInfo, metaDb) {
+      let { classFileConfig, transformer } = makerInfo;
       let { classname, outputFilename, sourceFilename } = sourceInfo;
+      outputFilename = path.resolve(outputFilename);
       let source = await fs.promises.readFile(sourceFilename, "utf8");
+
+      if (transformer && transformer.shouldTransform(sourceInfo)) {
+        source = transformer.transform(sourceInfo);
+      }
 
       let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname);
       let compiled = cf.compile(source, sourceFilename);

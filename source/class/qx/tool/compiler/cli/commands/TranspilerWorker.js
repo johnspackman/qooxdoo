@@ -22,8 +22,6 @@
  *
  */
 const { isMainThread, threadId } = require("worker_threads");
-const fs = require("fs");
-const path = require("path");
 
 qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
   extend: qx.tool.cli.commands.Command,
@@ -35,6 +33,10 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
     }
   },
   members: {
+    /**
+     * @type {Object<string, qx.tool.compiler.Controller.MakerInfo>}
+     */
+    __infoByMaker: null,
     /**
      * String showing the ranges of times when this thread was compiling
      */
@@ -48,12 +50,13 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
      */
     __metaTimestamp: null,
     /**
-     * Map of the hashcode of the maker to its class file config.
+     * Map of the hashcode of the maker to its related information (e.g. source transformer or class file config).
      * When the compiler initally starts, we pass in this data just once for optimization reasons.
-     * Then each transpile call can look up its class file config because we may be compiling for different makers at once.
-     * @type {Object<string, qx.tool.compiler.ClassFileConfig>}
+     * Then each transpile call can look up its data because we may be compiling for different makers at once.
+     * @type {Object<string, qx.tool.compiler.MakerInfo>}
+     * 
      */
-    __classFileConfigs: null,
+    __infoByMaker: null,
 
     /**
      * @override
@@ -78,7 +81,7 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
             if (!this.__initialStart) {
               this.__initialStart = start;
             }
-            let out = await qx.tool.compiler.Controller.transpile(sourceInfo, this.__classFileConfigs[makerId], this.__metaDb);            
+            let out = await qx.tool.compiler.Controller.transpile(sourceInfo, this.__infoByMaker[makerId], this.__metaDb);            
             let end = Date.now();
             this.__stats += `${start - this.__initialStart}-${end - this.__initialStart},`;
             return out;
@@ -105,11 +108,40 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
           },
 
           /**
-           *
-           * @param {Object<string, Object>} configs
+           * This function is called once when the worker starts up to give it information about the makers
+           * such as their source transformers and class file configs.
+           * When a worker is compiling a source file, it is just given the maker ID so that it can look up the correct info fast.
+           * @param {Object<string, MakerInfoNative>} infoByMakerNative
+           * 
+           * @typedef {Object} MakerInfoNative
+           * @property {string} transformerClass
+           * @property {Object} classFileConfig
            */
-          setClassFileConfigs(configs) {
-            this.__classFileConfigs = qx.lang.Object.map(configs, serialized => qx.tool.compiler.ClassFileConfig.deserialize(serialized));
+          async setMakerInfo(infoByMakerNative) {
+            if (qx.core.Environment.get("qx.debug")) {
+              if (this.__infoByMaker) {
+                throw new Error("Maker info has already been set");
+              }
+            }
+            let infoByMaker = (this.__infoByMaker = {});
+            for (let key in infoByMakerNative) {
+              let makerInfoNative = infoByMakerNative[key];
+              let transformer = null;
+              if (makerInfoNative.transformerClass) {
+                let TransformerClass = qx.Class.getByName(makerInfoNative.transformerClass);
+                if (!TransformerClass) {
+                  throw new Error("Could not find transformer class: " + makerInfoNative.transformerClass);
+                }
+                transformer = new TransformerClass();
+                await transformer.init();
+
+              }
+              let thisMakerInfo = {
+                transformer,
+                classFileConfig: qx.tool.compiler.ClassFileConfig.deserialize(makerInfoNative.classFileConfig)
+              }
+              infoByMaker[key] = thisMakerInfo;
+            }
           }
         },
         this

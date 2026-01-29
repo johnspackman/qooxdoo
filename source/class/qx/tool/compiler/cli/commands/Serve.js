@@ -140,7 +140,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
             apps.push(app);
             if (firstMaker === null) {
               firstMaker = maker;
-            }//cbh
+            }
             if (defaultMaker === null && app.writeIndexHtmlToRoot) {
               defaultMaker = maker;
             }
