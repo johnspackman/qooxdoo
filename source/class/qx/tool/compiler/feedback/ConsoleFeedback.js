@@ -130,7 +130,11 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
       delete this.__classStartTimes[data.classname];
 
       if (this.isVerbose()) {
-        qx.tool.compiler.Console.log(`Compiled class ${data.classname} in ${endTime - startTime}ms.`);
+        let diff = endTime - startTime;//starttime is null
+        if (isNaN(diff)) {
+          debugger;//TODO fix bug
+        }
+        qx.tool.compiler.Console.log(`Compiled class ${data.classname} in ${diff}ms.`);
       }
     },
 

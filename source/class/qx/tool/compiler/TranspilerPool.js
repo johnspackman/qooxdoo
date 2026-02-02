@@ -179,18 +179,17 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
   },
   statics: {
     /**
-     *
-     * @param {Object<Function>} methods
-     * @param {*} context
+     * Registers an object which contains the methods to be called remotely from the main thread.
+     * @param {Object} obj
      */
-    registerMethods(methods, context) {
+    register(obj) {
       if (isMainThread) {
         throw new Error("qx.tool.compiler.TranspilerPool.registerMethods() must be called in a Worker thread");
       }
 
       parentPort.on("message", async msg => {
         if (msg.type === "callMethod") {
-          let result = await methods[msg.methodName].apply(context, msg.args);
+          let result = await obj[msg.methodName].apply(obj, msg.args);
           parentPort.postMessage({ type: "methodReturn", result: result });
         }
       });

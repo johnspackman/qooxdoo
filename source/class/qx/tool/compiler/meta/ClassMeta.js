@@ -51,6 +51,10 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
      * the parsed data
      */
     __metaData: null,
+    /**
+     * True if this object was created from a native object and is read-only
+     */
+    __readOnly: false,
 
     /**
      * Loads the meta from disk
@@ -194,6 +198,19 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
       fixupEntry(metaData.construct);
       fixupEntry(metaData.destruct);
       fixupEntry(metaData.defer);
+    }
+  },
+
+  statics: {
+    /**
+     * @param {Object} obj 
+     * @returns {qx.tool.compiler.meta.ClassMeta}
+     */
+    fromNativeObject(obj) {
+      let classMeta = new qx.tool.compiler.meta.ClassMeta();
+      classMeta.__metaData = obj;
+      classMeta.__readOnly = true;
+      return classMeta;
     }
   }
 });

@@ -44,6 +44,15 @@ const path = require("upath");
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
 
+  environment: {
+    /**
+     * Useful for debugging purposes.
+     * If set to true, the transformed source files will be written to disk alongside the compiled files.
+     * They will have the .trans extension appended to the filename.
+     */
+    "qx.tool.compiler.writeTransformedSources": false
+  },
+
   /**
    *
    * @param {number} nTranspilerThreads Number of threads to use for compilation
@@ -310,7 +319,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         } else if (maker.getTransformer()) { 
           //Only init the transformer if we are not using workers
           //because if we are then the workers will create and init the transformers themselves
-          await maker.getTransformer().init();
+          await maker.getTransformer().init(metaDb);
         }
       }));
 
@@ -567,28 +576,31 @@ qx.Class.define("qx.tool.compiler.Controller", {
         compiled = await qx.tool.compiler.Controller.transpile(sourceInfo, makerInfo, this.__metaDb);
       }
 
-      //Update dbClassInfo
-      delete dbClassInfo.unresolved;
-      delete dbClassInfo.dependsOn;
-      delete dbClassInfo.assets;
-      delete dbClassInfo.translations;
-      delete dbClassInfo.markers;
-      delete dbClassInfo.fatalCompileError;
-      delete dbClassInfo.commonjsModules;
-
-      for (var key in compiled.dbClassInfo) {
-        dbClassInfo[key] = compiled.dbClassInfo[key];
+      if (compiled) {
+        //Update dbClassInfo
+        delete dbClassInfo.unresolved;
+        delete dbClassInfo.dependsOn;
+        delete dbClassInfo.assets;
+        delete dbClassInfo.translations;
+        delete dbClassInfo.markers;
+        delete dbClassInfo.fatalCompileError;
+        delete dbClassInfo.commonjsModules;
+  
+        for (var key in compiled.dbClassInfo) {
+          dbClassInfo[key] = compiled.dbClassInfo[key];
+        }
+        
+        await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
+  
+        let markers = dbClassInfo.markers;
+        if (markers) {
+          markers.forEach(function (marker) {
+            var str = qx.tool.compiler.Console.decodeMarker(marker);
+            console.warn(classname + ": " + str);
+          });
+        }
       }
-      
-      await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
 
-      let markers = dbClassInfo.markers;
-      if (markers) {
-        markers.forEach(function (marker) {
-          var str = qx.tool.compiler.Console.decodeMarker(marker);
-          console.warn(classname + ": " + str);
-        });
-      }
 
       return { dbClassInfo, cached: false };
     },
@@ -630,6 +642,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       if (transformer && transformer.shouldTransform(sourceInfo)) {
         source = transformer.transform(sourceInfo);
+        if (qx.core.Environment.get("qx.tool.compiler.writeTransformedSources")) {
+          fs.promises.writeFile(outputFilename + ".trans", source, "utf8"); //no need to await this because it's just for the user to see
+        }
       }
 
       let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname);

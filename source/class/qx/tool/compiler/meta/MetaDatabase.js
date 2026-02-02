@@ -354,7 +354,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * Returns the meta data for a class
      *
      * @param {String} className
-     * @returns
+     * @returns {qx.tool.compiler.meta.StdClassParser.MetaData=}
      */
     getMetaData(className) {
       return this.__metaByClassname[className]?.getMetaData() || null;
@@ -702,6 +702,21 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       }
 
       return data;
+    },
+
+    /**
+     * 
+     * @param {qx.tool.compiler.meta.MetaDatabase} other
+     * @returns {qx.tool.compiler.meta.MetaDatabase}
+     */
+    move(other) {      
+      this.__metaByClassname = other.__metaByClassname
+      this.__packages = other.__packages;
+      this.__database = {
+        environmentChecks: other.__database.environmentChecks
+      };
+      this.__readOnly = true;
+      return this;
     }
   },
 
@@ -711,13 +726,11 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @param {ShardArrayBuffer} buffer 
      * @returns {qx.tool.compiler.meta.MetaDatabase}
      */
-    deserialize(buffer) {   
+    deserialize(buffer) {
       let json = new TextDecoder().decode(new Uint8Array(buffer));
       let dataObj = JSON.parse(json);
       let metaDb = new qx.tool.compiler.meta.MetaDatabase();
-      //2026-01-15 TODO for now, the new meta will have POJOs not ClassMeta instances
-      //We don't need full ClassMeta instances in the workers yet
-      metaDb.__metaByClassname = dataObj.metaByClassname;
+      metaDb.__metaByClassname = qx.lang.Object.map(dataObj.metaByClassname, m => qx.tool.compiler.meta.ClassMeta.fromNativeObject(m));
       metaDb.__packages = dataObj.packages;
       metaDb.__database = {
         environmentChecks: dataObj.environmentChecks
