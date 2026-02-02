@@ -193,8 +193,11 @@ qx.Class.define("qx.tool.utils.Debounce", {
         }
       }
       this.__inRunImpl = true;
-      await this.__callback();
-      this.__inRunImpl = false;
+      try {
+        await this.__callback();
+      } finally {
+        this.__inRunImpl = false;
+      }
     }
   }
 });

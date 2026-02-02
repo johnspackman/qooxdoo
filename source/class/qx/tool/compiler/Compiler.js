@@ -158,7 +158,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     },
     /**
      * Processes the configuration from a JSON data structure and creates a Maker
-     * TODO break this function up. It is too nested.
      *
      * @param {Object} config
      * @return {Promise<qx.tool.compiler.Maker[]>}

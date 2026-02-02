@@ -23,6 +23,13 @@
 const fs = require("fs");
 const path = require("upath");
 
+const forceArray = value => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return [value];
+};
+
 /**
  * StdClassParser is used to parse a class file and extract the metadata.  This
  * strictly does not persist state (outside of the `parse()` method) so that it
@@ -34,6 +41,15 @@ const path = require("upath");
  * @property {number} lastModified - The last modified timestamp of the class file
  * @property {string} lastModifiedIso - The last modified timestamp of the class file in ISO format
  * @property {string} classFilename - The filename of the class, relative to the meta root dir
+ * @property {string} superClass
+ * @property {Object.<string, PropertyMeta>} properties
+ * 
+ * @typedef {Object} PropertyMeta
+ * @property {{start: *, end:*}} location
+ * @property {string} jsdoc
+ * @property {boolean=} nullable
+ * @property {string} init The code for the init value. This is not the value itself!
+ * @property {(string|string[])=} check
  * 
  *
  */
@@ -47,8 +63,8 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
 
   members: {
     /**
-     * @type {MetaData} 
-     * The metadata, only valid during `parse()` 
+     * @type {MetaData}
+     * The metadata, only valid during `parse()`
      * */
     __metaData: null,
 
@@ -213,7 +229,12 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
 
         // Class Annotations
         else if (propertyName == "@") {
-          metaData.annotation = path.get("value").toString();
+          let node = path.get("value").node;
+          if (node.type == "ArrayExpression") {
+            metaData.annotation = node.elements.map((el, index) => path.get(`value.elements.${index}`).getSource());
+          } else {
+            metaData.annotation = [path.get("value").getSource()];
+          }
         }
 
         // Core
@@ -360,16 +381,16 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
             let bareName = metaName.substring(1);
             let memberMeta = metaData[type][bareName];
             if (memberMeta) {
-              memberMeta.annotation = annotations[metaName];
+              memberMeta.annotation = forceArray(annotations[metaName]);
             }
           }
         }
       });
       if (ctorAnnotations["@construct"] && metaData.construct) {
-        metaData.construct.annotation = ctorAnnotations["@construct"];
+        metaData.construct.annotation = forceArray(ctorAnnotations["@construct"]);
       }
       if (ctorAnnotations["@destruct"] && metaData.destruct) {
-        metaData.destruct.annotation = ctorAnnotations["@destruct"];
+        metaData.destruct.annotation = forceArray(ctorAnnotations["@destruct"]);
       }
     },
 
@@ -384,21 +405,71 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
         metaData.properties = {};
       }
 
-      paths.forEach(path => {
+      /**
+       * 
+       * @param {NodePath} path 
+       */
+      const traversePath = path => {
         path.skip();
         let property = path.node;
         let name = qx.tool.utils.BabelHelpers.collapseMemberExpression(property.key);
 
-        metaData.properties[name] = {
+        let propMeta = (metaData.properties[name] = {});
+
+        let visitor = {
+          ObjectProperty(path) {
+            let prop = path.node;
+            path.skip();
+            let value = prop.value;
+            let key = prop.key.type == "Identifier" ? prop.key.name : prop.key.value;
+            switch (key) {
+              case "nullable": {
+                propMeta.nullable = prop.value.value;
+                break;
+              }
+              case "check": {
+                if (value.type == "ArrayExpression") {
+                  propMeta.check = value.elements.map(el => el.value);
+                } else {
+                  propMeta.check = value.value;
+                }
+                break;
+              }
+              case "@": {
+                if (value.type == "ArrayExpression") {
+                  //Serialize the elements of the array to raw JavaScript syntax which can be eval()ed later
+                  propMeta.annotation = value.elements.map((el, index) => path.get(`value.elements.${index}`).getSource());
+                } else {
+                  //Serialize the single annotation to JavaScript syntax
+                  propMeta.annotation = [path.get("value").getSource()];
+                }
+                break;
+              }
+              case "refine": {
+                propMeta.refine = prop.value.value;
+                break;
+              }
+              case "init": {
+                //we don't evaluate init. We just take the raw source because it can be any expression which the compiler might not be able to evaluate.
+                propMeta.init = path.get("value").getSource();
+                break;
+              }
+            }
+          }
+        };
+        path.traverse(visitor);
+
+        Object.assign(propMeta, {
           location: {
             start: path.node.loc.start,
             end: path.node.loc.end
           },
 
-          json: qx.tool.utils.BabelHelpers.collectJson(property.value, true),
           jsdoc: qx.tool.utils.BabelHelpers.getJsDoc(property.leadingComments)
-        };
-      });
+        });
+      };
+      
+      paths.forEach(traversePath);
     }
   }
 });

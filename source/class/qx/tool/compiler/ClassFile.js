@@ -207,7 +207,6 @@ function formatValueAsCode(value) {
  * @property {Number} column
  * 
  * 
- * TODO complete this
  * 
  */
 qx.Class.define("qx.tool.compiler.ClassFile", {
@@ -215,9 +214,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
   /**
    * Constructor
-   *
-   * @param compileConfig {qx.tool.compiler.ClassFileConfig} the configuration for the class compilation
-   * @param className {String} the full name of the class
+   * @param {qx.tool.compiler.meta.MetaDatabase} metaDb the meta database
+   * @param {qx.tool.compiler.ClassFileConfig} compileConfig the configuration for the class compilation
+   * @param {String} className the full name of the class
    */
   construct(metaDb, compileConfig, className) {
     super();
