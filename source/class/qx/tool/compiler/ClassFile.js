@@ -206,8 +206,6 @@ function formatValueAsCode(value) {
  * @property {Number} line
  * @property {Number} column
  * 
- * 
- * 
  */
 qx.Class.define("qx.tool.compiler.ClassFile", {
   extend: qx.core.Object,
