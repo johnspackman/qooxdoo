@@ -111,10 +111,12 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      * @param {qx.event.type.Data} e
      */
     __onCompilingClass(e) {
-      let data = e.getData();
-      this.__classStartTimes[data.classname] = new Date().getTime();
+      let {classname, analyzer} = e.getData();
+      let key = `${analyzer.toHashCode()}:${classname}`;
+      this.__classStartTimes[key] = new Date().getTime();
       if (this.isVerbose()) {
-        qx.tool.compiler.Console.log(`Compiling class ${data.classname}...`);
+        let target = analyzer.getMaker().getTarget();
+        qx.tool.compiler.Console.log(`${target.toString()}: Compiling class ${classname}...`);
       }
     },
 
@@ -124,17 +126,17 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      * @param {qx.event.type.Data} e
      */
     __onCompiledClass(e) {
-      let data = e.getData();
+      let {classname, analyzer} = e.getData();
       let endTime = new Date().getTime();
-      let startTime = this.__classStartTimes[data.classname];
-      delete this.__classStartTimes[data.classname];
+      let key = `${analyzer.toHashCode()}:${classname}`;
+      let startTime = this.__classStartTimes[key];
+      delete this.__classStartTimes[key];
 
+      
       if (this.isVerbose()) {
         let diff = endTime - startTime;//starttime is null
-        if (isNaN(diff)) {
-          debugger;//TODO fix bug
-        }
-        qx.tool.compiler.Console.log(`Compiled class ${data.classname} in ${diff}ms.`);
+        let target = analyzer.getMaker().getTarget();
+        qx.tool.compiler.Console.log(`${target.toString()}: Compiled class ${classname} in ${diff}ms.`);
       }
     },
 
