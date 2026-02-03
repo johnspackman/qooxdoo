@@ -69,12 +69,20 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
     __metaData: null,
 
     /**
+     * @type {string}
+     * Expected class name derived from file path
+     */
+    __expectedClassname: null,
+
+    /**
      * Parses the file and returns the metadata
      *
+     * @param {String} metaRootDir Root directory of meta database
+     * @param {String} libraryPath Path of the source files of the library that this file is found in
      * @param {String} classFilename the .js file to parse
-     * @return {MetaData}
+     * @return {Promise<MetaData>} the parsed metadata
      */
-    async parse(metaRootDir, classFilename) {
+    async parse(metaRootDir, libraryPath, classFilename) {
       classFilename = await qx.tool.utils.files.Utils.correctCase(classFilename);
 
       let stat = await fs.promises.stat(classFilename);
@@ -84,6 +92,8 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
         lastModifiedIso: stat.mtime.toISOString(),
         classFilename: path.relative(metaRootDir, classFilename)
       };
+
+      this.__expectedClassname = path.relative(libraryPath, classFilename).replace(/\.js$/, "").split(path.sep).join(".");
 
       const babelCore = require("@babel/core");
       let src = await fs.promises.readFile(classFilename, "utf8");
@@ -117,8 +127,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
         passPerPreset: true
       };
 
-      let result;
-      result = babelCore.transform(src, config);
+      babelCore.transform(src, config);
       let metaData = this.__metaData;
       this.__metaData = null;
       return metaData;
@@ -166,6 +175,11 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
                   };
 
                   metaData.className = node.expression.arguments[0].value;
+                  if (t.__expectedClassname !== metaData.className) {
+                    qx.tool.compiler.Console.warn(
+                      `Class name '${metaData.className}' does not match expected class name '${t.__expectedClassname}' derived from file path.`
+                    );
+                  }
                   if (typeof metaData.className != "string") {
                     metaData.className = null;
                   }

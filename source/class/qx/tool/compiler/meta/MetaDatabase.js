@@ -298,7 +298,10 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         return false;
       }
 
-      meta = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
+      let libraries = Object.values(this.getDatabase().libraries || {}).map(l => l.sourceDir);
+      let libraryPath = libraries.find(l => filename.startsWith(l));
+
+      meta = new qx.tool.compiler.meta.ClassMeta(this.getRootDir(), libraryPath);
 
       try {
         var metaData = await meta.parse(filename);
