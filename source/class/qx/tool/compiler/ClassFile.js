@@ -379,7 +379,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         if (extraPreset[0].plugins.length) {
           config.presets.push(extraPreset);
         }
-        //2026-01-08 - Had to comment this out because blacklist is not supported anymore in babel
+        //2026-JAN-08 - Had to comment this out because blacklist is not supported anymore in babel
         // if (this.__privateMangling == "unreadable") {
         //   config.blacklist = ["spec.functionName"];
         // }

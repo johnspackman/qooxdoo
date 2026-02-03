@@ -190,7 +190,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      *
      * @param {"added"|"unlink"|"change"} event
      * @param {String} filename filename of the changed file
-     * @param {String} rootDir teh dircetory where the file is located (used to determine the package name)
+     * @param {String} rootDir the directory where the file is located (used to determine the package name)
      */
     __onFileChange(event, filename, rootDir) {
       let packageName = path.relative(rootDir, filename);

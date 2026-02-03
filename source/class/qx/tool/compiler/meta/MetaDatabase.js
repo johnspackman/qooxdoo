@@ -164,7 +164,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         this.__database = data;
 
         let classnamesToLoad = data.classnames || [];
-        //2026-01-15 - I don't think we need to limit concurrency here? - NodeJs should be able to handle load of parallel disk IO operations
+        //2026-JAN-15 - I don't think we need to limit concurrency here? - NodeJs should be able to handle loads of parallel disk IO operations
         await Promise.all(classnamesToLoad.map(async classname => {
           let segs = classname.split(".");
           
