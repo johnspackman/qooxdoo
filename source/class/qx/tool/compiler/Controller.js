@@ -239,9 +239,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       // Scan the discovered classes and add them to the meta database
       let discoveredClasses = qx.lang.Array.clone(this.__discovery.getDiscoveredClasses());
-      await qx.tool.utils.Promisify.poolEachOf(discoveredClasses, 20, async classmeta => {
-        await metaDb.fastAddFile(classmeta.filenames.at(-1), false);
-      });
+      await Promise.all(discoveredClasses.map(classmeta => metaDb.fastAddFile(classmeta.filenames.at(-1), false)));
       this.fireEvent("addedDiscoveredClasses");
 
       
@@ -250,8 +248,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
        */
       const recompile = async () => {
         //We must make sure nothing is compiling before we update the metaDb
-        while (Object.keys(this.__compilingClasses).length > 0) {
+        if (Object.keys(this.__compilingClasses).length > 0) {
           await this.__flushCompileQueue();
+        }
+        if (Object.keys(this.__compilingClasses).length > 0) {
+          debugger; //2026-FEB-03 this condition should not be reached
         }
         await metaDb.reparseAll();
         await metaDb.save();

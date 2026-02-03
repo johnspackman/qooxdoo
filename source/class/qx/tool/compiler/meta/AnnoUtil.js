@@ -15,7 +15,7 @@ qx.Class.define("qx.tool.compiler.meta.AnnoUtil", {
         var val = eval(expr);
         return val;
       } catch (e) {
-        this.warn("Failed to eval annotation expression: " + expr + ": " + e.message);
+        console.warn("Failed to eval annotation expression: " + expr + ": " + e.message);//TODO find better solution to this problem
         return null;
       }
     },
