@@ -288,29 +288,37 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
      * @returns {string[]} list of classes where the entry appears
      */
     __findAppearances(metaData, entryKind, entryName) {
-      const getSuperLikes = meta => [
-        ...(meta.mixins ?? []),
-        ...(meta.superClass ? [meta.superClass] : []),
-        ...(meta.interfaces ?? [])
-      ];
+      const getSuperLikes = meta => {
+        let result = [];
+        if (meta.mixins) {
+          result.push(...meta.mixins);
+        }
+        if (meta.superClass) {
+          result.push(meta.superClass);
+        }
+        if (meta.interfaces) {
+          result.push(...meta.interfaces);
+        }
+        return result;
+      };
 
       const resolve = meta => {
         if (meta[entryKind]?.[entryName]) {
-          appearances.push(meta.className);
+          appearances[meta.className] = true;
         }
       };
 
-      const appearances = [];
-      const toResolve = getSuperLikes(metaData);
+      let appearances = {};
+      let toResolve = getSuperLikes(metaData);
       while (toResolve.length) {
-        const currentMeta = this.__metaByClassname[toResolve.shift()];
+        let currentMeta = this.__metaByClassname[toResolve.shift()];
         if (currentMeta) {
           resolve(currentMeta.getMetaData());
           toResolve.push(...getSuperLikes(currentMeta.getMetaData()));
         }
       }
 
-      return appearances;
+      return Object.keys(appearances);
     },
 
     /**
