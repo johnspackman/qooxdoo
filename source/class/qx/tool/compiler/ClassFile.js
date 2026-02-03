@@ -399,11 +399,6 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         return;
       }
 
-      if (!t.__metaDefinitions[className]) {
-        t.addMarker("compiler.wrongClassName", null, className, Object.keys(t.__metaDefinitions).join(", "));
-        t._compileDbClassInfo();
-      }
-
       result.dbClassInfo = this.__dbClassInfo;
 
       return result;

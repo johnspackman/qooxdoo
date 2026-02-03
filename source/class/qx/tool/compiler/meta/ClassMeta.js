@@ -29,9 +29,15 @@ const path = require("upath");
 qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
   extend: qx.core.Object,
 
-  construct(metaRootDir) {
+  /**
+   * 
+   * @param {string} metaRootDir Root directory of meta database
+   * @param {string} libraryPath Path of the source files of the library that this file is found in
+   */
+  construct(metaRootDir, libraryPath) {
     super();
     this.setMetaRootDir(metaRootDir || null);
+    this.__libraryPath = libraryPath || null;
   },
 
   properties: {
@@ -55,6 +61,10 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
      * True if this object was created from a native object and is read-only
      */
     __readOnly: false,
+    /**
+     * @type {String} path of the library where the class file is located
+     */
+    __libraryPath: null,
 
     /**
      * Loads the meta from disk
@@ -124,6 +134,7 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
       let parser = new qx.tool.compiler.meta.StdClassParser();
       this.__metaData = await parser.parse(
         this.getMetaRootDir() || ".",
+        this.__libraryPath,
         classFilename
       );
       return this.__metaData;
