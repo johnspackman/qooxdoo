@@ -29,8 +29,16 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
 
   destruct() {
     for (let workerTracker of this.__workers) {
+      if (workerTracker.pendingCall) {
+        this.warn("Terminating worker with pending call");
+      }
       workerTracker.worker.terminate();
     }
+    this.__workers = [];
+    if (this.__queue.length > 0) {
+      this.warn("There are still queued calls in the transpiler pool on destruction");
+    }
+    this.__queue = [];
   },
   
   events: {
