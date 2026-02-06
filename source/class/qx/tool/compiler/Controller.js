@@ -247,16 +247,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
        * Updates the meta database and compiles the classes that have been queued up
        */
       const recompile = async () => {
-        //We must make sure nothing is compiling before we update the metaDb
-        if (Object.keys(this.__compilingClasses).length > 0) {
-          await this.__flushCompileQueue();
-        }
-        if (Object.keys(this.__compilingClasses).length > 0) {
-          debugger; //2026-FEB-03 this condition should not be reached
-        }
+        qx.tool.compiler.Console.log("Changes detected, updating meta database and recompiling classes...");        
         await metaDb.reparseAll();
         await metaDb.save();
-        await this.__onMetaDbChanged();
         this.__toCompile.forEach(classname => this._onClassNeedsCompile(classname));
         this.__toCompile = [];        
       };
@@ -279,7 +272,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         let classname = evt.getData();
         let classmeta = this.__discovery.getDiscoveredClass(classname);
         let added = await metaDb.addFile(classmeta.filenames.at(-1), true);
-        if (added) {
+        if (added && !this.__toCompile.includes(classname)) {
           this.__toCompile.push(classname);
           debounce.trigger();
         }
@@ -317,9 +310,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
             classFileConfig: maker.getAnalyzer().getClassFileConfig().serialize(),
             transformerClass: maker.getTransformerClass()
           };
-        } else if (maker.getTransformer()) { 
-          //Only init the transformer if we are not using workers
-          //because if we are then the workers will create and init the transformers themselves
+        }
+        
+        if (maker.getTransformer()) {           
           await maker.getTransformer().init(metaDb);
         }
       }));
@@ -370,13 +363,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
     },
 
     /**
-     * Returns a promise which resolves when all the currently compiling classes have finished
-     */
-    async __flushCompileQueue() {
-      await Promise.all(Object.values(this.__compilingClasses));
-    },
-
-    /**
      * Handler for when a class has been compiled.
      *
      * @param {qx.tool.compiler.Analyzer} analyzer
@@ -423,6 +409,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
               Object.keys(this.__compilingClasses).length === 0
             ) {
               console.log("All applications written.");
+              if (this.__transpilerPool) {
+                //after the initial build, we won't be using worker threads anymore (at least for now) to make things simpler
+                this.__transpilerPool.dispose();
+                this.__transpilerPool = null;
+              }
               this.fireEvent("allMakersMade");
             }
             return true;
