@@ -458,6 +458,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
        */
       const processClass = async classname => {
         let dbClassInfo = await compileClass(classname);
+        if (!dbClassInfo) return; //This means class failed to compile. Assume the error has already been handled.
         if (dbClassInfo?.dependsOn) {
           Object.keys(dbClassInfo.dependsOn).forEach(depName => ensureProcessed(depName));
         }
