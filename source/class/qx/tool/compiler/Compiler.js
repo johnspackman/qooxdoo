@@ -6,8 +6,7 @@ const path = require("upath");
  * @use(qx.core.BaseInit)
  * @use(qx.tool.*)
  * 
- * @typedef {Object} CompilerData
- * TODO complete
+ * @typedef {Object} CompilerData A large POJO containing all the options for the compiler
  */
 
 qx.Class.define("qx.tool.compiler.Compiler", {
@@ -15,7 +14,11 @@ qx.Class.define("qx.tool.compiler.Compiler", {
   extend: qx.core.Object,
   events: {
     /**@override */
-    allAppsMade: "qx.event.type.Event"
+    made: "qx.event.type.Event",
+    /**@override */
+    writtenApplication: "qx.event.type.Data",
+    /**@override */
+    making: "qx.event.type.Event",
   },
   members: {
     /**
@@ -44,7 +47,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      */
     async start(data) {      
       this.__data = data;
-      let configDb = await qx.tool.cli.ConfigDb.getInstance();
+      let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       if (data["feedback"] === null) {
         data["feedback"] = configDb.db("qx.default.feedback", true);
       }
@@ -61,7 +64,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
 
       let controller = await this._loadConfigAndCreateController();
-      controller.addListener("allMakersMade", () => this.fireEvent("allAppsMade"));
+      controller.addListener("allMakersMade", () => this.fireEvent("made"));
       this.__controller = controller;
       controller.start();
     },
@@ -123,12 +126,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       let controller = new qx.tool.compiler.Controller(this.__data.nJobs).set({
         metaDir: this.__metaDir
       });
+
+      let countMaking = 0;
+
       new qx.tool.compiler.feedback.ConsoleFeedback(controller);
 
       await qx.Promise.all(
         makers.map(async maker => {
           var analyzer = maker.getAnalyzer();
-          let cfg = await qx.tool.cli.ConfigDb.getInstance();
+          let cfg = await qx.tool.compiler.cli.ConfigDb.getInstance();
           analyzer.setWritePoLineNumbers(cfg.db("qx.translation.strictPoCompatibility", false));
 
           if (!(await fs.existsAsync(maker.getOutputDir()))) {
@@ -144,10 +150,30 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             analyzer.setIgnores(config.ignores);
           }
 
+          maker.addListener("writtenApplication", async evt => {
+            await this.fireDataEventAsync("writtenApplication", evt.getData().application.getName());
+          });
+
           let stat = await qx.tool.utils.files.Utils.safeStat("source/index.html");
 
           if (stat) {
             qx.tool.compiler.Console.print("qx.tool.cli.compile.legacyFiles", "source/index.html");
+          }
+
+          // Simple one of make
+          if (!this.__data.watch) {
+            maker.addListener("making", () => {
+              countMaking++;
+              if (countMaking == 1) {
+                this.fireEvent("making");
+              }
+            });
+            maker.addListener("made", () => {
+              countMaking--;
+              if (countMaking == 0) {
+                this.fireEvent("made");
+              }
+            });
           }
 
           controller.addMaker(maker);

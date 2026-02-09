@@ -19,11 +19,10 @@
 
 const semver = require("semver");
 const process = require("process");
-const cliProgress = require("cli-progress");
 const child_process = require("child_process");
-const path = require("upath");
 const consoleControl = require("console-control-strings");
 const path = require("path");
+const fs = require("fs");
 
 require("app-module-path").addPath(process.cwd() + "/node_modules");
 
@@ -286,15 +285,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       );
 
       cmd.addFlag(
-        new qx.tool.cli.Flag("write-compile-info").set({
-          description:
-            "Write application summary information to the script, used mostly for unit tests",
-          type: "boolean",
-          value: false
-        })
-      );
-
-      cmd.addFlag(
         new qx.tool.cli.Flag("bundling").set({
           shortCode: "b",
           description: "Whether bundling is enabled",
@@ -304,11 +294,12 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       );
 
       cmd.addFlag(
-        new qx.tool.cli.Flag("jobs").set({
+        new qx.tool.cli.Flag("nJobs").set({
           shortCode: "j",
           description: "Number of threads to use for compilation. By default it's number of CPU cores minus one. If set to zero, uses only the main thread.",
-          type: "number",
-          default: null
+          type: "integer",
+          value: null,
+          required: false
         })
       );
 
@@ -344,14 +335,13 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
     /**
      * @type {Object[]}  The makers created during compilation
      */
-    __progressBar: null,
     __makers: null,
+    __progressBar: null,
 
     /*
      * @Override
      */
     async process() {
-      await super.process();
 
       let compileConfig = this.getCompilerApi().getConfiguration();
       let data = {
@@ -381,7 +371,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       */
 
 
-      let configDb = await qx.tool.cli.ConfigDb.getInstance();
+      let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       if (this.argv["feedback"] === null) {
         this.argv["feedback"] = configDb.db("qx.default.feedback", true);
       }
@@ -432,7 +422,6 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         let app = makers[0].applications[0];
         
         let compilerPath = path.join(target.outputDir, app.projectDir, "index.js");
-        // let compilerPath = 'compiled/source-node/custom-compiler/index.js';
         await compilerCompiler.stop();
         compilerCompiler.dispose();
         let cp = child_process.fork(compilerPath, ["compiler-server"]);
@@ -445,7 +434,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       console.log(">>> Starting compilation of project...");
       compiler.start(data);
       await new Promise(resolve => {
-        compiler.addListenerOnce("allAppsMade", () => {
+        compiler.addListenerOnce("made", () => {
           compiler.getMakers().then(makers => {
             this.__makers = makers;
             this.fireEvent("made");
@@ -463,7 +452,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
     /**
      * Returns the list of makers to make
      *
-     * @return  {qx.tool.compiler.Maker[]}
+     * @return {Maker[]}
      */
     getMakers() {
       return this.__makers;
@@ -493,179 +482,6 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         );
       }
       process.exitCode = success ? 0 : 1;
-    },
-
-    /**
-     * Loads the configuration and starts the make
-     * TODO 
-     * @return {Boolean} true if all makers succeeded
-     */
-    async _loadConfigAndCreateController() {
-      if (!this.getCompilerApi().compileJsonExists() && !qx.tool.cli.Cli.getInstance().compileJsExists()) {
-        qx.tool.compiler.Console.error("Cannot find either compile.json nor compile.js");
-
-        process.exit(1);
-      }
-      var config = this.getCompilerApi().getConfiguration();
-      var makers = (this.__makers = await this.createMakersFromConfig(config));
-      if (!makers || !makers.length) {
-        throw new qx.tool.utils.Utils.UserError("Error: Cannot find anything to make");
-      }
-
-      let controller = new qx.tool.compiler.Controller().set({
-        metaDir: this.__metaDir
-      });
-
-      //TODO: this is others' code that was merged
-      let countMaking = 0;
-      const collateDispatchEvent = evt => {
-        if (countMaking == 1) {
-          this.dispatchEvent(evt.clone());
-        }
-      };
-
-      let isFirstWatcher = true;
-      new qx.tool.compiler.feedback.ConsoleFeedback(controller);
-
-      await qx.Promise.all(
-        makers.map(async maker => {
-          var analyzer = maker.getAnalyzer();
-          let cfg = await qx.tool.cli.ConfigDb.getInstance();
-          analyzer.setWritePoLineNumbers(
-            cfg.db("qx.translation.strictPoCompatibility", false)
-          );
-
-          if (!(await fs.existsAsync(maker.getOutputDir()))) {
-            this.__outputDirWasCreated = true;
-          }
-          if (this.argv["clean"]) {
-            await maker.eraseOutputDir();
-            await qx.tool.utils.files.Utils.safeUnlink(analyzer.getDbFilename());
-
-            await qx.tool.utils.files.Utils.safeUnlink(analyzer.getResDbFilename());
-          }
-          if (config.ignores) {
-            analyzer.setIgnores(config.ignores);
-          }
-
-          var target = maker.getTarget();
-          analyser.addListener("compilingClass", e => this.dispatchEvent(e.clone()));
-
-          analyser.addListener("compiledClass", e => this.dispatchEvent(e.clone()));
-
-          analyser.addListener("saveDatabase", e => this.dispatchEvent(e.clone()));
-
-          target.addListener("checkEnvironment", e => this.dispatchEvent(e.clone()));
-
-          let appInfos = [];
-          target.addListener("writingApplication", async () => {
-            let appInfo = {
-              maker,
-              target,
-              appMeta: target.getAppMeta()
-            };
-
-            appInfos.push(appInfo);
-            await this.fireDataEventAsync("writingApplication", appInfo);
-          });
-          target.addListener("writtenApplication", async () => {
-            await this.fireDataEventAsync("writtenApplication", {
-              maker,
-              target,
-              appMeta: target.getAppMeta()
-            });
-          });
-          maker.addListener("writingApplications", collateDispatchEvent);
-          maker.addListener("writtenApplications", async () => {
-            await this.fireDataEventAsync("writtenApplications", appInfos);
-          });
-
-          if (target instanceof qx.tool.compiler.targets.BuildTarget) {
-            target.addListener("minifyingApplication", e => this.dispatchEvent(e.clone()));
-
-            target.addListener("minifiedApplication", e => this.dispatchEvent(e.clone()));
-          }
-
-        let stat = await qx.tool.utils.files.Utils.safeStat(
-          "source/index.html"
-        );
-
-        if (stat) {
-          qx.tool.compiler.Console.print(
-            "qx.tool.compiler.cli.compile.legacyFiles",
-            "source/index.html"
-          );
-        }
-
-          // Simple one of make
-          if (!this.argv.watch) {
-            maker.addListener("making", () => {
-              countMaking++;
-              if (countMaking == 1) {
-                this.fireEvent("making");
-              }
-            });
-            maker.addListener("made", () => {
-              countMaking--;
-              if (countMaking == 0) {
-                this.fireEvent("made");
-              }
-            });
-
-            return await maker.make();
-          }
-
-          // Continuous make
-          let watch = new qx.tool.cli.Watch(maker);
-          config.applications.forEach(appConfig => {
-            if (appConfig.runWhenWatching) {
-              watch.setRunWhenWatching(appConfig.name, appConfig.runWhenWatching);
-            }
-          });
-          if (this.argv["watch-debug"]) {
-            watch.setDebug(true);
-          }
-
-          watch.addListener("making", () => {
-            countMaking++;
-            if (countMaking == 1) {
-              this.fireEvent("making");
-            }
-          });
-          watch.addListener("made", () => {
-            countMaking--;
-            if (countMaking == 0) {
-              this.fireEvent("made");
-            }
-          });
-          watch.addListener("configChanged", async () => {
-            await watch.stop();
-            setImmediate(() => this._loadConfigAndStartMaking());
-          });
-          let arr = [this._compileJsFilename, this._compileJsonFilename].filter(str => Boolean(str));
-
-          watch.setConfigFilenames(arr);
-
-          if (target instanceof qx.tool.compiler.targets.SourceTarget && isFirstWatcher) {
-            isFirstWatcher = false;
-            try {
-              await this.__attachTypescriptWatcher(watch);
-            } catch (ex) {
-              qx.tool.compiler.Console.error(ex);
-            }
-          }
-
-          return watch.start();
-        })
-      );
-
-      if (!this.argv.watch) {
-        try {
-          await this.__attachTypescriptWatcher(null);
-        } catch (ex) {
-          qx.tool.compiler.Console.error(ex);
-        }
-      }
     },
 
     async __attachTypescriptWatcher(watch) {

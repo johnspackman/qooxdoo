@@ -135,6 +135,9 @@ qx.Class.define("qx.tool.compiler.cli.Command", {
   members: {
     argv: null,
 
+    /**
+     * @abstract
+     */
     async process() {
       throw new Error("Abstract method call");
     },

@@ -23,13 +23,15 @@
  */
 const { isMainThread, threadId } = require("worker_threads");
 
-qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
-  extend: qx.tool.cli.commands.Command,
+qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
+  extend: qx.tool.compiler.cli.Command,
   statics: {
-    getYargsCommand() {
-      return {
-        command: "transpiler-worker"
-      };
+    async createCliCommand(clazz = this) {
+      let cmd = await qx.tool.compiler.cli.Command.createCliCommand(clazz);
+      cmd.set({
+        name: "transpiler-worker"
+      });
+      return cmd;
     }
   },
   construct(...args) {
@@ -71,7 +73,6 @@ qx.Class.define("qx.tool.cli.commands.TranspilerWorker", {
         process.exitCode = 1;
         return;
       }
-      await super.process();
       qx.tool.compiler.TranspilerPool.register(this);
       await new Promise(() => {}); //hang until process quits
     },

@@ -16,6 +16,10 @@ const os = require("os");
  */
 qx.Class.define("qx.tool.compiler.TranspilerPool", {
   extend: qx.core.Object,
+  /**
+   * 
+   * @param {?number} size Number of workers in the pool. Defaults to number of CPU cores minus one.
+   */
   construct(size) {
     super();
     this.__poolSize = size || os.cpus().length - 1;

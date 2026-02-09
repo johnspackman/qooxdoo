@@ -20,38 +20,43 @@
  *
  */
 
-qx.Class.define("qx.tool.cli.commands.CompilerServer", {
-  extend: qx.tool.cli.commands.Command,
+qx.Class.define("qx.tool.compiler.cli.commands.CompilerServer", {
+  extend: qx.tool.compiler.cli.Command,
   statics: {
-    getYargsCommand() {
-      return {
-        command: "compiler-server"
-      };
+    async createCliCommand(clazz = this) {
+      let cmd = await qx.tool.compiler.cli.Command.createCliCommand(clazz);
+      cmd.set({
+        name: "compiler-server"
+      });
+      return cmd;
     }
   },
   members: {
     /**
      * @override
      */
-    async process() {      
-      await super.process();
+    async process() {
       let compilerClassName = qx.core.Environment.get("qx.tool.compiler.Compiler.compilerClass") || "qx.tool.compiler.Compiler";
       let CompilerClass = qx.Class.getByName(compilerClassName);
 
       if (!CompilerClass) {
         throw new Error("Could not find compiler class: " + compilerClassName);
       }
-      
+
       if (!qx.Class.isSubClassOf(CompilerClass, qx.tool.compiler.Compiler)) {
         throw new Error("Compiler class " + compilerClassName + " is not a subclass of qx.tool.compiler.Compiler");
       }
 
       let compiler = new CompilerClass();
-      compiler.addListener("allAppsMade", () => {
-        process.send({ type: "allAppsMade" });
-      });
-
-      process.on("message", async (msg) => {
+      let events = Object.keys(qx.tool.compiler.ICompilerInterface.$$events);
+      
+      for (let event of events) {
+        compiler.addListener(event, evt => {
+          process.send({ type: "event", event: event, data: evt.getData?.() });
+        });
+      }
+        
+      process.on("message", async msg => {
         if (msg.type === "callMethod") {
           let error;
           let result = await Promise.resolve(compiler[msg.methodName](...msg.args)).catch(err => {
