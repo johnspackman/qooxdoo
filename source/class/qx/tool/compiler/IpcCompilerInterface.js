@@ -13,14 +13,22 @@ qx.Class.define("qx.tool.compiler.IpcCompilerInterface", {
     super();
     this.__childProcess = childProcess;
     this.__childProcess.on("message", msg => {
-      if (msg.type == "allAppsMade") {
-        this.fireEvent("allAppsMade");
+      if (msg.type === "event") {
+        if (msg.data !== undefined) {
+          this.fireDataEvent(msg.event, msg.data);
+        } else {
+          this.fireEvent(msg.event);
+        }
       }      
     });
   },
   events: {
     /** @override */
-    allAppsMade: "qx.event.type.Event"
+    made: "qx.event.type.Event",
+    /** @override */
+    making: "qx.event.type.Event",
+    /** @override */
+    writtenApplication: "qx.event.type.Data",
   },
 
   members: {

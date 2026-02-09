@@ -3,7 +3,12 @@ qx.Interface.define("qx.tool.compiler.ICompilerInterface", {
     /**
      * Fired when all applications have been made
      */
-    allAppsMade: "qx.event.type.Event"
+    made: "qx.event.type.Event",
+    making: "qx.event.type.Event",
+    /**
+     * @type {string} application name
+     */
+    writtenApplication: "qx.event.type.Data",
   },
   members: {
     /**

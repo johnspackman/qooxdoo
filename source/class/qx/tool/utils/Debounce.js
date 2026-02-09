@@ -88,6 +88,7 @@ qx.Class.define("qx.tool.utils.Debounce", {
     /**
      * Only set when the callback is executing
      * Resolves to the return value of the callback after the callback finishes
+     * @type {?Promise}
      */
     __runPromise: null,
 

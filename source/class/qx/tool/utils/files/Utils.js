@@ -22,7 +22,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { rimraf } = require("rimraf");
 
 const { promisify } = require("util");
 const stat = promisify(fs.stat);
@@ -236,7 +235,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @async
      */
     async deleteRecursive(name) {
-      return rimraf(name);
+      return fs.promises.rm(name, { recursive: true, force: true });
     },
 
     /**
