@@ -71,10 +71,10 @@ qx.Class.define("qx.test.Promise", {
     testExternalReject() {
       var promise = new qx.Promise();
       promise.catch(function (e) {
-        this.assertEquals("666", e.message);
-        this.resume();
+        this.assertEquals("oops", e.message);
+        setTimeout(() => this.resume(), 1);
       }, this);
-      promise.reject(new Error("666"));
+      promise.reject(new Error("oops"));
       this.wait(1000);
     },
 
@@ -296,7 +296,7 @@ qx.Class.define("qx.test.Promise", {
           .then(() => this.fail("Should not call!"))
           .catch(e => {
             this.assertEquals("late cancellation observer", e.message);
-            this.resume();
+            setTimeout(this.resume(), 1);
           });
 
         this.wait(1000);
@@ -325,7 +325,7 @@ qx.Class.define("qx.test.Promise", {
           })
           .catch(e => {
             this.assertEquals("late cancellation observer", e.message);
-            this.resume();
+            setTimeout(() => this.resume(), 1);
           });
 
         this.wait(1000);
@@ -354,7 +354,7 @@ qx.Class.define("qx.test.Promise", {
           })
           .catch(e => {
             this.assertEquals("late cancellation observer", e.message);
-            this.resume();
+            setTimeout(() => this.resume(), 1);
           });
 
         this.wait(1000);
@@ -377,7 +377,7 @@ qx.Class.define("qx.test.Promise", {
             promise.cancel();
           })
           .then(() => {
-            this.resume();
+            setTimeout(() => this.resume(), 1);
           });
 
         this.wait(1000);
@@ -399,8 +399,8 @@ qx.Class.define("qx.test.Promise", {
         })
         .finally(function () {
           this.assertNotNull(caughtException);
-          this.resume();
           this.assertIdentical(this, t);
+          setTimeout(() => this.resume(), 1);
         }, this);
       this.wait(1000);
     },
@@ -475,7 +475,7 @@ qx.Class.define("qx.test.Promise", {
         t.assertEquals("three", obj.c);
         t.assertEquals("four", obj.d);
         t.assertTrue(obj.e === dt);
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       });
       obj.a.then(function () {
         obj.b.resolve("two");
@@ -500,7 +500,7 @@ qx.Class.define("qx.test.Promise", {
 
       qx.Promise.allOf(qx.Promise.resolve(obj)).catch(function (reason) {
         t.assertEquals("two", reason.message);
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       });
 
       obj.b.reject(new Error("two"));
@@ -523,7 +523,7 @@ qx.Class.define("qx.test.Promise", {
         t.assertEquals("one", obj.a);
         t.assertEquals("two", obj.b);
 
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       });
       obj.a.then(function () {
         obj.b.resolve("two");
@@ -550,7 +550,7 @@ qx.Class.define("qx.test.Promise", {
       });
 
       this.assertTrue(!!Clazz.prototype.setAlpha);
-      this.assertTrue(!!Clazz.prototype.setAlphaAsync);
+      this.assertFalse(!!Clazz.prototype.setAlphaAsync);
       var obj = new Clazz();
       var p = new qx.Promise(function (resolve) {
         resolve(123);
@@ -559,7 +559,7 @@ qx.Class.define("qx.test.Promise", {
       p.then(function () {
         t.assertEquals(123, obj.getAlpha());
         qx.Class.undefine("testPropertySetValueAsPromise1.Clazz");
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       });
       this.wait(1000);
     },
@@ -591,7 +591,7 @@ qx.Class.define("qx.test.Promise", {
       obj.setAlphaAsync(p).then(function () {
         t.assertEquals(123, obj.getAlpha());
         qx.Class.undefine("testPropertySetValueAsPromise2.Clazz");
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       });
       this.wait(1000);
     },
@@ -898,10 +898,12 @@ qx.Class.define("qx.test.Promise", {
 
       function createObj(name) {
         var obj = new Clazz().set({ value: name });
-        obj.addListener("changeAlpha", function (evt) {
+        obj.addListener("changeAlphaAsync", function (evt) {
           var value = evt.getData();
           var p = new qx.Promise(function (resolve) {
-            console.log(name + ": changeAlpha 1 in qx.Promise, value=" + value);
+            console.log(
+              name + ": changeAlphaAsync 1 in qx.Promise, value=" + value
+            );
 
             setTimeout(function () {
               if (str.length) {
@@ -909,17 +911,21 @@ qx.Class.define("qx.test.Promise", {
               }
               str += name;
               console.log(
-                name + ": changeAlpha 1 resolving qx.Promise, value=" + value
+                name +
+                  ": changeAlphaAsync 1 resolving qx.Promise, value=" +
+                  value
               );
 
               resolve();
             }, 200);
           }).then(function () {
             console.log(
-              name + ": changeAlpha 1 resolved qx.Promise, value=" + value
+              name + ": changeAlphaAsync 1 resolved qx.Promise, value=" + value
             );
           });
-          console.log(name + ": changeAlpha 1, value=" + value + ", p=" + p);
+          console.log(
+            name + ": changeAlphaAsync 1, value=" + value + ", p=" + p
+          );
 
           return p;
         });
@@ -930,7 +936,7 @@ qx.Class.define("qx.test.Promise", {
       var objTwo = createObj("two");
 
       var str = "";
-      objOne.addListener("changeAlpha", function (evt) {
+      objOne.addListener("changeAlphaAsync", function (evt) {
         var value = evt.getData();
         console.log("objOne.alphaAsync setting, value=" + value);
         return objTwo.setAlphaAsync("def").then(function () {
@@ -950,25 +956,19 @@ qx.Class.define("qx.test.Promise", {
     },
 
     /**
-     * Tests using bind() on async properties (using the "changeXxx" events) between
+     * Tests using bind() on async properties (using the "changeXxxAsync" events) between
      * a series of objects.  The test must show that the property values are fired in
      * order, and that if an async event handler returns a promise it defers bind from
      * propagating onto other objects.
-     * 
-     * NOTE:: This currently cannot work reliably because `qx.data.SingleValueBinding`
-     * does not support asynchronous binding, and this code would depend on the event
-     * process holding off firing synchronous subsequent events until after the previous
-     * event has completed, even if that is asynchronous.  That implementation has been 
-     * reverted because it breaks other code (specifically, it breaks the behavour of
-     * events)
-     *
+     */
     testWaterfallBinding() {
       var t = this;
       var Clazz = qx.Class.define("testWaterfallBinding.Clazz", {
         extend: qx.core.Object,
         properties: {
           value: {},
-           alpha: {
+
+          alpha: {
             init: null,
             nullable: true,
             async: true,
@@ -976,7 +976,8 @@ qx.Class.define("qx.test.Promise", {
             event: "changeAlpha"
           }
         },
-         members: {
+
+        members: {
           _applyAlpha(value, oldValue) {
             var t = this;
             console.log("pre applyAlpha[" + t.getValue() + "] = " + value);
@@ -989,13 +990,15 @@ qx.Class.define("qx.test.Promise", {
           }
         }
       });
-       var objs = [];
+
+      var objs = [];
       var str = "";
-       function trap(i) {
+
+      function trap(i) {
         var obj = new Clazz().set({ value: i });
         var bindPromise;
         if (i > 0) {
-          bindPromise = objs[i - 1].bindAsync("alpha", obj, "alpha");
+          bindPromise = objs[i - 1].bindAsync("alphaAsync", obj, "alphaAsync");
         } else {
           bindPromise = qx.Promise.resolve(true);
         }
@@ -1012,7 +1015,8 @@ qx.Class.define("qx.test.Promise", {
                 " after " +
                 delay
             );
-             return new qx.Promise(function (resolve) {
+
+            return new qx.Promise(function (resolve) {
               setTimeout(function () {
                 if (str.length) {
                   str += ",";
@@ -1026,24 +1030,28 @@ qx.Class.define("qx.test.Promise", {
                     " after " +
                     delay
                 );
-                 resolve();
+
+                resolve();
               }, delay);
             });
           });
-           objs[i] = obj;
+
+          objs[i] = obj;
         });
       }
-       qx.Promise.mapSeries([0, 1, 2, 3, 4], trap).then(function () {
+
+      qx.Promise.mapSeries([0, 1, 2, 3, 4], trap).then(function () {
         var p = objs[0].setAlphaAsync("abc");
-         p.then(function () {
+
+        p.then(function () {
           t.assertEquals("0:abc,1:abc,2:abc,3:abc,4:abc", str);
           qx.Class.undefine("testWaterfallBinding.Clazz");
           t.resume();
         }, t);
       });
-       this.wait(10000);
+
+      this.wait(10000);
     },
-    */
 
     /**
      * Tests the each method of promise, using qx.data.Array which the native Promise
@@ -1063,7 +1071,7 @@ qx.Class.define("qx.test.Promise", {
       }, this);
       forEachReturn.then(function () {
         t.assertEquals("abc", str);
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       });
       this.assertInstance(forEachReturn, qx.Promise);
       t.wait(1000);
@@ -1130,7 +1138,7 @@ qx.Class.define("qx.test.Promise", {
       });
       pEach.catch(reason => {
         this.assertEquals("b", reason.message);
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.wait(1000);
     },
@@ -1145,7 +1153,7 @@ qx.Class.define("qx.test.Promise", {
       qx.Promise.forEach(promiseArr, (item, index) => {
         this.assertEquals(index, item - 1);
       }).then(result => {
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.wait(1000);
     },
@@ -1157,6 +1165,7 @@ qx.Class.define("qx.test.Promise", {
       var t = this;
       qx.event.GlobalError.setErrorHandler(function (ex) {
         t.assertEquals(ex.message, "oops");
+        qx.event.GlobalError.setErrorHandler(null);
         t.resume();
       });
       var self = this;
@@ -1183,7 +1192,7 @@ qx.Class.define("qx.test.Promise", {
       this.assertInstance(promise, qx.Promise);
       promise.then(function (value) {
         t.assertEquals(value, "yes");
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       });
       this.wait(1000);
     },
@@ -1196,7 +1205,7 @@ qx.Class.define("qx.test.Promise", {
       var p = qx.Promise.resolve("hello").bind(this);
       p.then(function (value) {
         qx.core.Assert.assertIdentical(t, this);
-        t.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.wait(1000);
     },
@@ -1214,7 +1223,7 @@ qx.Class.define("qx.test.Promise", {
         this
       ).then(function (value) {
         qx.core.Assert.assertIdentical(t, this);
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       }, this);
       this.wait(1000);
     },
@@ -1232,7 +1241,7 @@ qx.Class.define("qx.test.Promise", {
       var t = this;
       qx.Promise.resolve(true).then(function () {
         qx.core.Assert.assertIdentical(qx.Promise, this);
-        t.resume();
+        setTimeout(() => t.resume(), 1);
       }, qx.Promise);
       this.wait(1000);
     },
@@ -1244,7 +1253,7 @@ qx.Class.define("qx.test.Promise", {
       var t = this;
       qx.Promise.resolve(true, this).then(function () {
         qx.core.Assert.assertIdentical(t, this);
-        t.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.wait(1000);
     },
@@ -1256,7 +1265,7 @@ qx.Class.define("qx.test.Promise", {
       var t = this;
       qx.Promise.reject(new Error("Dummy Error"), this).catch(function () {
         qx.core.Assert.assertIdentical(t, this);
-        t.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.wait(1000);
     },
@@ -1276,7 +1285,7 @@ qx.Class.define("qx.test.Promise", {
           t.assertEquals(str, "foo");
           t.assertInstance(arr, qx.data.Array);
           t.assertEquals(arr.join(""), "abc");
-          t.resume();
+          setTimeout(() => t.resume(), 1);
         });
       this.wait(1000);
     },
@@ -1350,7 +1359,7 @@ qx.Class.define("qx.test.Promise", {
       var arr = ["a", promiseB];
       qx.Promise.race(qx.Promise.resolve(arr)).then(val => {
         this.assertEquals("a", val);
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       });
 
       this.wait(1000);
@@ -1451,7 +1460,7 @@ qx.Class.define("qx.test.Promise", {
       qx.Promise.resolve([])
         .any()
         .catch(aggErr => {
-          this.resume();
+          setTimeout(() => this.resume(), 1);
         });
 
       this.wait(1000);
@@ -1472,7 +1481,7 @@ qx.Class.define("qx.test.Promise", {
         .any()
         .then(val => {
           this.assertEquals("a", val);
-          this.resume();
+          setTimeout(() => this.resume(), 1);
         });
 
       this.wait(1000);
@@ -1497,7 +1506,7 @@ qx.Class.define("qx.test.Promise", {
       );
       promise.then(result => {
         this.assertEquals(6, result);
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.assertInstance(promise, qx.Promise);
       this.wait(1000);
@@ -1515,7 +1524,7 @@ qx.Class.define("qx.test.Promise", {
 
       var promiseC = new qx.Promise(function (resolve, reject) {
         setTimeout(function () {
-          reject(new Error("666"));
+          reject(new Error("oops"));
         }, 100);
       });
       var promiseD = new qx.Promise(function (resolve) {
@@ -1529,7 +1538,7 @@ qx.Class.define("qx.test.Promise", {
         async (acc, item) => acc + item,
         0
       ).catch(err => {
-        this.assertEquals("666", err.message);
+        this.assertEquals("oops", err.message);
         this.resume();
       });
       this.wait(1000);
@@ -1545,11 +1554,11 @@ qx.Class.define("qx.test.Promise", {
       var arr = [promiseB, promiseC, promiseD];
       qx.Promise.resolve(arr)
         .reduce(async (acc, item) => {
-          throw new Error("666");
+          throw new Error("oops");
         }, 0)
         .catch(err => {
-          this.assertEquals("666", err.message);
-          this.resume();
+          this.assertEquals("oops", err.message);
+          setTimeout(() => this.resume(), 1);
         });
       this.wait(1000);
     },
@@ -1577,7 +1586,8 @@ qx.Class.define("qx.test.Promise", {
       this);
       p.then(evens => {
         this.assertArrayEquals([2, 4, 6], evens);
-        this.resume();
+        //force resume to run on next tick so that we call resume after wait
+        setTimeout(() => this.resume(), 1);
       });
       this.assertInstance(p, qx.Promise);
       this.wait(1000);
@@ -1622,7 +1632,7 @@ qx.Class.define("qx.test.Promise", {
      * Tests that `filter` rejects when one promise in the array rejects
      */
     testFilterRejectValue() {
-      var promiseB = qx.Promise.reject(new Error("666"));
+      var promiseB = qx.Promise.reject(new Error("oops"));
 
       var promiseC = qx.Promise.resolve(3);
       var promiseD = qx.Promise.resolve(4);
@@ -1630,8 +1640,8 @@ qx.Class.define("qx.test.Promise", {
       qx.Promise.resolve(arr)
         .filter(async (item, index, length) => item % 2 === 0)
         .catch(e => {
-          this.assertEquals("666", e.message);
-          this.resume();
+          this.assertEquals("oops", e.message);
+          setTimeout(() => this.resume(), 1);
         });
 
       this.wait(1000);
@@ -1648,11 +1658,11 @@ qx.Class.define("qx.test.Promise", {
       var arr = [promiseB, promiseC, promiseD, 6];
       qx.Promise.resolve(arr)
         .filter(async item => {
-          throw new Error("666");
+          throw new Error("oops");
         })
         .catch(e => {
-          this.assertEquals("666", e.message);
-          this.resume();
+          this.assertEquals("oops", e.message);
+          setTimeout(() => this.resume(), 1);
         });
 
       this.wait(1000);
@@ -1696,7 +1706,7 @@ qx.Class.define("qx.test.Promise", {
     testSomeOneReject() {
       var promiseB = new qx.Promise(function (resolve, reject) {
         setTimeout(function () {
-          reject(new Error("666"));
+          reject(new Error("oops"));
         }, 200);
       });
 
@@ -1726,13 +1736,13 @@ qx.Class.define("qx.test.Promise", {
     testSomeTooManyReject() {
       var promiseB = new qx.Promise(function (resolve, reject) {
         setTimeout(function () {
-          reject(new Error("666"));
+          reject(new Error("oops"));
         }, 200);
       });
 
       var promiseC = new qx.Promise(function (resolve, reject) {
         setTimeout(function () {
-          reject(new Error("667"));
+          reject(new Error("oops1"));
         }, 100);
       });
       var promiseD = new qx.Promise(function (resolve) {
@@ -1749,7 +1759,7 @@ qx.Class.define("qx.test.Promise", {
             : error;
 
           this.assertArrayEquals(
-            ["667", "666"],
+            ["oops1", "oops"],
             errors.map(e => e.message)
           );
           this.resume();
@@ -1775,7 +1785,7 @@ qx.Class.define("qx.test.Promise", {
       }, this);
       p.then(result => {
         this.assertArrayEquals([4, 6, 8, 10], result);
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.assertInstance(p, qx.Promise);
       this.wait(1000);
@@ -1824,14 +1834,14 @@ qx.Class.define("qx.test.Promise", {
     testMapOneReject() {
       var promiseB = qx.Promise.resolve(2);
 
-      var promiseC = qx.Promise.reject(new Error("666"));
+      var promiseC = qx.Promise.reject(new Error("oops"));
       var promiseD = qx.Promise.resolve(4);
       var arr = [promiseB, promiseC, promiseD];
       qx.Promise.resolve(arr)
         .map(async item => item * 2)
         .catch(err => {
-          this.assertEquals("666", err.message);
-          this.resume();
+          this.assertEquals("oops", err.message);
+          setTimeout(() => this.resume(), 1);
         });
       this.wait(1000);
     },
@@ -1847,11 +1857,11 @@ qx.Class.define("qx.test.Promise", {
       var arr = [promiseB, promiseC, promiseD];
       qx.Promise.resolve(arr)
         .map(async item => {
-          throw new Error("666");
+          throw new Error("oops");
         })
         .catch(err => {
-          this.assertEquals("666", err.message);
-          this.resume();
+          this.assertEquals("oops", err.message);
+          setTimeout(() => this.resume(), 1);
         });
       this.wait(1000);
     },
@@ -1875,7 +1885,7 @@ qx.Class.define("qx.test.Promise", {
       });
       p.then(doubles => {
         this.assertArrayEquals([2, 4, 6, 8], doubles);
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.assertInstance(p, qx.Promise);
       this.wait(1000);
@@ -1886,7 +1896,7 @@ qx.Class.define("qx.test.Promise", {
      * The returned promise should reject.
      */
     testMapSeriesOneReject() {
-      var promiseB = qx.Promise.reject(new Error("666"));
+      var promiseB = qx.Promise.reject(new Error("oops"));
       var promiseC = qx.Promise.resolve(2);
       var promiseD = qx.Promise.resolve(3);
 
@@ -1894,8 +1904,8 @@ qx.Class.define("qx.test.Promise", {
       qx.Promise.resolve(arr)
         .mapSeries(async item => item * 2)
         .catch(e => {
-          this.assertEquals("666", e.message);
-          this.resume();
+          this.assertEquals("oops", e.message);
+          setTimeout(() => this.resume(), 1);
         });
 
       this.wait(1000);
@@ -1912,11 +1922,11 @@ qx.Class.define("qx.test.Promise", {
       var arr = [promiseB, promiseC, promiseD];
       qx.Promise.resolve(arr)
         .mapSeries(async item => {
-          throw new Error("666");
+          throw new Error("oops");
         })
         .catch(err => {
-          this.assertEquals("666", err.message);
-          this.resume();
+          this.assertEquals("oops", err.message);
+          setTimeout(() => this.resume(), 1);
         });
       this.wait(1000);
     },
@@ -1932,7 +1942,7 @@ qx.Class.define("qx.test.Promise", {
         this.assertEquals(index, item - 1);
         return item * 2;
       }).then(result => {
-        this.resume();
+        setTimeout(() => this.resume(), 1);
       });
       this.wait(1000);
     }

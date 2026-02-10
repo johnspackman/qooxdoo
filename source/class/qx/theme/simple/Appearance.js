@@ -1136,8 +1136,6 @@ qx.Theme.define("qx.theme.simple.Appearance", {
       }
     },
 
-    checkedlistitem: "checkbox",
-
     /*
     ---------------------------------------------------------------------------
       SPINNER
@@ -1376,8 +1374,8 @@ qx.Theme.define("qx.theme.simple.Appearance", {
           decorator: states.lead
             ? "lead-item"
             : states.dragover
-              ? "dragover"
-              : undefined,
+            ? "dragover"
+            : undefined,
           opacity: states.drag ? 0.5 : undefined
         };
       }
@@ -1722,8 +1720,8 @@ qx.Theme.define("qx.theme.simple.Appearance", {
           decorator: states.maximized
             ? undefined
             : states.active
-              ? "window-active"
-              : "window"
+            ? "window-active"
+            : "window"
         };
       }
     },
@@ -1846,8 +1844,8 @@ qx.Theme.define("qx.theme.simple.Appearance", {
           textColor: states.disabled
             ? "text-disabled"
             : states.invalid
-              ? "invalid"
-              : undefined,
+            ? "invalid"
+            : undefined,
           padding: [2, 10]
         };
       }
@@ -1913,11 +1911,11 @@ qx.Theme.define("qx.theme.simple.Appearance", {
           textColor: states.disabled
             ? "text-disabled"
             : states.weekend
-              ? "background-selected-dark"
-              : "background",
+            ? "datechooser-background-selected-dark"
+            : "datechooser-background",
           backgroundColor: states.weekend
-            ? "background"
-            : "background-selected-dark",
+            ? "datechooser-background"
+            : "datechooser-background-selected-dark",
           paddingTop: 2
         };
       }
@@ -1931,15 +1929,15 @@ qx.Theme.define("qx.theme.simple.Appearance", {
           textColor: states.disabled
             ? "text-disabled"
             : states.selected
-              ? "text-selected"
-              : states.otherMonth
-                ? "text-disabled"
-                : undefined,
+            ? "text-selected"
+            : states.otherMonth
+            ? "text-disabled"
+            : undefined,
           backgroundColor: states.disabled
             ? undefined
             : states.selected
-              ? "background-selected"
-              : undefined,
+            ? "background-selected"
+            : undefined,
           padding: states.today ? [1, 3] : [2, 4]
         };
       }
@@ -1949,7 +1947,8 @@ qx.Theme.define("qx.theme.simple.Appearance", {
       style(states) {
         return {
           textAlign: "center",
-          textColor: "background-selected-dark",
+          textColor: "datechooser-background",
+		  backgroundColor: "datechooser-background-selected-dark",
           padding: [2, 4],
           decorator: states.header
             ? "datechooser-week-header"
@@ -2329,8 +2328,8 @@ qx.Theme.define("qx.theme.simple.Appearance", {
           textColor: states.disabled
             ? "text-disabled"
             : states.checked
-              ? null
-              : "link",
+            ? null
+            : "link",
           padding: padding,
           cursor: "pointer"
         };

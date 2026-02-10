@@ -1,6 +1,6 @@
 {
   "name": "@qooxdoo/framework",
-  "version": "7.8.0",
+  "version": "7.9.2",
   "description": "The JS Framework for Coders",
   "author": "The qooxdoo project",
   "keywords": [
@@ -107,6 +107,7 @@
     "object-hash": "^2.1.1",
     "prettier": "^2.5.1",
     "ps-tree": "^1.2.0",
+    "regenerator-runtime": "^0.14.1",
     "replace-in-file": "^5.0.0",
     "rimraf": "^3.0.2",
     "sass": "1.69.4",
@@ -116,7 +117,7 @@
     "source-map-js": "^1.0.2",
     "tap-colorize": "^1.2.0",
     "terser": "^5.22.0",
-    "tmp": "0.2.1",
+    "tmp": "0.2.4",
     "unset-value": "^1.0.0",
     "upath": "^1.2.0",
     "update-notifier": "^6.0.2",
