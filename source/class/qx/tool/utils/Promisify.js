@@ -94,7 +94,7 @@ qx.Class.define("qx.tool.utils.Promisify", {
         }
         let item = arr[index++];
         return fn(item);
-      }, 10);
+      }, size);
       await pool.start();
     },
 
@@ -175,9 +175,7 @@ qx.Class.define("qx.tool.utils.Promisify", {
 
     callback(promise, cb) {
       if (cb) {
-        promise = promise
-          .then((...args) => cb(null, ...args))
-          .catch(err => cb(err));
+        promise = promise.then((...args) => cb(null, ...args)).catch(err => cb(err));
       }
       return promise;
     },

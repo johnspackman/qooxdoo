@@ -101,9 +101,9 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     },
 
     /**
-     * The analyser being generated
+     * The analyzer being generated
      */
-    analyser: {
+    analyzer: {
       nullable: false
     },
 
@@ -194,15 +194,6 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     },
 
     /**
-     * Whether to support browserify for browser targets
-     */
-    browserify: {
-      init: true,
-      nullable: false,
-      check: "Boolean"
-    },
-
-    /**
      * Whether to use relative paths in source maps
      */
     sourceMapRelativePaths: {
@@ -219,19 +210,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      *  application {qx.tool.compiler.app.Application} the app
      *  enviroment: {Object} enviroment data
      */
-    checkEnvironment: "qx.event.type.Data",
-
-    /**
-     * Fired when an application is about to be serialized to disk; the appMeta is fully
-     * populated, and this is an opportunity to amend the meta data before it is serialized
-     * into files on disk
-     */
-    writingApplication: "qx.event.type.Event",
-
-    /**
-     * Fired when an application has been serialized to disk
-     */
-    writtenApplication: "qx.event.type.Event"
+    checkEnvironment: "qx.event.type.Data"
   },
 
   members: {
@@ -359,8 +338,8 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      */
     async generateApplication(application, environment) {
       var t = this;
-      var analyser = application.getAnalyser();
-      var rm = analyser.getResourceManager();
+      var analyzer = application.getAnalyzer();
+      var rm = analyzer.getResourceManager();
 
       let appMeta = (this.__appMeta = new qx.tool.compiler.targets.meta.ApplicationMeta(this, application));
       appMeta.setAddTimestampsToUrls(this.getAddTimestampsToUrls());
@@ -382,7 +361,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       const requiredLibs = application.getRequiredLibraries();
 
-      await qx.tool.utils.Utils.makeDirs(appRootDir);
+      await fs.promises.mkdir(appRootDir, { recursive: true });
 
       appMeta.setEnvironment({
         "qx.application": application.getClassName(),
@@ -414,7 +393,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       };
 
       requiredLibs.forEach(libnamespace => {
-        var library = analyser.findLibrary(libnamespace);
+        var library = analyzer.findLibrary(libnamespace);
         appMeta.addLibrary(library);
         if (this.isWriteLibraryInfo()) {
           let libraryInfoMap = appMeta.getEnvironmentValue("qx.libraryInfoMap", {});
@@ -448,8 +427,12 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       // class will always bundle local modules specified for an
       // application in compile.json, but will not bundle `require()`d
       // modules that are Node modules.
-      if (appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser" && this.isBrowserify()) {
-        bootPackage.addJavascriptMeta(new qx.tool.compiler.targets.meta.Browserify(appMeta));
+      if (
+        appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser"
+      ) {
+        bootPackage.addJavascriptMeta(
+          new qx.tool.compiler.targets.meta.Browserify(appMeta)
+        );
       }
 
       /*
@@ -477,10 +460,8 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
           let transpiledClassFilename = path.join(this.getOutputDir(), "transpiled", classFilename);
 
-          let db = analyser.getDatabase();
-          let dbClassInfo = db.classInfo[classname];
-          let library = analyser.findLibrary(dbClassInfo.libraryName);
-          let sourcePath = library.getFilename(classFilename);
+          let dbClassInfo = analyzer.getDbClassInfo(classname);
+          let sourcePath = path.resolve(dbClassInfo.filename);
           let jsMeta = new qx.tool.compiler.targets.meta.Javascript(appMeta, transpiledClassFilename, sourcePath);
 
           let packageName = matchBundle(classname) ? "__bundle" : partData.name;
@@ -505,7 +486,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       var assetUris = application.getAssetUris(t, rm, appMeta.getEnvironment()); // Save any changes that getAssets collected
       await rm.saveDatabase();
 
-      let localeOptions = await analyser.getLocale("en");
+      let localeOptions = await analyzer.getLocale("en");
       await bootPackage.addLocale("C", localeOptions);
       await this._writeTranslations();
 
@@ -515,10 +496,15 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         assets[asset.getFilename()] = asset.toString();
       });
 
-      if (analyser.getApplicationTypes().indexOf("browser") > -1) {
+      if (analyzer.getApplicationTypes().indexOf("browser") > -1) {
         appMeta.addPreBootCode("qx.$$fontBootstrap={};\n");
         await this.__writeDeprecatedWebFonts(application, appMeta, assets);
-        await this.__writeManifestFonts(application, appMeta, assets, bootPackage);
+        await this.__writeManifestFonts(
+          application,
+          appMeta,
+          assets,
+          bootPackage
+        );
       }
       await this._writeApplication();
       this.__appMeta = null;
@@ -529,7 +515,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      * @deprecated
      */
     async __writeDeprecatedWebFonts(application, appMeta, assets) {
-      let analyser = application.getAnalyser();
+      let analyzer = application.getAnalyzer();
       const requiredLibs = application.getRequiredLibraries();
 
       // Get a list of all fonts to load; use the font name as a unique identifier, and
@@ -552,7 +538,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         });
       };
       requiredLibs.forEach(libnamespace => {
-        var library = analyser.findLibrary(libnamespace);
+        var library = analyzer.findLibrary(libnamespace);
         if (library != appLibrary) {
           addLibraryFonts(library);
         }
@@ -602,8 +588,8 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      * Writes the fonts defined in provides.fonts
      */
     async __writeManifestFonts(application, appMeta, assets, bootPackage) {
-      let analyser = application.getAnalyser();
-      let rm = analyser.getResourceManager();
+      let analyzer = application.getAnalyzer();
+      let rm = analyzer.getResourceManager();
 
       const addResourcesToBuild = resourcePaths => {
         for (let asset of rm.getAssetsForPaths(resourcePaths)) {
@@ -614,7 +600,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       let fontNames = application.getFonts();
       for (let fontName of fontNames) {
-        let font = analyser.getFont(fontName);
+        let font = analyzer.getFont(fontName);
         if (!font) {
           return;
         }
@@ -688,13 +674,13 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      */
     async _writeTranslations() {
       let appMeta = this.getAppMeta();
-      const analyser = appMeta.getAnalyser();
+      const analyzer = appMeta.getAnalyzer();
       if (this.isUpdatePoFiles()) {
         let policy = this.getLibraryPoPolicy();
         if (policy != "ignore") {
-          await analyser.updateTranslations(appMeta.getAppLibrary(), this.getLocales(), appMeta.getLibraries(), policy == "all");
+          await analyzer.updateTranslations(appMeta.getAppLibrary(), this.getLocales(), appMeta.getLibraries(), policy == "all");
         } else {
-          await analyser.updateTranslations(appMeta.getAppLibrary(), this.getLocales(), null, false);
+          await analyzer.updateTranslations(appMeta.getAppLibrary(), this.getLocales(), null, false);
         }
       }
 
@@ -738,14 +724,14 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     async _writeLocales() {
       var t = this;
       let appMeta = this.getAppMeta();
-      var analyser = appMeta.getAnalyser();
+      var analyzer = appMeta.getAnalyzer();
       let bootPackage = appMeta.getPackages()[0];
 
       function loadLocaleData(localeId) {
         var combinedCldr = null;
 
         function accumulateCldr(localeId) {
-          return analyser.getLocale(localeId).then(cldr => {
+          return analyzer.getLocale(localeId).then(cldr => {
             if (!combinedCldr) {
               combinedCldr = cldr;
             } else {
@@ -765,7 +751,9 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       var promises = t.getLocales().map(async localeId => {
         let localeOptions = await loadLocaleData(localeId);
-        let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
+        let pkg = this.isI18nAsParts()
+          ? appMeta.getLocalePackage(localeId)
+          : bootPackage;
         pkg.addLocale(localeId, localeOptions);
       });
 
@@ -778,14 +766,14 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     async _writeAllTranslations() {
       var t = this;
       let appMeta = this.getAppMeta();
-      var analyser = appMeta.getAnalyser();
+      var analyzer = appMeta.getAnalyzer();
       let bootPackage = appMeta.getPackages()[0];
       var translations = {};
       var promises = [];
       t.getLocales().forEach(localeId => {
         let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
         function addTrans(library, localeId) {
-          return analyser.getTranslation(library, localeId).then(translation => {
+          return analyzer.getTranslation(library, localeId).then(translation => {
             var id = library.getNamespace() + ":" + localeId;
             translations[id] = translation;
             var entries = translation.getEntries();
@@ -812,8 +800,8 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     async _writeRequiredTranslations() {
       var t = this;
       let appMeta = this.getAppMeta();
-      var analyser = appMeta.getAnalyser();
-      var db = analyser.getDatabase();
+      var analyzer = appMeta.getAnalyzer();
+      var db = analyzer.getDatabase();
       let bootPackage = appMeta.getPackages()[0];
 
       var translations = {};
@@ -822,7 +810,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
         appMeta.getLibraries().forEach(function (library) {
           promises.push(
-            analyser.getTranslation(library, localeId).then(translation => {
+            analyzer.getTranslation(library, localeId).then(translation => {
               var id = library.getNamespace() + ":" + localeId;
               translations[id] = translation;
               let entry = translation.getEntry("");
@@ -837,7 +825,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       appMeta.getPackages().forEach(pkg => {
         pkg.getClassnames().forEach(classname => {
-          var dbClassInfo = db.classInfo[classname];
+          var dbClassInfo = analyzer.getDbClassInfo(classname);
           if (!dbClassInfo.translations) {
             return;
           }
@@ -873,8 +861,6 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     async _writeApplication() {
       var t = this;
 
-      await this.fireEventAsync("writingApplication");
-
       let appMeta = this.getAppMeta();
       var application = appMeta.getApplication();
       var appRootDir = appMeta.getApplicationRoot();
@@ -900,7 +886,6 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       await this._writeIndexHtml();
 
       if (!t.isWriteCompileInfo()) {
-        await this.fireEventAsync("writtenApplication");
         return;
       }
 
@@ -926,9 +911,9 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         });
       });
 
-      await fs.writeFileAsync(appRootDir + "/compile-info.json", JSON.stringify(appSummary, null, 2) + "\n", { encoding: "utf8" });
-
-      await this.fireEventAsync("writtenApplication");
+      await fs.writeFileAsync(appRootDir + "/compile-info.json", JSON.stringify(appSummary, null, 2) + "\n", {
+        encoding: "utf8"
+      });
     },
 
     /**

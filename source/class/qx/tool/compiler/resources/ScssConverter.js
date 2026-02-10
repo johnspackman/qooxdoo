@@ -106,7 +106,7 @@ qx.Class.define("qx.tool.compiler.resources.ScssConverter", {
         await qx.tool.utils.files.Utils.copyFile(srcFilename, copyFilename);
       }
 
-      let qooxdooPath = target.getAnalyser().getQooxdooPath();
+      let qooxdooPath = target.getAnalyzer().getQooxdooPath();
       let data = await fs.readFileAsync(srcFilename, "utf8");
       if (!data || !data.trim()) {
         await fs.writeFileAsync(destFilename, "");

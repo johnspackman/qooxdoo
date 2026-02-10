@@ -84,8 +84,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.Run", {
       let app = null;
       this.getMakers().forEach(tmp => {
         let apps = tmp
-          .getApplications()
-          .filter(app => app.getName() == config.run.application);
+          .applications
+          .filter(app => app.name == config.run.application);
         if (apps.length) {
           if (maker) {
             qx.tool.compiler.Console.print("qx.tool.compiler.cli.run.tooManyMakers");
@@ -106,12 +106,12 @@ qx.Class.define("qx.tool.compiler.cli.commands.Run", {
         qx.tool.compiler.Console.print("qx.tool.compiler.cli.run.noAppName");
         process.exit(1);
       }
-      if (app.getType() != "node") {
+      if (app.type != "node") {
         qx.tool.compiler.Console.print("qx.tool.compiler.cli.run.mustBeNode");
         process.exit(1);
       }
 
-      let target = maker.getTarget();
+      let target = maker.target;
 
       let scriptname = path.join(target.getApplicationRoot(app), "index.js");
       let args = config.run.arguments || "";
@@ -129,7 +129,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Run", {
       });
 
       this.addListener("writtenApplication", evt => {
-        if (app === evt.getData()) {
+        if (app.name === evt.getData()) {
           restartNeeded = true;
         }
       });

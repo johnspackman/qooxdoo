@@ -65,9 +65,9 @@ qx.Class.define("qx.tool.compiler.app.Application", {
     },
 
     /**
-     * The Analyser instance
+     * The Analyzer instance
      */
-    analyser: {
+    analyzer: {
       init: null,
       nullable: true
     },
@@ -257,8 +257,8 @@ qx.Class.define("qx.tool.compiler.app.Application", {
     calcDependencies() {
       var t = this;
       var Console = qx.tool.compiler.Console.getInstance();
-      var analyser = this.getAnalyser();
-      var db = analyser.getDatabase();
+      var analyzer = this.getAnalyzer();
+      var db = analyzer.getDatabase();
       var allDeps = new qx.tool.utils.IndexedArray();
       var exclude = {};
       var fatalCompileErrors = [];
@@ -421,7 +421,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           }
           checked[classname] = true;
 
-          var info = db.classInfo[classname];
+          var info = analyzer.getDbClassInfo(classname);
           if (info && info.dependsOn) {
             for (var depName in info.dependsOn) {
               var dd = info.dependsOn[depName];
@@ -450,7 +450,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           return;
         }
 
-        var info = db.classInfo[classname];
+        var info = analyzer.getDbClassInfo(classname);
         if (!info) {
           return;
         }
@@ -595,13 +595,13 @@ qx.Class.define("qx.tool.compiler.app.Application", {
 
       var requiredLibs = {};
       this.__loadDeps.forEach(classname => {
-        let classInfo = db.classInfo[classname];
+        let classInfo = analyzer.getDbClassInfo(classname);
         if (classInfo.assets) {
           classInfo.assets.forEach(asset => {
             var pos = asset.indexOf("/");
             if (pos > -1) {
               var ns = asset.substring(0, pos);
-              if (analyser.findLibrary(ns)) {
+              if (analyzer.findLibrary(ns)) {
                 requiredLibs[ns] = true;
               }
             }
@@ -611,7 +611,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
       });
       this.__requiredLibs = [];
       for (let ns in requiredLibs) {
-        if (analyser.findLibrary(ns)) {
+        if (analyzer.findLibrary(ns)) {
           this.__requiredLibs.push(ns);
         } else {
           Console.print(
@@ -642,16 +642,13 @@ qx.Class.define("qx.tool.compiler.app.Application", {
      * @returns {String[]}
      */
     getUris() {
-      var uris = [];
-      var db = this.getAnalyser().getDatabase();
+      let uris = [];
+      let analyzer = this.getAnalyzer();
 
-      function add(classname) {
-        var def = db.classInfo[classname];
-        uris.push(
-          def.libraryName + ":" + classname.replace(/\./g, "/") + ".js"
-        );
+      for (let classname of this.__loadDeps) {
+        let dbClassInfo = analyzer.getDbClassInfo(classname);
+        uris.push(dbClassInfo.libraryName + ":" + classname.replace(/\./g, "/") + ".js");
       }
-      this.__loadDeps.forEach(add);
 
       return uris;
     },
@@ -663,6 +660,14 @@ qx.Class.define("qx.tool.compiler.app.Application", {
      */
     getDependencies() {
       return this.__loadDeps;
+    },
+
+    /**
+     * 
+     * @returns {string}
+     */
+    getProjectDir() {
+      return this.getOutputPath() || this.getName();
     },
 
     /**
@@ -691,13 +696,13 @@ qx.Class.define("qx.tool.compiler.app.Application", {
      */
     getAssetUris(target, resManager, environment) {
       var assets = [];
-      var analyser = this.getAnalyser();
-      var db = analyser.getDatabase();
+      var analyzer = this.getAnalyzer();
+      var db = analyzer.getDatabase();
 
       // Compile theme resource aliases
       var aliases = {};
       function getAliases(classname) {
-        var tmp = db.classInfo[classname];
+        var tmp = analyzer.getDbClassInfo(classname);
         if (tmp) {
           if (tmp.aliases) {
             for (var alias in tmp.aliases) {
@@ -709,7 +714,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           }
         }
       }
-      var themeInfo = db.classInfo[this.getTheme()];
+      var themeInfo = analyzer.getDbClassInfo(this.getTheme());
       if (themeInfo && themeInfo.themeMeta) {
         for (let name in themeInfo.themeMeta) {
           getAliases(themeInfo.themeMeta[name]);
@@ -723,7 +728,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
       var classNames = this.__loadDeps.slice();
       for (let i = 0; i < classNames.length; i++) {
         var classname = classNames[i];
-        var classInfo = db.classInfo[classname];
+        var classInfo = analyzer.getDbClassInfo(classname);
         var tmp = classInfo.assets;
         if (tmp) {
           tmp.forEach(function (uri) {
@@ -743,13 +748,13 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           });
         }
         if (!libraryLookup[classInfo.libraryName]) {
-          libraryLookup[classInfo.libraryName] = analyser.findLibrary(
+          libraryLookup[classInfo.libraryName] = analyzer.findLibrary(
             classInfo.libraryName
           );
         }
       }
 
-      var rm = analyser.getResourceManager();
+      var rm = analyzer.getResourceManager();
       function addExternalAssets(arr, msgId) {
         if (arr) {
           arr.forEach(filename => {
@@ -841,14 +846,13 @@ qx.Class.define("qx.tool.compiler.app.Application", {
      */
     getFonts() {
       var fonts = {};
-      var analyser = this.getAnalyser();
-      var db = analyser.getDatabase();
-      this.__loadDeps.forEach(classname => {
-        var classInfo = db.classInfo[classname];
+      var analyzer = this.getAnalyzer();
+      for (let classname of this.__loadDeps) {
+        var classInfo = analyzer.getDbClassInfo(classname);
         if (classInfo.fonts) {
           classInfo.fonts.forEach(fontName => (fonts[fontName] = true));
         }
-      });
+      }
       return Object.keys(fonts);
     },
 
@@ -927,6 +931,8 @@ qx.Class.define("qx.tool.compiler.app.Application", {
     __expandClassnames(names) {
       var t = this;
       var result = {};
+      let metaDb = this.getAnalyzer().getController().getMetaDb();
+      let classMetas = metaDb.getMetaByClassname();
       names.forEach(function (name) {
         var pos = name.indexOf("*");
         if (pos < 0) {
@@ -934,29 +940,19 @@ qx.Class.define("qx.tool.compiler.app.Application", {
         } else {
           var prefix = name.substring(0, pos);
           if (prefix) {
-            t.getAnalyser()
-              .getLibraries()
-              .forEach(function (lib) {
-                var symbols = lib.getKnownSymbols();
-                for (var symbol in symbols) {
-                  if (symbols[symbol] == "class" && symbol.startsWith(prefix)) {
-                    result[symbol] = true;
-                  }
-                }
-              });
+            for (var symbol in classMetas) {
+              if (classMetas[symbol] && symbol.startsWith(prefix)) {
+                result[symbol] = true;
+              }
+            }
           }
           var postfix = name.substring(pos + 1);
           if (postfix) {
-            t.getAnalyser()
-              .getLibraries()
-              .forEach(function (lib) {
-                var symbols = lib.getKnownSymbols();
-                for (var symbol in symbols) {
-                  if (symbols[symbol] == "class" && symbol.endsWith(postfix)) {
-                    result[symbol] = true;
-                  }
-                }
-              });
+            for (var symbol in classMetas) {
+              if (classMetas[symbol] && symbol.endsWith(postfix)) {
+                result[symbol] = true;
+              }
+            }
           }
         }
       });

@@ -97,9 +97,9 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
       this.argv["feedback"] = false;
       this.__website = new qx.tool.utils.Website();
       if (this.argv.rebuildStartpage) {
-        qx.tool.compiler.Console.info(">>> Building startpage and exit...");
-        await this.__website.generateSite();
-        return;
+          qx.tool.compiler.Console.info(">>> Building startpage and exit...");
+          await this.__website.generateSite();
+          return;
       }
       if (this.argv["show-startpage"]) {
         // build website if it hasn't been built yet or if rebuild is requested
@@ -127,19 +127,21 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
      * Runs the web server
      */
     async runWebServer() {
-      let makers = this.getMakers().filter(maker => maker.getApplications().some(app => app.getStandalone()));
+      let makers = this.getMakers().filter(maker =>
+        maker.applications.some(app => app.standalone)
+      );
 
       let apps = [];
       let defaultMaker = null;
       let firstMaker = null;
       makers.forEach(maker => {
-        maker.getApplications().forEach(app => {
-          if (app.isBrowserApp() && app.getStandalone()) {
+        maker.applications.forEach(app => {
+          if (app.browserApp && app.standalone) {
             apps.push(app);
             if (firstMaker === null) {
               firstMaker = maker;
             }
-            if (defaultMaker === null && app.getWriteIndexHtmlToRoot()) {
+            if (defaultMaker === null && app.writeIndexHtmlToRoot) {
               defaultMaker = maker;
             }
           }
@@ -157,7 +159,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
       app.use((req, res, next) => {
         res.set({
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
+          "Access-Control-Allow-Headers":
+            "Origin, X-Requested-With, Content-Type, Accept",
           "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
           "Content-Security-Policy":
             "default-src *  data: blob: filesystem: about: ws: wss: 'unsafe-inline' 'unsafe-eval'; script-src * data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src * data: blob: 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src * data: blob: ; style-src * data: blob: 'unsafe-inline'; font-src * data: blob: 'unsafe-inline';"
@@ -166,7 +169,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
         next();
       });
       if (!this.__showStartpage) {
-        app.use("/", express.static(defaultMaker.getTarget().getOutputDir()));
+        app.use("/", express.static(defaultMaker.target.outputDir));
       } else {
         let s = await qx.tool.config.Utils.getQxPath();
         if (!(await fs.existsAsync(path.join(s, "docs")))) {
@@ -177,26 +180,26 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
         app.use("/", express.static(this.__website.getTargetDir()));
         var appsData = [];
         makers.forEach(maker => {
-          let target = maker.getTarget();
-          let out = path.normalize("/" + target.getOutputDir());
-          app.use(out, express.static(target.getOutputDir()));
+          let target = maker.target;
+          let out = path.normalize("/" + target.outputDir);
+          app.use(out, express.static(target.outputDir));
           appsData.push({
             target: {
-              type: target.getType(),
+              type: target.type,
               outputDir: out
             },
 
             apps: maker
-              .getApplications()
-              .filter(app => app.getStandalone())
+              .applications
+              .filter(app => app.standalone)
               .map(app => ({
-                isBrowser: app.isBrowserApp(),
-                name: app.getName(),
-                type: app.getType(),
-                title: app.getTitle() || app.getName(),
-                appClass: app.getClassName(),
-                description: app.getDescription(),
-                outputPath: target.getProjectDir(app) // no trailing slash or link will break
+                isBrowser: app.browserApp,
+                name: app.name,
+                type: app.type,
+                title: app.title || app.name,
+                appClass: app.className,
+                description: app.description,
+                outputPath: app.projectDir // no trailing slash or link will break
               }))
           });
         });
@@ -211,19 +214,24 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
       this.fireDataEvent("beforeStart", {
         server: server,
         application: app,
-        // defaultMaker will be null if there are no browser apps
-        outputdir: (defaultMaker || makers[0]).getTarget().getOutputDir()
+        outputdir: defaultMaker.target.outputDir
       });
       server.on("error", e => {
         if (e.code === "EADDRINUSE") {
-          qx.tool.compiler.Console.print("qx.tool.compiler.cli.serve.webAddrInUse", listenPort);
+          qx.tool.compiler.Console.print(
+            "qx.tool.compiler.cli.serve.webAddrInUse",
+            listenPort
+          );
           process.exit(1);
         } else {
           qx.tool.compiler.Console.log("Error when starting web server: " + e);
         }
       });
       server.listen(listenPort, () => {
-        qx.tool.compiler.Console.print("qx.tool.compiler.cli.serve.webStarted", "http://localhost:" + listenPort);
+        qx.tool.compiler.Console.print(
+          "qx.tool.compiler.cli.serve.webStarted",
+          "http://localhost:" + listenPort
+        );
 
         this.fireEvent("afterStart");
       });
@@ -236,7 +244,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
   defer(statics) {
     qx.tool.compiler.Console.addMessageIds({
       "qx.tool.compiler.cli.serve.webStarted": "Web server started, please browse to %1",
-      "qx.tool.compiler.cli.serve.webAddrInUse": "Web server cannot start because port %1 is already in use"
+      "qx.tool.compiler.cli.serve.webAddrInUse":
+        "Web server cannot start because port %1 is already in use"
     });
   }
 });

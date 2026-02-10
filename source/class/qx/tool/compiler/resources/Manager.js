@@ -27,7 +27,7 @@ var path = require("upath");
 var log = qx.tool.utils.LogManager.createLog("resource-manager");
 
 /**
- * Analyses library resources, collecting information into a cached database
+ * Analyzes library resources, collecting information into a cached database
  * file
  */
 qx.Class.define("qx.tool.compiler.resources.Manager", {
@@ -36,12 +36,12 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
   /**
    * Constructor
    *
-   * @param analyser {qx.tool.compiler.Analyser}
+   * @param analyzer {qx.tool.compiler.Analyzer}
    */
-  construct(analyser) {
+  construct(analyzer) {
     super();
-    this.__analyser = analyser;
-    this.__dbFilename = analyser.getResDbFilename() || "resource-db.json";
+    this.__analyzer = analyzer;
+    this.__dbFilename = analyzer.getResDbFilename() || "resource-db.json";
     this.__loaders = [
       new qx.tool.compiler.resources.ImageLoader(this),
       new qx.tool.compiler.resources.MetaLoader(this)
@@ -62,8 +62,8 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
     /** {Object} Database */
     __db: null,
 
-    /** the used analyser */
-    __analyser: null,
+    /** the used analyzer */
+    __analyzer: null,
 
     /** {Map{String,Library}} Lookup of libraries, indexed by resource URI */
     __librariesByResourceUri: null,
@@ -143,7 +143,7 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
 
         // check for absolute path first, in windows c:/ is a valid absolute name
         if (path.isAbsolute(uri)) {
-          let library = this.__analyser
+          let library = this.__analyzer
             .getLibraries()
             .find(lib => uri.startsWith(path.resolve(lib.getRootDir())));
           return library || null;
@@ -153,7 +153,7 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
         pos = uri.indexOf(":");
         if (pos !== -1) {
           ns = uri.substring(0, pos);
-          let library = this.__analyser.findLibrary(ns);
+          let library = this.__analyzer.findLibrary(ns);
           return library || null;
         }
 
@@ -207,7 +207,7 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
             if (pos !== -1) {
               ns = uri.substring(0, pos);
               if (!libraries[ns]) {
-                libraries[ns] = this.__analyser.findLibrary(ns);
+                libraries[ns] = this.__analyzer.findLibrary(ns);
               }
             }
           }
@@ -229,7 +229,7 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
     },
 
     /**
-     * Scans all libraries looking for resources; this does not analyse the
+     * Scans all libraries looking for resources; this does not analyze the
      * files, simply compiles the list
      */
     async findAllResources() {
@@ -243,7 +243,7 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
       this.__assets = {};
 
       await qx.Promise.all(
-        t.__analyser.getLibraries().map(async library => {
+        t.__analyzer.getLibraries().map(async library => {
           var resources = db.resources[library.getNamespace()];
           if (!resources) {
             db.resources[library.getNamespace()] = resources = {};
@@ -463,7 +463,7 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
         let libraries = null;
         if (pos > -1) {
           let ns = srcPath.substring(0, pos);
-          let tmp = this.__analyser.findLibrary(ns);
+          let tmp = this.__analyzer.findLibrary(ns);
           libraries = tmp ? [tmp] : [];
           srcPath = srcPath.substring(pos + 1);
         } else {

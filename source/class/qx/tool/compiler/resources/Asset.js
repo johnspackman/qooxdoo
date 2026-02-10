@@ -262,7 +262,7 @@ qx.Class.define("qx.tool.compiler.resources.Asset", {
             }
           );
         }
-        let rm = target.getAnalyser().getResourceManager();
+        let rm = target.getAnalyzer().getResourceManager();
         dependsOn = dependsOn
           .map(filename =>
             rm.getAsset(path.resolve(filename), true, this.isThemeFile())

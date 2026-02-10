@@ -158,6 +158,11 @@
               "type": "string"
             }
           },
+          "compiler": {
+            "description": "Whether this application is a custom compiler to use for the project",
+            "type": "boolean",
+            "default": false
+          },
           "type": {
             "description": "The type of application",
             "pattern": "^(browser|node|rhino)$",
@@ -224,10 +229,6 @@
           },
           "deployPath": {
             "description": "The folder where the deploy outputs to.",
-            "type": "string"
-          },
-          "proxySourcePath": {
-            "description": "The folder containing proxy classes (normally machine generated) to take precedence over those found in normal library sources",
             "type": "string"
           },
           "targetClass": {
@@ -324,6 +325,10 @@
           },
           "parts": {
             "$ref": "#/properties/parts"
+          },
+          "compiler": {
+            "type": "boolean",
+            "description": "Whether this target is a custom compiler to use for the project"
           }
         }
       }

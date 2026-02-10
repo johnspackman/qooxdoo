@@ -35,7 +35,7 @@ qx.Class.define("qx.tool.compiler.targets.TypeScriptWriter", {
 
   /**
    *
-   * @param {qx.tool.compiler.MetaDatabase} metaDb loaded database
+   * @param {qx.tool.compiler.meta.MetaDatabase} metaDb loaded database
    */
   construct(metaDb) {
     super();
@@ -50,7 +50,7 @@ qx.Class.define("qx.tool.compiler.targets.TypeScriptWriter", {
   },
 
   members: {
-    /** @type {qx.tool.compiler.MetaDatabase} */
+    /** @type {qx.tool.compiler.meta.MetaDatabase} */
     __metaDb: null,
 
     /** @type {Stream} where to write the .d.ts */
@@ -58,7 +58,7 @@ qx.Class.define("qx.tool.compiler.targets.TypeScriptWriter", {
 
     __outputStreamClosed: null,
 
-    /** @type {qx.tool.compiler.MetaExtraction} */
+    /** @type {qx.tool.compiler.meta.ClassMeta} */
     __currentClass: null,
 
     /** @type {object} */
@@ -78,7 +78,10 @@ qx.Class.define("qx.tool.compiler.targets.TypeScriptWriter", {
         this.__outputStreamClosed.resolve()
       );
       this.write(`// Generated declaration file at ${time}\n`);
-      let str = path.join(qx.tool.utils.Utils.getTemplateDir(), "TypeScriptWriter-base_declaration.d.ts")
+      let str = path.join(
+        qx.tool.utils.Utils.getTemplateDir(),
+        "TypeScriptWriter-base_declaration.d.ts"
+      );
       let baseDeclaration = await fs.promises.readFile(str, "utf8");
       this.write(baseDeclaration + "\n");
     },
@@ -398,7 +401,7 @@ qx.Class.define("qx.tool.compiler.targets.TypeScriptWriter", {
 
     /**
      * Determines if any class in the hierarchy defines any properties
-     * @param {qx.tool.compiler.MetaExtraction} meta
+     * @param {qx.tool.compiler.meta.ClassMeta} meta
      * @returns {Boolean}
      */
     __propertiesInHierarchy(meta) {

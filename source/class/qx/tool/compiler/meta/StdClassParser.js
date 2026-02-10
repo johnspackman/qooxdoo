@@ -1,24 +1,60 @@
+/* ************************************************************************
+ *
+ *    qooxdoo-compiler - node.js based replacement for the Qooxdoo python
+ *    toolchain
+ *
+ *    https://github.com/qooxdoo/qooxdoo
+ *
+ *    Copyright:
+ *      2011-2025 Zenesis Limited, http://www.zenesis.com
+ *
+ *    License:
+ *      MIT: https://opensource.org/licenses/MIT
+ *
+ *      This software is provided under the same licensing terms as Qooxdoo,
+ *      please see the LICENSE file in the Qooxdoo project's top-level directory
+ *      for details.
+ *
+ *    Authors:
+ *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
+ *
+ * *********************************************************************** */
+
 const fs = require("fs");
 const path = require("upath");
 
-qx.Class.define("qx.tool.compiler.MetaExtraction", {
+const forceArray = value => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return [value];
+};
+
+/**
+ * StdClassParser is used to parse a class file and extract the metadata.  This
+ * strictly does not persist state (outside of the `parse()` method) so that it
+ * can be used in a multi-threaded environment, ie we can use Node Workers to
+ * parse multiple files at once.
+ * 
+ * @typedef {Object} MetaData
+ * @property {number} version - The version of the metadata format
+ * @property {number} lastModified - The last modified timestamp of the class file
+ * @property {string} lastModifiedIso - The last modified timestamp of the class file in ISO format
+ * @property {string} classFilename - The filename of the class, relative to the meta root dir
+ * @property {string} superClass
+ * @property {Object.<string, PropertyMeta>} properties
+ * 
+ * @typedef {Object} PropertyMeta
+ * @property {{start: *, end:*}} location
+ * @property {string} jsdoc
+ * @property {boolean=} nullable
+ * @property {string} init The code for the init value. This is not the value itself!
+ * @property {(string|string[])=} check
+ * 
+ *
+ */
+qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
   extend: qx.core.Object,
-
-  construct(metaRootDir) {
-    super();
-    this.setMetaRootDir(metaRootDir || null);
-  },
-
-  properties: {
-    /** Root directory for meta data; if provided then paths are stored relative, not absolute, which helps make
-     * meta directories relocatable
-     */
-    metaRootDir: {
-      init: null,
-      nullable: true,
-      check: "String"
-    }
-  },
 
   statics: {
     /** Meta Data Version - stored in meta data files */
@@ -26,86 +62,38 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
   },
 
   members: {
-    /** @type{Object} the parsed data*/
+    /**
+     * @type {MetaData}
+     * The metadata, only valid during `parse()`
+     * */
     __metaData: null,
 
     /**
-     * Loads the meta from disk
-     *
-     * @param {String} filename
+     * @type {string}
+     * Expected class name derived from file path
      */
-    async loadMeta(filename) {
-      let metaData = await qx.tool.utils.Json.loadJsonAsync(filename);
-      if (metaData?.version === qx.tool.compiler.MetaExtraction.VERSION) {
-        this.__metaData = metaData;
-      } else {
-        this.__metaData = null;
-      }
-    },
-
-    /**
-     * Saves the meta to disk
-     *
-     * @param {String} filename
-     */
-    async saveMeta(filename) {
-      await qx.tool.utils.Utils.makeParentDir(filename);
-      await qx.tool.utils.Json.saveJsonAsync(filename, this.__metaData);
-    },
-
-    /**
-     * Returns the actual meta data
-     *
-     * @returns {*}
-     */
-    getMetaData() {
-      return this.__metaData;
-    },
-
-    /**
-     * Checks whether the meta data is out of date compared to the last modified
-     * timestamp of the classname
-     *
-     * @returns {Boolean}
-     */
-    async isOutOfDate() {
-      let classFilename = this.__metaData.classFilename;
-      if (this.getMetaRootDir()) {
-        classFilename = path.join(this.getMetaRootDir(), classFilename);
-      }
-      let stat = await fs.promises.stat(classFilename);
-      let lastModified = this.__metaData?.lastModified;
-      if (lastModified && lastModified == stat.mtime.getTime()) {
-        return false;
-      }
-      return true;
-    },
+    __expectedClassname: null,
 
     /**
      * Parses the file and returns the metadata
      *
+     * @param {String} metaRootDir Root directory of meta database
+     * @param {String} libraryPath Path of the source files of the library that this file is found in
      * @param {String} classFilename the .js file to parse
-     * @return {Object}
+     * @return {Promise<MetaData>} the parsed metadata
      */
-    async parse(classFilename) {
-      classFilename =
-        await qx.tool.utils.files.Utils.correctCase(classFilename);
+    async parse(metaRootDir, libraryPath, classFilename) {
+      classFilename = await qx.tool.utils.files.Utils.correctCase(classFilename);
 
       let stat = await fs.promises.stat(classFilename);
       this.__metaData = {
-        version: qx.tool.compiler.MetaExtraction.VERSION,
+        version: qx.tool.compiler.meta.StdClassParser.VERSION,
         lastModified: stat.mtime.getTime(),
-        lastModifiedIso: stat.mtime.toISOString()
+        lastModifiedIso: stat.mtime.toISOString(),
+        classFilename: path.relative(metaRootDir, classFilename)
       };
 
-      if (this.getMetaRootDir()) {
-        this.__metaData.classFilename = path.relative(
-          this.getMetaRootDir(),
-          classFilename
-        );
-      } else {
-        this.__metaData.classFilename = path.resolve(classFilename);
-      }
+      this.__expectedClassname = path.relative(libraryPath, classFilename).replace(/\.js$/, "").split(path.sep).join(".");
 
       const babelCore = require("@babel/core");
       let src = await fs.promises.readFile(classFilename, "utf8");
@@ -139,9 +127,10 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
         passPerPreset: true
       };
 
-      let result;
-      result = babelCore.transform(src, config);
-      return this.__metaData;
+      babelCore.transform(src, config);
+      let metaData = this.__metaData;
+      this.__metaData = null;
+      return metaData;
     },
 
     /**
@@ -165,13 +154,8 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
             }
             bodyPaths.forEach(path => {
               let node = path.node;
-              if (
-                node.type == "ExpressionStatement" &&
-                node.expression.type == "CallExpression"
-              ) {
-                let str = qx.tool.utils.BabelHelpers.collapseMemberExpression(
-                  node.expression.callee
-                );
+              if (node.type == "ExpressionStatement" && node.expression.type == "CallExpression") {
+                let str = qx.tool.utils.BabelHelpers.collapseMemberExpression(node.expression.callee);
 
                 let m = str.match(/^qx\.([a-z]+)\.define$/i);
                 let definingType = m && m[1];
@@ -191,12 +175,15 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
                   };
 
                   metaData.className = node.expression.arguments[0].value;
+                  if (t.__expectedClassname !== metaData.className) {
+                    qx.tool.compiler.Console.warn(
+                      `Class name '${metaData.className}' does not match expected class name '${t.__expectedClassname}' derived from file path.`
+                    );
+                  }
                   if (typeof metaData.className != "string") {
                     metaData.className = null;
                   }
-                  metaData.jsdoc = qx.tool.utils.BabelHelpers.getJsDoc(
-                    node.leadingComments
-                  );
+                  metaData.jsdoc = qx.tool.utils.BabelHelpers.getJsDoc(node.leadingComments);
 
                   t.__scanClassDef(path.get("expression.arguments")[1]);
                 }
@@ -251,13 +238,17 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
 
         // Extend
         if (propertyName == "extend") {
-          metaData.superClass =
-            qx.tool.utils.BabelHelpers.collapseMemberExpression(property.value);
+          metaData.superClass = qx.tool.utils.BabelHelpers.collapseMemberExpression(property.value);
         }
 
         // Class Annotations
         else if (propertyName == "@") {
-          metaData.annotation = path.get("value").toString();
+          let node = path.get("value").node;
+          if (node.type == "ArrayExpression") {
+            metaData.annotation = node.elements.map((el, index) => path.get(`value.elements.${index}`).getSource());
+          } else {
+            metaData.annotation = [path.get("value").getSource()];
+          }
         }
 
         // Core
@@ -267,18 +258,12 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
           // eg: `include: [qx.my.first.MMixin, qx.my.next.MMixin, ..., qx.my.last.MMixin]`
           if (property.value.type == "ArrayExpression") {
             property.value.elements.forEach(element => {
-              metaData[name].push(
-                qx.tool.utils.BabelHelpers.collapseMemberExpression(element)
-              );
+              metaData[name].push(qx.tool.utils.BabelHelpers.collapseMemberExpression(element));
             });
           }
           // eg: `include: qx.my.MMixin`
           else if (property.value.type == "MemberExpression") {
-            metaData[name].push(
-              qx.tool.utils.BabelHelpers.collapseMemberExpression(
-                property.value
-              )
-            );
+            metaData[name].push(qx.tool.utils.BabelHelpers.collapseMemberExpression(property.value));
           }
           // eg, `include: qx.core.Environment.filter({...})`
           else if (property.value.type === "CallExpression") {
@@ -300,13 +285,7 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
             }
             if (calleeLiteral === "qx.core.Environment.filter") {
               const properties = property.value.arguments[0]?.properties;
-              properties?.forEach(prop =>
-                metaData[name].push(
-                  qx.tool.utils.BabelHelpers.collapseMemberExpression(
-                    prop.value
-                  )
-                )
-              );
+              properties?.forEach(prop => metaData[name].push(qx.tool.utils.BabelHelpers.collapseMemberExpression(prop.value)));
             } else {
               this.warn(
                 `${metaData.className}: could not determine mixin types from call \`${calleeLiteral}\`. Type support for this class may be limited.`
@@ -416,16 +395,16 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
             let bareName = metaName.substring(1);
             let memberMeta = metaData[type][bareName];
             if (memberMeta) {
-              memberMeta.annotation = annotations[metaName];
+              memberMeta.annotation = forceArray(annotations[metaName]);
             }
           }
         }
       });
       if (ctorAnnotations["@construct"] && metaData.construct) {
-        metaData.construct.annotation = ctorAnnotations["@construct"];
+        metaData.construct.annotation = forceArray(ctorAnnotations["@construct"]);
       }
       if (ctorAnnotations["@destruct"] && metaData.destruct) {
-        metaData.destruct.annotation = ctorAnnotations["@destruct"];
+        metaData.destruct.annotation = forceArray(ctorAnnotations["@destruct"]);
       }
     },
 
@@ -440,84 +419,71 @@ qx.Class.define("qx.tool.compiler.MetaExtraction", {
         metaData.properties = {};
       }
 
-      paths.forEach(path => {
+      /**
+       * 
+       * @param {NodePath} path 
+       */
+      const traversePath = path => {
         path.skip();
         let property = path.node;
-        let name = qx.tool.utils.BabelHelpers.collapseMemberExpression(
-          property.key
-        );
+        let name = qx.tool.utils.BabelHelpers.collapseMemberExpression(property.key);
 
-        metaData.properties[name] = {
+        let propMeta = (metaData.properties[name] = {});
+
+        let visitor = {
+          ObjectProperty(path) {
+            let prop = path.node;
+            path.skip();
+            let value = prop.value;
+            let key = prop.key.type == "Identifier" ? prop.key.name : prop.key.value;
+            switch (key) {
+              case "nullable": {
+                propMeta.nullable = prop.value.value;
+                break;
+              }
+              case "check": {
+                if (value.type == "ArrayExpression") {
+                  propMeta.check = value.elements.map(el => el.value);
+                } else {
+                  propMeta.check = value.value;
+                }
+                break;
+              }
+              case "@": {
+                if (value.type == "ArrayExpression") {
+                  //Serialize the elements of the array to raw JavaScript syntax which can be eval()ed later
+                  propMeta.annotation = value.elements.map((el, index) => path.get(`value.elements.${index}`).getSource());
+                } else {
+                  //Serialize the single annotation to JavaScript syntax
+                  propMeta.annotation = [path.get("value").getSource()];
+                }
+                break;
+              }
+              case "refine": {
+                propMeta.refine = prop.value.value;
+                break;
+              }
+              case "init": {
+                //we don't evaluate init. We just take the raw source because it can be any expression which the compiler might not be able to evaluate.
+                propMeta.init = path.get("value").getSource();
+                break;
+              }
+            }
+          }
+        };
+        path.traverse(visitor);
+
+        Object.assign(propMeta, {
           location: {
             start: path.node.loc.start,
             end: path.node.loc.end
           },
 
-          json: qx.tool.utils.BabelHelpers.collectJson(property.value, true),
           jsdoc: qx.tool.utils.BabelHelpers.getJsDoc(property.leadingComments)
-        };
-      });
-    },
-
-    fixupJsDoc(typeResolver) {
-      let metaData = this.__metaData;
-
-      const fixupEntry = obj => {
-        if (obj && obj.jsdoc) {
-          qx.tool.compiler.jsdoc.Parser.parseJsDoc(obj.jsdoc, typeResolver);
-          if (obj.jsdoc["@param"] && obj.params) {
-            let paramsLookup = {};
-            obj.params.forEach(param => {
-              paramsLookup[param.name] = param;
-            });
-            obj.jsdoc["@param"].forEach(paramDoc => {
-              let param = paramsLookup[paramDoc.paramName];
-              if (param) {
-                if (paramDoc.type) {
-                  param.type = paramDoc.type;
-                }
-                if (paramDoc.optional !== undefined) {
-                  param.optional = paramDoc.optional;
-                }
-                if (paramDoc.defaultValue !== undefined) {
-                  param.defaultValue = paramDoc.defaultValue;
-                }
-              }
-            });
-          }
-          let returnDoc = obj.jsdoc["@return"]?.[0];
-          if (returnDoc) {
-            obj.returnType = {
-              type: returnDoc.type
-            };
-
-            if (returnDoc.optional !== undefined) {
-              obj.returnType.optional = returnDoc.optional;
-            }
-            if (returnDoc.defaultValue !== undefined) {
-              obj.returnType.defaultValue = returnDoc.defaultValue;
-            }
-          }
-        }
+        });
       };
-
-      const fixupSection = sectionName => {
-        var section = metaData[sectionName];
-        if (section) {
-          for (var name in section) {
-            fixupEntry(section[name]);
-          }
-        }
-      };
-
-      fixupSection("properties");
-      fixupSection("events");
-      fixupSection("members");
-      fixupSection("statics");
-      fixupEntry(metaData.clazz);
-      fixupEntry(metaData.construct);
-      fixupEntry(metaData.destruct);
-      fixupEntry(metaData.defer);
+      
+      paths.forEach(traversePath);
     }
   }
 });

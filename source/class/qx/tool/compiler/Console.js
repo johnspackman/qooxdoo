@@ -23,6 +23,10 @@
 /**
  * The Console handles output of compiler messages for the end user (i.e. not debugging output).
  * The output is based around message IDs, which relate to translatable strings, plus arguments.
+ * 
+ * @typedef {string} msgId - A message ID representing a type of compiler warning or error.
+ *   All message IDs can be found in method defer of this class.
+ * 
  */
 qx.Class.define("qx.tool.compiler.Console", {
   extend: qx.core.Object,

@@ -214,6 +214,9 @@ require(path.join(__dirname, "compiled", "node", "${options.target}", "compiler"
 `, "utf8");
 fs.chmodSync("bootstrap/qx", "777");
 fs.copyFileSync("bin/build/qx.cmd", "bootstrap/qx.cmd");
+  if (options.initialOnly) {
+    return;
+  }
 
   /*
    * Now use the new ./bootstrap/ compiler to compile itself again; the output goes into the

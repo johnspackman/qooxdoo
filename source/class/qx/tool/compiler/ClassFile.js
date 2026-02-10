@@ -21,7 +21,6 @@
  * *********************************************************************** */
 
 /* eslint-disable padded-blocks */
-// prettier-ignore
 
 var fs = require("fs");
 var babelCore = require("@babel/core");
@@ -30,7 +29,7 @@ var types = require("@babel/types");
 var babylon = require("@babel/parser");
 var async = require("async");
 
-var log = qx.tool.utils.LogManager.createLog("analyser");
+var log = qx.tool.utils.LogManager.createLog("analyzer");
 
 /**
  * Helper method that collapses the MemberExpression into a string
@@ -177,30 +176,54 @@ function formatValueAsCode(value) {
 }
 
 /**
- * A class file is parsed and anaysed into an instance of ClassFile; it is
- * connected to the Analyser that found the class so that dependencies can be
- * identified.
+ * A class file is parsed and anaysed into an instance of ClassFile; it is intended to be
+ * used entirely standalone, with configuration passed in via the `compileConfig` - this is
+ * to allow the ClassFile to be used in an isolated manner, such as in a Node Worker.
+ * 
+ * @typedef {Object} DbClassInfo
+ * @property {String} libraryName - The name of the library containing the class
+ * @property {String} filename - The source filename of the class
+ * @property {Date} mtime - The modification time of the source file
+ * @property {Object} dependsOn
+ * @property {string} extends
+ * @property {string} include
+ * @property {string} implement
+ * @property {*} environment
+ * @property {boolean} hasDefer
+ * @property {Marker[]} markers
+ * and many more
+ * 
+ * @typedef {Object} Marker
+ * @property {qx.tool.compiler.Console.msgId} msgId - the marker message ID
+ * @property {Array} args - arguments for the marker message
+ * @property {Range?} pos
+ * 
+ * @typedef {Object} Range
+ * @property {Position} start
+ * @property {Position} end
+ * 
+ * @typedef {Object} Position
+ * @property {Number} line
+ * @property {Number} column
+ * 
  */
 qx.Class.define("qx.tool.compiler.ClassFile", {
   extend: qx.core.Object,
 
   /**
    * Constructor
-   *
-   * @param analyser {Analyser} the Analyser that found the file
-   * @param className {String} the full name of the class
-   * @param library {Library} the Library the class belongs to (note that the class name is
-   *  not always enough to identify the library, eg private source files such as qxWeb.js)
+   * @param {qx.tool.compiler.meta.MetaDatabase} metaDb the meta database
+   * @param {qx.tool.compiler.ClassFileConfig} compileConfig the configuration for the class compilation
+   * @param {String} className the full name of the class
    */
-  construct(analyser, className, library) {
+  construct(metaDb, compileConfig, className) {
     super();
 
-    this.__analyser = analyser;
+    this.__metaDb = metaDb;
+    this.__compileConfig = compileConfig;
     this.__className = className;
     this.__metaStack = [];
     this.__metaDefinitions = {};
-    this.__library = library;
-    this.__sourceFilename = analyser.getClassSourcePath(library, className);
 
     this.__requiredClasses = {};
     this.__environmentChecks = {
@@ -223,37 +246,23 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     this.__externals = [];
     this.__commonjsModules = {};
 
-    this.__taskQueueDrains = [];
-    this.__taskQueue = async.queue(function (task, cb) {
-      task(cb);
-    });
-    this.__taskQueue.drain = this._onTaskQueueDrain;
-    this.__taskQueue.error = err => {
-      qx.tool.compiler.Console.error(err.stack || err);
-    };
-
-    analyser.getIgnores().forEach(s => this.addIgnore(s));
+    this.__compileConfig.getIgnores().forEach(s => this.addIgnore(s));
     this.__globalSymbols = {};
     this.__privates = {};
     this.__blockedPrivates = {};
-    this.__privateMangling = analyser.getManglePrivates();
+    this.__privateMangling = this.__compileConfig.getManglePrivates();
 
-    const CF = qx.tool.compiler.ClassFile;
-    const addSymbols = arr => arr.forEach(s => (this.__globalSymbols[s] = true));
-    if (analyser.getGlobalSymbols().length) {
-      addSymbols(analyser.getGlobalSymbols());
-    } else {
-      addSymbols(CF.QX_GLOBALS);
-      addSymbols(CF.COMMON_GLOBALS);
-      addSymbols(CF.BROWSER_GLOBALS);
+    for (let key of this.__compileConfig.getSymbols()) {
+      this.__globalSymbols[key] = true;
     }
   },
 
   members: {
-    __analyser: null,
+    /** @type{qx.tool.compiler.ClassFileConfig} the configuration for the class compilation */
+    __compileConfig: null,
+
     __className: null,
     __numClassesDefined: 0,
-    __library: null,
     __requiredClasses: null,
     __environmentChecks: null,
     __requiredAssets: null,
@@ -265,8 +274,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     __scope: null,
     __inDefer: false,
     __inConstruct: false,
-    __taskQueue: null,
-    __taskQueueDrains: null,
+
+    /**
+     * @type {Marker[]} list of markers (warnings/errors) added during compilation
+     */
     __markers: null,
     __haveMarkersFor: null,
     __classMeta: null,
@@ -274,207 +285,136 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     __metaDefinitions: null,
     __fatalCompileError: false,
     __translations: null,
+    /**
+     * @type {DbClassInfo} information about the class to be stored in the database
+     */
     __dbClassInfo: null,
     __hasDefer: null,
     __definingType: null,
     __sourceFilename: null,
-    __taskQueueDrain: null,
     __globalSymbols: null,
     __privates: null,
     __blockedPrivates: null,
     __externals: null,
     __commonjsModules: null,
-
-    _onTaskQueueDrain() {
-      var cbs = this.__taskQueueDrain;
-      this.__taskQueueDrain = [];
-      cbs.forEach(function (cb) {
-        cb();
-      });
-    },
-
-    _waitForTaskQueueDrain(cb) {
-      if (this.__taskQueue.length() == 0) {
-        cb();
-      } else {
-        this.__taskQueueDrains.push(cb);
-      }
-    },
-
-    _queueTask(cb) {
-      this.__taskQueue.push(cb);
-    },
-
     /**
-     * Returns the absolute path to the class file
-     * @returns {string}
-     */
-    getSourcePath() {
-      return this.__sourceFilename;
-    },
-
-    /**
-     * Returns the path to the rewritten class file
-     * @returns {string}
-     */
-    getOutputPath() {
-      return this.__analyser.getClassOutputPath(this.__className);
-    },
-
-    /**
-     * Loads the source, transpiles and analyses the code, storing the result in outputPath
+     * Loads the source, transpiles and analyzes the code, storing the result in outputPath
      *
-     * @param callback
-     *          {Function} callback for when the load is completed
+     * @typedef {Object} CompileResult
+     * @property {String} code the transpiled source code
+     * @property {Object} map the source map for the transpiled code
+     * @property {DbClassInfo} dbClassInfo information about the class to be stored in the database
+     *
+     * @param {String} src the source code to compile
+     * @param {String} filename the filename of the source code
+     * @return {CompileResult?} the compiled source code, if successful
      */
-    load(callback) {
+    compile(src, filename) {
       var t = this;
       var className = this.__className;
       t.__fatalCompileError = false;
       t.__numClassesDefined = 0;
 
-      fs.readFile(this.getSourcePath(), { encoding: "utf-8" }, function (err, src) {
-        if (err) {
-          callback(err);
-          return;
-        }
-        var result;
-        try {
-          let babelConfig = t.__analyser.getBabelConfig() || {};
-          let options = qx.lang.Object.clone(babelConfig.options || {}, true);
-          options.modules = false;
-          let extraPreset = [
-            {
-              plugins: []
-            }
-          ];
+      var result;
+      try {
+        let babelConfig = t.__compileConfig.getBabelConfig() || {};
+        let options = qx.lang.Object.clone(babelConfig.options || {}, true);
+        options.modules = false;
+        let extraPreset = [
+          {
+            plugins: []
+          }
+        ];
 
-          if (babelConfig.plugins) {
-            for (let key in babelConfig.plugins) {
-              if (babelConfig.plugins[key] === true) {
-                extraPreset[0].plugins.push(require.resolve(key));
-              } else if (babelConfig.plugins[key]) {
-                extraPreset[0].plugins.push([require.resolve(key), babelConfig.plugins[key]]);
-              }
+        if (babelConfig.plugins) {
+          for (let key in babelConfig.plugins) {
+            if (babelConfig.plugins[key] === true) {
+              extraPreset[0].plugins.push(require.resolve(key));
+            } else if (babelConfig.plugins[key]) {
+              extraPreset[0].plugins.push([require.resolve(key), babelConfig.plugins[key]]);
             }
           }
-          let myPlugins = t._babelClassPlugins();
-          var config = {
-            babelrc: false,
-            sourceFileName: t.getSourcePath(),
-            filename: t.getSourcePath(),
-            sourceMaps: true,
-            presets: [
-              [require.resolve("@babel/preset-react"), qx.tool.compiler.ClassFile.JSX_OPTIONS],
-              [
-                {
-                  plugins: [myPlugins.CodeElimination]
-                }
-              ],
-
-              [
-                {
-                  plugins: [myPlugins.Compiler]
-                }
-              ],
-
-              [require.resolve("@babel/preset-env"), options],
-              [require.resolve("@babel/preset-typescript")]
+        }
+        let myPlugins = t._babelClassPlugins();
+        // prettier-ignore
+        var config = {
+          babelrc: false,
+          // I don't *think* we need these two, but it may turn out to be useful for error messages?
+          sourceFileName: filename,
+          filename: filename,
+          sourceMaps: true,
+          presets: [
+            [
+              require.resolve("@babel/preset-react"), 
+              qx.tool.compiler.ClassFile.JSX_OPTIONS
+            ],
+            [
+              {
+                plugins: [myPlugins.CodeElimination]
+              }
             ],
 
-            generatorOpts: {
-              compact: false
-            },
-
-            parserOpts: {
-              allowSuperOutsideMethod: true,
-              sourceType: "script"
-            },
-
-            passPerPreset: true
-          };
-
-          if (extraPreset[0].plugins.length) {
-            config.presets.push(extraPreset);
-          }
-          if (this.__privateMangling == "unreadable") {
-            config.blacklist = ["spec.functionName"];
-          }
-          result = babelCore.transform(src, config);
-        } catch (ex) {
-          qx.tool.compiler.Console.log(ex);
-          t.addMarker("compiler.syntaxError", ex.loc, ex.message);
-          t.__fatalCompileError = true;
-          t._compileDbClassInfo();
-          callback();
-          return;
-        }
-
-        if (!t.__numClassesDefined) {
-          t.addMarker("compiler.missingClassDef");
-          t.__fatalCompileError = true;
-          t._compileDbClassInfo();
-          callback();
-          return;
-        }
-
-        if (!t.__metaDefinitions[className]) {
-          t.addMarker("compiler.wrongClassName", null, className, Object.keys(t.__metaDefinitions).join(", "));
-
-          t._compileDbClassInfo();
-        }
-
-        var pos = className.lastIndexOf(".");
-        var name = pos > -1 ? className.substring(pos + 1) : className;
-        var outputPath = t.getOutputPath();
-        qx.tool.utils.Utils.mkParentPath(outputPath, function (err) {
-          if (err) {
-            callback(err);
-            return;
-          }
-          let mappingUrl = name + ".js.map";
-          if (qx.lang.Array.contains(t.__analyser.getApplicationTypes(), "browser")) {
-            mappingUrl += "?dt=" + new Date().getTime();
-          }
-          fs.writeFile(outputPath, result.code + "\n\n//# sourceMappingURL=" + mappingUrl, { encoding: "utf-8" }, function (err) {
-            if (err) {
-              callback(err);
-              return;
-            }
-            fs.writeFile(outputPath + ".map", JSON.stringify(result.map, null, 2), { encoding: "utf-8" }, function (err) {
-              if (err) {
-                callback(err);
-                return;
+            [
+              {
+                plugins: [myPlugins.Compiler]
               }
-              t._waitForTaskQueueDrain(function () {
-                callback();
-              });
-            });
-          });
-        });
-      });
+            ],
+
+            [require.resolve("@babel/preset-env"), options],
+            [require.resolve("@babel/preset-typescript")]
+          ],
+
+          generatorOpts: {
+            compact: false
+          },
+
+          parserOpts: {
+            allowSuperOutsideMethod: true,
+            sourceType: "script"
+          },
+
+          passPerPreset: true
+        };
+
+        if (extraPreset[0].plugins.length) {
+          config.presets.push(extraPreset);
+        }
+        //2026-JAN-08 - Had to comment this out because blacklist is not supported anymore in babel
+        // if (this.__privateMangling == "unreadable") {
+        //   config.blacklist = ["spec.functionName"];
+        // }
+        let transform = babelCore.transform(src, config);
+        result = {code: transform.code, map: transform.map};
+      } catch (ex) {
+        t.addMarker("compiler.syntaxError", ex.loc, ex.message);
+        t.__fatalCompileError = true;
+        t._compileDbClassInfo();
+        return;
+      }
+
+      if (!t.__numClassesDefined) {
+        t.addMarker("compiler.missingClassDef");
+        t.__fatalCompileError = true;
+        t._compileDbClassInfo();
+        return;
+      }
+
+      result.dbClassInfo = this.__dbClassInfo;
+
+      return result;
     },
 
     /**
-     * Writes the data for the database; updates the record, which may have been previously
-     * used (so needs to be zero'd out)
-     * @param dbClassInfo {Map}
+     * 
+     * @returns {DbClassInfo}
      */
-    writeDbInfo(dbClassInfo) {
-      delete dbClassInfo.unresolved;
-      delete dbClassInfo.dependsOn;
-      delete dbClassInfo.assets;
-      delete dbClassInfo.translations;
-      delete dbClassInfo.markers;
-      delete dbClassInfo.fatalCompileError;
-      delete dbClassInfo.commonjsModules;
-      for (var key in this.__dbClassInfo) {
-        dbClassInfo[key] = this.__dbClassInfo[key];
-      }
+    getDbInfo() {
+      return this.__dbClassInfo;
     },
 
     /**
      * Compiles the DbInfo POJO to be stored in the database about this class
+     * @returns {DbClassInfo}
      * */
     _compileDbClassInfo() {
       var t = this;
@@ -574,7 +514,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         if (this.__metaDefinitions[name]) {
           continue;
         }
-        var info = t.__analyser.getSymbolType(name);
+        var info = t.__metaDb.getSymbolType(name);
         if (info && info.className) {
           t._requireClass(info.className, {
             load: item.load,
@@ -604,7 +544,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       if (fontNames.length) {
         dbClassInfo.fonts = fontNames;
         for (let fontName in this.__requiredFonts) {
-          if (!this.__analyser.getFont(fontName)) {
+          if (!this.__compileConfig.getFontNames().includes(fontName)) {
             t.addMarker("fonts.unresolved#" + fontName, this.__requiredFonts[fontName].loc.start, fontName);
           }
         }
@@ -890,7 +830,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           var self = this;
           var str = collapseMemberExpression(path.node);
           t._requireClass(str, { location: path.node.loc });
-          var info = t.__analyser.getSymbolType(str);
+          var info = t.__metaDb.getSymbolType(str);
           if (info && info.symbolType == "class") {
             self.collectedClasses.push(str);
           }
@@ -909,7 +849,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
         CallExpression(path) {
           const name = collapseMemberExpression(path.node.callee);
-          const env = t.__analyser.getEnvironment();
+          const env = t.__compileConfig.getEnvironment();
 
           if (
             env["qx.environment.allowRuntimeMutations"] !== true &&
@@ -1218,7 +1158,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           errorRecovery: true
         }).program.body[0];
 
-        membersPropertyNode.value.properties.push(types.objectMethod("method", types.identifier("_createQxObjectImpl"), [], functionBlock));
+        membersPropertyNode.value.properties.push(
+          types.objectMethod("method", types.identifier("_createQxObjectImpl"), [], functionBlock)
+        );
       }
 
       function checkValidTopLevel(path) {
@@ -1351,9 +1293,18 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 var data = collectJson(pdNode.value, true);
                 meta.name = propName;
                 meta.propertyType = "new";
-                ["refine", "themeable", "event", "inheritable", "apply", "async", "group", "nullable", "init", "transform"].forEach(
-                  name => (meta[name] = data[name])
-                );
+                [
+                  "refine",
+                  "themeable",
+                  "event",
+                  "inheritable",
+                  "apply",
+                  "async",
+                  "group",
+                  "nullable",
+                  "init",
+                  "transform"
+                ].forEach(name => (meta[name] = data[name]));
                 if (data.nullable !== undefined) {
                   meta.allowNull = data.nullable;
                 }
@@ -1367,7 +1318,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                   }
                   checks.forEach(check => {
                     if (!qx.tool.compiler.ClassFile.SYSTEM_CHECKS[check]) {
-                      let symbolData = t.__analyser.getSymbolType(check);
+                      let symbolData = typeof check === "string" ? t.__metaDb.getSymbolType(check) : null;
                       if (symbolData?.symbolType == "class") {
                         t._requireClass(check, {
                           load: false,
@@ -1444,7 +1395,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             t._requireClass(str, { usage: "dynamic", location: path.node.loc });
           },
           exit(path) {
-            if (t.__analyser.isAddCreatedAt()) {
+            if (t.__compileConfig.isAddCreatedAt()) {
               var fn = types.memberExpression(types.identifier("qx"), types.identifier("$$createdAt"));
 
               var tmp = types.callExpression(fn, [
@@ -1452,7 +1403,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 types.stringLiteral(t.__className.replace(/\./g, "/") + ".js"),
                 types.numericLiteral(path.node.loc ? path.node.loc.start.line : 0),
                 types.numericLiteral(path.node.loc ? path.node.loc.start.column : 0),
-                types.booleanLiteral(t.__analyser.isVerboseCreatedAt())
+                types.booleanLiteral(t.__compileConfig.isVerboseCreatedAt())
               ]);
 
               path.replaceWith(tmp);
@@ -1661,7 +1612,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             // module to the list of modules that must be browserified
             // if the application is destined for the browser.
             let scope;
-            let applicationTypes = t.__analyser.getApplicationTypes();
+            let applicationTypes = t.__compileConfig.getApplicationTypes();
 
             if (
               path.node.callee.type == "Identifier" &&
@@ -1806,7 +1757,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                       !arg.value.startsWith(t.__className) &&
                       !Object.prototype.hasOwnProperty.call(qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS, arg.value)
                     ) {
-                      let symbol = t.__library.getSymbolType(arg.value);
+                      let symbol = t.__metaDb.getSymbolType(arg.value);
                       if (!symbol || symbol.symbolType != "environment") {
                         t.addMarker("environment.unreachable", path.node.loc, arg.value);
                       }
@@ -1890,7 +1841,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 } else if (t.__classMeta.functionName == "$$constructor") {
                   expr = expandMemberExpression(t.__classMeta.superClass + ".constructor." + methodName);
                 } else {
-                  expr = expandMemberExpression(t.__className + ".prototype." + t.__classMeta.functionName + ".base." + methodName);
+                  expr = expandMemberExpression(
+                    t.__className + ".prototype." + t.__classMeta.functionName + ".base." + methodName
+                  );
                 }
 
                 // Original call to this.base.apply would have included arguments in the first element of the array
@@ -1919,7 +1872,11 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
               ) {
                 let arg0 = getStringArg(0);
                 if (!arg0) {
-                  t.addMarker("translate.invalidMessageId", path.node.loc, arg0 ?? "");
+                  t.addMarker(
+                    "translate.invalidMessageId",
+                    path.node.loc,
+                    arg0 ?? ""
+                  );
                 } else {
                   addTranslation({ msgid: arg0 });
                 }
@@ -1927,7 +1884,12 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 let arg0 = getStringArg(0);
                 let arg1 = getStringArg(1);
                 if (!arg0 || !arg1) {
-                  t.addMarker("translate.invalidMessageIds", path.node.loc, arg0 ?? "", arg1 ?? "");
+                  t.addMarker(
+                    "translate.invalidMessageIds",
+                    path.node.loc,
+                    arg0 ?? "",
+                    arg1 ?? ""
+                  );
                 } else {
                   addTranslation({ msgid: arg0, msgid_plural: arg1 });
                 }
@@ -2055,7 +2017,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         ObjectMethod(path) {
           // Methods within a top level object (ie "members" or "statics"), record the method name and meta data
           if (t.__classMeta && t.__classMeta._topLevel && t.__classMeta._topLevel.path == path.parentPath.parentPath) {
-            t.__classMeta.functionName = t.__classMeta._topLevel.keyName == "objects" ? "_createQxObjectImpl" : getKeyName(path.node.key);
+            t.__classMeta.functionName =
+              t.__classMeta._topLevel.keyName == "objects" ? "_createQxObjectImpl" : getKeyName(path.node.key);
             makeMeta(t.__classMeta._topLevel.keyName, t.__classMeta.functionName, path.node);
 
             path.skip();
@@ -2266,7 +2229,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         delete unresolved[name];
         // Escape special regex characters and anchor to start of string
         // to prevent "x" from matching "qx.foo" (only match "x.foo")
-        var escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        var escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         var re = new RegExp("^" + escapedName + "\\.");
         for (var tmp in unresolved) {
           if (re.test(tmp)) {
@@ -2379,14 +2342,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           this.addMarker("class.blockedMangle", location, name);
           return name;
         }
-        let db = this.__analyser.getDatabase();
-        if (!db.manglePrefixes) {
-          db.manglePrefixes = {
-            nextPrefix: 1,
-            classPrefixes: {}
-          };
-        }
-        let prefixes = db.manglePrefixes;
+        let prefixes = this.__compileConfig.getManglePrefixes();
         let prefix = prefixes.classPrefixes[this.__className];
         if (!prefix) {
           prefix = "__P_" + ++prefixes.nextPrefix + "_";
@@ -2529,7 +2485,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         dest.construct = true;
       }
       t._requireClass("qx.core.Environment", { location: location });
-      let info = t.__analyser.getSymbolType(name);
+      let info = t.__metaDb.getSymbolType(name);
       if (!Object.prototype.hasOwnProperty.call(qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS, name)) {
         // Generally speaking, we try to have as few load dependencies as possible, and this
         // means that in a class' `.defer()` we will still allow for runtime loading.  However,
@@ -2553,8 +2509,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     /**
      * Adds a marker (eg warning or error)
      *
-     * @param msgId {String} the marker message ID (@see qx.tool.compiler.Marker)
-     * @param pos {Object||null} position map; may contain a Map containing
+     * @param {string} msgId the marker message ID. This is like `qx.tool.compiler.Console.msgId`, but without the `qx.tool.compiler.` prefix.
+     * @param {Position|Range|null} pos position map; may contain a Map containing
      *  {line,column?}, or a Map {start:{line,column}, end: {line,column}}.
      */
     addMarker(msgId, pos) {
@@ -2622,7 +2578,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
      *  load {Boolean?} whether it is a load-time dependency or not
      *  defer {Boolean?} whether the dependency is in defer or not
      *  location {Map?} location of the token that caused the reference
-     * @return {Map?} info about the symbol type of the named class, @see {Analyser.getSymbolType}
+     * @return {Map?} info about the symbol type of the named class, @see {MetaDatabase.getSymbolType}
      */
     _requireClass(name, opts) {
       if (qx.lang.Type.isArray(name)) {
@@ -2652,7 +2608,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         }
       }
 
-      let info = t.__analyser.getSymbolType(name);
+      let info = t.__metaDb.getSymbolType(name);
       let symbolType = info ? info.symbolType : null;
       let className = info ? info.className : null;
       if (symbolType != "package" && className && className != t.__className) {

@@ -19,7 +19,7 @@ qx.Class.define("qx.test.compiler.ClassFile", {
   construct() {
     super();
     this.__lib = new qx.tool.compiler.app.Library();
-    this.__analyser = new qx.tool.compiler.Analyser();
+    this.__analyser = new qx.tool.compiler.Analyzer();
     this.__analyser.setOutputDir("tmp/unittest");
     this.__lib.setRootDir(".");
     this.__lib.setSourcePath("unittest/compiler");

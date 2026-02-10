@@ -75,6 +75,7 @@
         "unset-value": "^1.0.0",
         "upath": "^1.2.0",
         "update-notifier": "^6.0.2",
+        "workerpool": "^10.0.1",
         "xml2js": "^0.6.2",
         "yauzl-promise": "^4.0.0"
       },
@@ -3776,6 +3777,7 @@
         }
       ],
       "license": "MIT",
+      "peer": true,
       "dependencies": {
         "baseline-browser-mapping": "^2.8.9",
         "caniuse-lite": "^1.0.30001746",
@@ -10922,6 +10924,14 @@
         "url": "https://github.com/sponsors/ljharb"
       }
     },
+    "node_modules/wide-align": {
+      "version": "1.1.5",
+      "resolved": "https://registry.npmjs.org/wide-align/-/wide-align-1.1.5.tgz",
+      "integrity": "sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==",
+      "dependencies": {
+        "string-width": "^1.0.2 || 2 || 3 || 4"
+      }
+    },
     "node_modules/widest-line": {
       "version": "4.0.1",
       "resolved": "https://registry.npmjs.org/widest-line/-/widest-line-4.0.1.tgz",
@@ -10995,6 +11005,12 @@
       "engines": {
         "node": ">=0.10.0"
       }
+    },
+    "node_modules/workerpool": {
+      "version": "10.0.1",
+      "resolved": "https://registry.npmjs.org/workerpool/-/workerpool-10.0.1.tgz",
+      "integrity": "sha512-NAnKwZJxWlj/U1cp6ZkEtPE+GQY1S6KtOS3AlCiPfPFLxV3m64giSp7g2LsNJxzYCocDT7TSl+7T0sgrDp3KoQ==",
+      "license": "Apache-2.0"
     },
     "node_modules/wrap-ansi": {
       "version": "8.1.0",
