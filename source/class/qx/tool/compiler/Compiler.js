@@ -102,6 +102,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         let out = qx.util.Serializer.toNativeObject(app);
         out.projectDir = app.getProjectDir();
         out.browserApp = app.isBrowserApp();
+        out.className = app.getClassName();
         return out;
       }
 
