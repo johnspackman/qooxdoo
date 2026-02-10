@@ -36,6 +36,14 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
     controller.getDiscovery().addListener("starting", () => start("discovery"));
     controller.getDiscovery().addListener("started", () => report("discovery", "File Discovery"));
 
+    controller.addListener("changesDetected", () => {
+      qx.tool.compiler.Console.log("Changes detected, recompiling...");
+    });
+
+    controller.addListener("allMakersMade", () => {
+      qx.tool.compiler.Console.log("All applications ready.");
+    })
+
     controller.addListener("classNeedsToBeCompiled", this.__onClassNeedsToBeCompiled, this);
     controller.addListener("compilingClass", this.__onCompilingClass, this);
     controller.addListener("compiledClass", this.__onCompiledClass, this);
@@ -99,9 +107,9 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      * @param {qx.event.type.Data} e
      */
     __onClassNeedsToBeCompiled(e) {
-      let classname = e.getData();
+      let { classname, maker}  = e.getData();
       if (this.isVerbose()) {
-        qx.tool.compiler.Console.log(`Class ${classname} needs to be compiled.`);
+        qx.tool.compiler.Console.log(`Class ${classname} needs to be compiled for ${maker.getTarget().getOutputDir()}.`);
       }
     },
 

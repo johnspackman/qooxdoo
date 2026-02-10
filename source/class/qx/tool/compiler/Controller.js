@@ -74,6 +74,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
   },
 
   events: {
+    /**
+     * Fired when the watcher detects changes to the source files
+     */
+    changesDetected: "qx.event.type.Event",
     /** Fired when a maker is added, data is the `qx.tool.compiler.Maker` */
     addMaker: "qx.event.type.Data",
 
@@ -246,27 +250,12 @@ qx.Class.define("qx.tool.compiler.Controller", {
       /**
        * Updates the meta database and compiles the classes that have been queued up
        */
-      const recompile = async () => {
-        qx.tool.compiler.Console.log("Changes detected, updating meta database and recompiling classes...");        
-        await metaDb.reparseAll();
-        await metaDb.save();
-        this.__toCompile.forEach(classname => this._onClassNeedsCompile(classname));
-        this.__toCompile = [];        
-      };
 
-      /**
-       * When we notice changes to the discovered classes,
-       * if we are using workers for compilation,
-       * we have to first wait for the workers to finish compiling and then notify the workers that the meta database has changed
-       * before we compile the classes.
-       * We use a debounces to batch the changed classes, and then after a timeout we update the meta database and begin compilation.
-       * If we are not using workers (should be for debugging purposes only) then it still works the same way.
-       */
-      let debounce = new qx.tool.utils.Debounce(recompile, 100);
+      let debounce = new qx.tool.utils.Debounce(() => this.__recompile(), 100);
 
       /**
        * Adds a class to the compilation queue
-       * @param {qx.event.type.Data} evt 
+       * @param {qx.event.type.Data} evt
        */
       const onAdded = async evt => {
         let classname = evt.getData();
@@ -334,32 +323,36 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
     },
 
-    /**
-     * Handler for when a class needs to be compiled.
-     *
-     * @param {String} classname
-     */
-    _onClassNeedsCompile(classname) {
-      let analyzers = [];
+    async __recompile() {
+      let metaDb = this.__metaDb;
+      this.fireEvent("changesDetected");
+      await metaDb.reparseAll();
+      await metaDb.save();
+
+      let toCompile = this.__toCompile;
+      this.__toCompile = [];
+
+      let compilationRequired = false;
       for (let maker of this.__makers) {
         for (let app of maker.getApplications()) {
           let dependencies = app.getDependencies() || [];
-          if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
-            analyzers.push(maker.getAnalyzer());
-            let hashKey = maker.getTarget().getOutputDir() + ":" + classname;
-            this.__dirtyClasses[hashKey] = true;
-            break;
+          for (let classname of toCompile) {
+            if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
+              compilationRequired = true;
+              this.compileClass(maker.getAnalyzer(), classname, true);
+              this.fireDataEvent("classNeedsToBeCompiled", { maker, classname });
+              let hashKey = maker.getTarget().getOutputDir() + ":" + classname;
+              this.__dirtyClasses[hashKey] = true;
+              break;
+            }
           }
         }
       }
-      if (analyzers.length === 0) {
+
+      if (!compilationRequired) {
+        this.fireEvent("allMakersMade");
         return;
       }
-      for (let analyzer of analyzers) {
-        this.compileClass(analyzer, classname, true);
-      }
-
-      this.fireDataEvent("classNeedsToBeCompiled", classname);
     },
 
     /**
@@ -408,7 +401,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
               Object.keys(this.__dirtyMakers).length === 0 &&
               Object.keys(this.__compilingClasses).length === 0
             ) {
-              console.log("All applications written.");
               if (this.__transpilerPool) {
                 //after the initial build, we won't be using worker threads anymore (at least for now) to make things simpler
                 this.__transpilerPool.dispose();
@@ -588,7 +580,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         if (markers) {
           markers.forEach(function (marker) {
             var str = qx.tool.compiler.Console.decodeMarker(marker);
-            console.warn(classname + ": " + str);
+            console.warn(classname + ": " + str + ` (${analyzer.getMaker().getTarget().getOutputDir()})`);
           });
         }
       }
@@ -621,7 +613,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
   statics: {
     /**
      * Tranforms (if applicable), transpiles and writes output to disk
-     * @param {SourceInfo} sourceInfo 
+     * @param {SourceInfo} sourceInfo
      * @param {qx.tool.compiler.Controller.MakerInfo} makerInfo
      * @param {qx.tool.compiler.meta.MetaDatabase} metaDb
      * @returns {Promise<CompileInfo>}
