@@ -37,9 +37,7 @@ qx.Class.define("qx.theme.manager.Decoration", {
   construct() {
     super();
     this.__rules = [];
-    this.__legacyIe =
-      qx.core.Environment.get("engine.name") == "mshtml" &&
-      qx.core.Environment.get("browser.documentmode") < 9;
+    this.__legacyIe = qx.core.Environment.get("engine.name") == "mshtml" && qx.core.Environment.get("browser.documentmode") < 9;
   },
 
   /*
@@ -92,15 +90,14 @@ qx.Class.define("qx.theme.manager.Decoration", {
     addCssClass(value) {
       var sheet = qx.ui.style.Stylesheet.getInstance();
 
-      var instance = value;
-
-      value = this.getCssClassName(value);
-      var selector = "." + value;
+      let cssClassName = this.getCssClassName(value);
+      var selector = "." + cssClassName;
 
       if (sheet.hasRule(selector)) {
-        return value;
+        return cssClassName;
       }
 
+      var instance = value;
       if (qx.lang.Type.isString(instance)) {
         instance = this.resolve(instance);
       }
@@ -128,9 +125,7 @@ qx.Class.define("qx.theme.manager.Decoration", {
               inner = true;
               innerCss += innerKey + ":" + innerStyles[innerKey] + ";";
             }
-            var innerSelector = this.__legacyIe
-              ? selector
-              : selector + (inner ? ":" : "");
+            var innerSelector = this.__legacyIe ? selector : selector + (inner ? ":" : "");
             this.__rules.push(innerSelector + key);
             sheet.addRule(innerSelector + key, innerCss);
             return;
@@ -143,7 +138,7 @@ qx.Class.define("qx.theme.manager.Decoration", {
         this.__rules.push(selector);
       }
 
-      return value;
+      return cssClassName;
     },
 
     /**
@@ -200,10 +195,7 @@ qx.Class.define("qx.theme.manager.Decoration", {
       var recurseDecoratorInclude = function (currentEntry, name) {
         // follow the include chain to the topmost decorator entry
         if (currentEntry.include && theme.decorations[currentEntry.include]) {
-          recurseDecoratorInclude(
-            theme.decorations[currentEntry.include],
-            currentEntry.include
-          );
+          recurseDecoratorInclude(theme.decorations[currentEntry.include], currentEntry.include);
         }
 
         // apply styles from the included decorator,
@@ -266,9 +258,7 @@ qx.Class.define("qx.theme.manager.Decoration", {
      * @internal
      */
     isCached(decorator) {
-      return !this.__dynamic
-        ? false
-        : qx.lang.Object.contains(this.__dynamic, decorator);
+      return !this.__dynamic ? false : qx.lang.Object.contains(this.__dynamic, decorator);
     },
 
     // property apply

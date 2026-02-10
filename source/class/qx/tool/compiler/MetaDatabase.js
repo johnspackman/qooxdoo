@@ -37,10 +37,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
     async save() {
       await qx.tool.utils.Utils.makeDirs(this.getRootDir());
       this.__database.classnames = Object.keys(this.__metaByClassname);
-      await qx.tool.utils.Json.saveJsonAsync(
-        this.getRootDir() + "/db.json",
-        this.__database
-      );
+      await qx.tool.utils.Json.saveJsonAsync(this.getRootDir() + "/db.json", this.__database);
     },
 
     getDatabase() {
@@ -61,17 +58,14 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       this.__database = data;
 
       for (let classname of data.classnames) {
-        let filename =
-          this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
+        let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
         if (fs.existsSync(filename)) {
           await qx.tool.utils.Utils.makeParentDir(filename);
           let meta = new qx.tool.compiler.MetaExtraction(this.getRootDir());
           await meta.loadMeta(filename);
           this.__metaByClassname[classname] = meta;
           let classFilename = meta.getMetaData().classFilename;
-          classFilename = path.resolve(
-            path.join(this.getRootDir(), classFilename)
-          );
+          classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
 
           this.__metaByFilename[classFilename] = meta;
         }
@@ -113,8 +107,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       }
 
       let pos = currentClassMeta.className.lastIndexOf(".");
-      let packageName =
-        pos > -1 ? currentClassMeta.className.substring(0, pos) : null;
+      let packageName = pos > -1 ? currentClassMeta.className.substring(0, pos) : null;
 
       if (packageName) {
         pos = type.indexOf(".");
@@ -205,8 +198,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
         this.__fixupEntries(metaData, "statics");
         this.__fixupEntries(metaData, "properties");
 
-        let filename =
-          this.getRootDir() + "/" + className.replace(/\./g, "/") + ".json";
+        let filename = this.getRootDir() + "/" + className.replace(/\./g, "/") + ".json";
         await meta.saveMeta(filename);
       }
     },
@@ -272,11 +264,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
       }
       let superMeta = this.__metaByClassname[metaData.superClass];
       if (superMeta) {
-        return this.__findSuperMethod(
-          superMeta.getMetaData(),
-          methodName,
-          false
-        );
+        return this.__findSuperMethod(superMeta.getMetaData(), methodName, false);
       }
       return null;
     },
@@ -288,29 +276,37 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
      * @returns {string[]} list of classes where the entry appears
      */
     __findAppearances(metaData, entryKind, entryName) {
-      const getSuperLikes = meta => [
-        ...(meta.mixins ?? []),
-        ...(meta.superClass ? [meta.superClass] : []),
-        ...(meta.interfaces ?? [])
-      ];
+      const getSuperLikes = meta => {
+        let result = [];
+        if (meta.mixins) {
+          result.push(...meta.mixins);
+        }
+        if (meta.superClass) {
+          result.push(meta.superClass);
+        }
+        if (meta.interfaces) {
+          result.push(...meta.interfaces);
+        }
+        return result;
+      };
 
       const resolve = meta => {
         if (meta[entryKind]?.[entryName]) {
-          appearances.push(meta.className);
+          appearances[meta.className] = true;
         }
       };
 
-      const appearances = [];
-      const toResolve = getSuperLikes(metaData);
+      let appearances = {};
+      let toResolve = getSuperLikes(metaData);
       while (toResolve.length) {
-        const currentMeta = this.__metaByClassname[toResolve.shift()];
+        let currentMeta = this.__metaByClassname[toResolve.shift()];
         if (currentMeta) {
           resolve(currentMeta.getMetaData());
           toResolve.push(...getSuperLikes(currentMeta.getMetaData()));
         }
       }
 
-      return appearances;
+      return Object.keys(appearances);
     },
 
     /**
@@ -379,10 +375,7 @@ qx.Class.define("qx.tool.compiler.MetaDatabase", {
      *
      */
     getHierarchyFlat(metaOrClassName) {
-      const meta =
-        typeof metaOrClassName === "string"
-          ? this.getMetaData(metaOrClassName)
-          : metaOrClassName;
+      const meta = typeof metaOrClassName === "string" ? this.getMetaData(metaOrClassName) : metaOrClassName;
 
       const data = {
         className: meta.className,

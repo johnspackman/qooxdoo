@@ -146,10 +146,7 @@ qx.Class.define("qx.tool.compiler.Es6ify", {
       let babelConfig = {};
       let options = qx.lang.Object.clone(babelConfig.options || {}, true);
       options.modules = false;
-      let plugins = [
-        require("@babel/plugin-syntax-jsx"),
-        this.__pluginFunctionExpressions()
-      ];
+      let plugins = [require("@babel/plugin-syntax-jsx"), this.__pluginFunctionExpressions()];
 
       if (this.getArrowFunctions() != "never") {
         plugins.push(this.__pluginArrowFunctions());
@@ -193,9 +190,7 @@ qx.Class.define("qx.tool.compiler.Es6ify", {
       while (true) {
         cycleCount++;
         if (cycleCount > 10) {
-          qx.tool.compiler.Console.warn(
-            `Can not find a stable format for ${this.__filename}`
-          );
+          qx.tool.compiler.Console.warn(`Can not find a stable format for ${this.__filename}`);
 
           break;
         }
@@ -211,7 +206,7 @@ qx.Class.define("qx.tool.compiler.Es6ify", {
           editorConfig: true
         })) || {};
       prettierConfig.parser = "babel";
-      let prettyCode = prettier.format(result.code, prettierConfig);
+      let prettyCode = await prettier.format(result.code, prettierConfig);
 
       let outname = this.__filename + (this.isOverwrite() ? "" : ".es6ify");
       await fs.promises.writeFile(outname, prettyCode, "utf8");
@@ -244,11 +239,7 @@ qx.Class.define("qx.tool.compiler.Es6ify", {
 
             for (let i = 0; i < path.node.properties.length; i++) {
               let propNode = path.node.properties[i];
-              if (
-                propNode.type == "ObjectProperty" &&
-                propNode.value.type == "FunctionExpression" &&
-                KEY_TYPES[propNode.key.type]
-              ) {
+              if (propNode.type == "ObjectProperty" && propNode.value.type == "FunctionExpression" && KEY_TYPES[propNode.key.type]) {
                 let replacement = types.objectMethod(
                   "method",
                   propNode.key,
@@ -282,11 +273,7 @@ qx.Class.define("qx.tool.compiler.Es6ify", {
       if (body.body.length == 1 && body.body[0].type == "ReturnStatement") {
         body = body.body[0].argument;
       }
-      let replacement = types.arrowFunctionExpression(
-        argNode.params,
-        body,
-        argNode.async
-      );
+      let replacement = types.arrowFunctionExpression(argNode.params, body, argNode.async);
 
       replacement.loc = argNode.loc;
       replacement.start = argNode.start;
@@ -339,9 +326,7 @@ qx.Class.define("qx.tool.compiler.Es6ify", {
             if (path.node.callee.type == "MemberExpression") {
               let callee = collapseMemberExpression(path.node.callee);
               if (arrowFunctions == "careful") {
-                if (
-                  !knownApiFunctions.some(fName => callee.endsWith("." + fName))
-                ) {
+                if (!knownApiFunctions.some(fName => callee.endsWith("." + fName))) {
                   return;
                 }
                 if (
@@ -444,12 +429,7 @@ qx.Class.define("qx.tool.compiler.Es6ify", {
                 path.node.callee = types.super();
                 path.node.arguments = args;
               } else if (methodName) {
-                let replacement = types.memberExpression(
-                  types.super(),
-                  types.identifier(methodName),
-                  false,
-                  false
-                );
+                let replacement = types.memberExpression(types.super(), types.identifier(methodName), false, false);
 
                 path.node.callee = replacement;
                 path.node.arguments = args;

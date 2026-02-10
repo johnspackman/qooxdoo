@@ -92,7 +92,8 @@ qx.Class.define("qx.ui.form.ListItem", {
       focused: true,
       hovered: true,
       selected: true,
-      dragover: true
+      dragover: true,
+      readonly: true
     },
 
     _applyReadOnly(value) {

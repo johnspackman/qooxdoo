@@ -97,9 +97,9 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
       this.argv["feedback"] = false;
       this.__website = new qx.tool.utils.Website();
       if (this.argv.rebuildStartpage) {
-          qx.tool.compiler.Console.info(">>> Building startpage and exit...");
-          await this.__website.generateSite();
-          return;
+        qx.tool.compiler.Console.info(">>> Building startpage and exit...");
+        await this.__website.generateSite();
+        return;
       }
       if (this.argv["show-startpage"]) {
         // build website if it hasn't been built yet or if rebuild is requested
@@ -127,9 +127,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
      * Runs the web server
      */
     async runWebServer() {
-      let makers = this.getMakers().filter(maker =>
-        maker.getApplications().some(app => app.getStandalone())
-      );
+      let makers = this.getMakers().filter(maker => maker.getApplications().some(app => app.getStandalone()));
 
       let apps = [];
       let defaultMaker = null;
@@ -159,8 +157,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
       app.use((req, res, next) => {
         res.set({
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers":
-            "Origin, X-Requested-With, Content-Type, Accept",
+          "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
           "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
           "Content-Security-Policy":
             "default-src *  data: blob: filesystem: about: ws: wss: 'unsafe-inline' 'unsafe-eval'; script-src * data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src * data: blob: 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src * data: blob: ; style-src * data: blob: 'unsafe-inline'; font-src * data: blob: 'unsafe-inline';"
@@ -214,24 +211,19 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
       this.fireDataEvent("beforeStart", {
         server: server,
         application: app,
-        outputdir: defaultMaker.getTarget().getOutputDir()
+        // defaultMaker will be null if there are no browser apps
+        outputdir: (defaultMaker || makers[0]).getTarget().getOutputDir()
       });
       server.on("error", e => {
         if (e.code === "EADDRINUSE") {
-          qx.tool.compiler.Console.print(
-            "qx.tool.compiler.cli.serve.webAddrInUse",
-            listenPort
-          );
+          qx.tool.compiler.Console.print("qx.tool.compiler.cli.serve.webAddrInUse", listenPort);
           process.exit(1);
         } else {
           qx.tool.compiler.Console.log("Error when starting web server: " + e);
         }
       });
       server.listen(listenPort, () => {
-        qx.tool.compiler.Console.print(
-          "qx.tool.compiler.cli.serve.webStarted",
-          "http://localhost:" + listenPort
-        );
+        qx.tool.compiler.Console.print("qx.tool.compiler.cli.serve.webStarted", "http://localhost:" + listenPort);
 
         this.fireEvent("afterStart");
       });
@@ -244,8 +236,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Serve", {
   defer(statics) {
     qx.tool.compiler.Console.addMessageIds({
       "qx.tool.compiler.cli.serve.webStarted": "Web server started, please browse to %1",
-      "qx.tool.compiler.cli.serve.webAddrInUse":
-        "Web server cannot start because port %1 is already in use"
+      "qx.tool.compiler.cli.serve.webAddrInUse": "Web server cannot start because port %1 is already in use"
     });
   }
 });

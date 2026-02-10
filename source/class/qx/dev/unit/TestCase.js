@@ -99,12 +99,7 @@ qx.Class.define("qx.dev.unit.TestCase", {
      * @return {var} The return value of the deferred function
      */
     resume(deferredFunction, self) {
-      return this.getTestResult().run(
-        this.getTestFunc(),
-        deferredFunction || function () {},
-        self || this,
-        true
-      );
+      return this.getTestResult().run(this.getTestFunc(), deferredFunction || function () {}, self || this, true);
     },
 
     /**
@@ -152,10 +147,7 @@ qx.Class.define("qx.dev.unit.TestCase", {
      */
     resumeHandler(deferredFunction, self) {
       if (qx.core.Environment.get("qx.debug")) {
-        this.assertFunction(
-          deferredFunction,
-          "First parameter of resumeHandler() must be a function!"
-        );
+        this.assertFunction(deferredFunction, "First parameter of resumeHandler() must be a function!");
       }
 
       var func = deferredFunction;
@@ -165,10 +157,7 @@ qx.Class.define("qx.dev.unit.TestCase", {
         // bind arguments to deferŕedFunction
         var args = qx.lang.Array.fromArguments(arguments);
 
-        return that.resume(
-          func.bind.apply(func, [self || this].concat(args)),
-          self
-        );
+        return that.resume(func.bind.apply(func, [self || this].concat(args)), self);
       };
     },
 
@@ -201,7 +190,10 @@ qx.Class.define("qx.dev.unit.TestCase", {
       if (this.__autoDispose) {
         this.__autoDispose.forEach(function (obj) {
           if (!obj.isDisposed()) {
-            if (obj instanceof qx.ui.core.Widget) {
+            // Do not make an actual reference to qx.ui.core.Widget otherwise the compiler will load
+            // dependencies and that prevents this class from being used in node-only builds
+            const Widget = qx.Class.getByName("qx.ui.core.Widget");
+            if (obj instanceof Widget) {
               obj.destroy();
             } else if (obj instanceof qx.core.Object) {
               obj.dispose();

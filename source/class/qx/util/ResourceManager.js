@@ -72,9 +72,7 @@ qx.Class.define("qx.util.ResourceManager", {
 
       // Calculate the optimal ratio, based on the rem scale factor of the application and the device pixel ratio.
       if (!factor) {
-        factor = parseFloat(
-          qx.bom.client.Device.getDevicePixelRatio().toFixed(2)
-        );
+        factor = parseFloat(qx.bom.client.Device.getDevicePixelRatio().toFixed(2));
       }
       if (factor <= 1) {
         return false;
@@ -88,10 +86,7 @@ qx.Class.define("qx.util.ResourceManager", {
 
       // Search for best img with a higher resolution.
       for (k = i; k >= 0; k--) {
-        hiResImgSrc = this.getHighResolutionSource(
-          lowResImgSrc,
-          pixelRatioCandidates[k]
-        );
+        hiResImgSrc = this.getHighResolutionSource(lowResImgSrc, pixelRatioCandidates[k]);
 
         if (hiResImgSrc) {
           return hiResImgSrc;
@@ -100,10 +95,7 @@ qx.Class.define("qx.util.ResourceManager", {
 
       // Search for best img with a lower resolution.
       for (k = i + 1; k < pixelRatioCandidates.length; k++) {
-        hiResImgSrc = this.getHighResolutionSource(
-          lowResImgSrc,
-          pixelRatioCandidates[k]
-        );
+        hiResImgSrc = this.getHighResolutionSource(lowResImgSrc, pixelRatioCandidates[k]);
 
         if (hiResImgSrc) {
           return hiResImgSrc;
@@ -124,10 +116,7 @@ qx.Class.define("qx.util.ResourceManager", {
       var fileExtIndex = source.lastIndexOf(".");
       if (fileExtIndex > -1) {
         var pixelRatioIdentifier = "@" + pixelRatio + "x";
-        var candidate =
-          source.slice(0, fileExtIndex) +
-          pixelRatioIdentifier +
-          source.slice(fileExtIndex);
+        var candidate = source.slice(0, fileExtIndex) + pixelRatioIdentifier + source.slice(fileExtIndex);
 
         if (this.has(candidate)) {
           return candidate;
@@ -184,6 +173,12 @@ qx.Class.define("qx.util.ResourceManager", {
       var size;
       if (id && id.startsWith("@")) {
         var part = id.split("/");
+        if (part.length > 2) {
+          size = parseInt(part[3], 10);
+          if (size) {
+            return size;
+          }
+        }
         size = parseInt(part[2], 10);
         if (size) {
           id = part[0] + "/" + part[1];
@@ -245,11 +240,7 @@ qx.Class.define("qx.util.ResourceManager", {
     getCombinedFormat(id) {
       var clippedtype = "";
       var entry = this.self(arguments).__registry[id];
-      var isclipped =
-        entry &&
-        entry.length > 4 &&
-        typeof entry[4] == "string" &&
-        this.constructor.__registry[entry[4]];
+      var isclipped = entry && entry.length > 4 && typeof entry[4] == "string" && this.constructor.__registry[entry[4]];
       if (isclipped) {
         var combId = entry[4];
         var combImg = this.constructor.__registry[combId];
@@ -287,19 +278,11 @@ qx.Class.define("qx.util.ResourceManager", {
       }
 
       var urlPrefix = "";
-      if (
-        qx.core.Environment.get("engine.name") == "mshtml" &&
-        qx.core.Environment.get("io.ssl")
-      ) {
+      if (qx.core.Environment.get("engine.name") == "mshtml" && qx.core.Environment.get("io.ssl")) {
         urlPrefix = this.self(arguments).__urlPrefix[lib];
       }
 
-      return (
-        urlPrefix +
-        qx.util.LibraryManager.getInstance().get(lib, "resourceUri") +
-        "/" +
-        id
-      );
+      return urlPrefix + qx.util.LibraryManager.getInstance().get(lib, "resourceUri") + "/" + id;
     },
 
     /**
@@ -319,13 +302,7 @@ qx.Class.define("qx.util.ResourceManager", {
       var uri;
       if (combined) {
         var resstruct = combined[4][resid];
-        uri =
-          "data:image/" +
-          resstruct["type"] +
-          ";" +
-          resstruct["encoding"] +
-          "," +
-          resstruct["data"];
+        uri = "data:image/" + resstruct["type"] + ";" + resstruct["encoding"] + "," + resstruct["data"];
       } else {
         uri = this.toUri(resid);
       }
@@ -389,10 +366,7 @@ qx.Class.define("qx.util.ResourceManager", {
         for (var lib in qx.$$libraries) {
           var resourceUri;
           if (qx.util.LibraryManager.getInstance().get(lib, "resourceUri")) {
-            resourceUri = qx.util.LibraryManager.getInstance().get(
-              lib,
-              "resourceUri"
-            );
+            resourceUri = qx.util.LibraryManager.getInstance().get(lib, "resourceUri");
           } else {
             // default for libraries without a resourceUri set
             statics.__urlPrefix[lib] = "";
@@ -418,8 +392,7 @@ qx.Class.define("qx.util.ResourceManager", {
             if (href) {
               statics.__urlPrefix[lib] = href;
             } else {
-              statics.__urlPrefix[lib] =
-                window.location.protocol + "//" + window.location.host;
+              statics.__urlPrefix[lib] = window.location.protocol + "//" + window.location.host;
             }
           }
           // If the resolved URL begins with "./" the final URL has to be
@@ -427,10 +400,7 @@ qx.Class.define("qx.util.ResourceManager", {
           // IMPORTANT: this is only applicable for the source version
           else if (resourceUri.match(/^\.\//) != null) {
             var url = document.URL;
-            statics.__urlPrefix[lib] = url.substring(
-              0,
-              url.lastIndexOf("/") + 1
-            );
+            statics.__urlPrefix[lib] = url.substring(0, url.lastIndexOf("/") + 1);
           } else if (resourceUri.match(/^http/) != null) {
             // Let absolute URLs pass through
             statics.__urlPrefix[lib] = "";
@@ -446,10 +416,7 @@ qx.Class.define("qx.util.ResourceManager", {
               }
             }
 
-            statics.__urlPrefix[lib] = href.substring(
-              0,
-              href.lastIndexOf("/") + 1
-            );
+            statics.__urlPrefix[lib] = href.substring(0, href.lastIndexOf("/") + 1);
           }
         }
       }

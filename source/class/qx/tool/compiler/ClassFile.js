@@ -21,6 +21,7 @@
  * *********************************************************************** */
 
 /* eslint-disable padded-blocks */
+// prettier-ignore
 
 var fs = require("fs");
 var babelCore = require("@babel/core");
@@ -106,10 +107,7 @@ function isCollapsibleLiteral(node) {
  */
 function expandMemberExpression(str) {
   var segs = str.split(".");
-  var expr = types.memberExpression(
-    types.identifier(segs[0]),
-    types.identifier(segs[1])
-  );
+  var expr = types.memberExpression(types.identifier(segs[0]), types.identifier(segs[1]));
 
   for (var i = 2; i < segs.length; i++) {
     expr = types.memberExpression(expr, types.identifier(segs[i]));
@@ -241,8 +239,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     this.__privateMangling = analyser.getManglePrivates();
 
     const CF = qx.tool.compiler.ClassFile;
-    const addSymbols = arr =>
-      arr.forEach(s => (this.__globalSymbols[s] = true));
+    const addSymbols = arr => arr.forEach(s => (this.__globalSymbols[s] = true));
     if (analyser.getGlobalSymbols().length) {
       addSymbols(analyser.getGlobalSymbols());
     } else {
@@ -336,156 +333,126 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       t.__fatalCompileError = false;
       t.__numClassesDefined = 0;
 
-      fs.readFile(
-        this.getSourcePath(),
-        { encoding: "utf-8" },
-        function (err, src) {
+      fs.readFile(this.getSourcePath(), { encoding: "utf-8" }, function (err, src) {
+        if (err) {
+          callback(err);
+          return;
+        }
+        var result;
+        try {
+          let babelConfig = t.__analyser.getBabelConfig() || {};
+          let options = qx.lang.Object.clone(babelConfig.options || {}, true);
+          options.modules = false;
+          let extraPreset = [
+            {
+              plugins: []
+            }
+          ];
+
+          if (babelConfig.plugins) {
+            for (let key in babelConfig.plugins) {
+              if (babelConfig.plugins[key] === true) {
+                extraPreset[0].plugins.push(require.resolve(key));
+              } else if (babelConfig.plugins[key]) {
+                extraPreset[0].plugins.push([require.resolve(key), babelConfig.plugins[key]]);
+              }
+            }
+          }
+          let myPlugins = t._babelClassPlugins();
+          var config = {
+            babelrc: false,
+            sourceFileName: t.getSourcePath(),
+            filename: t.getSourcePath(),
+            sourceMaps: true,
+            presets: [
+              [require.resolve("@babel/preset-react"), qx.tool.compiler.ClassFile.JSX_OPTIONS],
+              [
+                {
+                  plugins: [myPlugins.CodeElimination]
+                }
+              ],
+
+              [
+                {
+                  plugins: [myPlugins.Compiler]
+                }
+              ],
+
+              [require.resolve("@babel/preset-env"), options],
+              [require.resolve("@babel/preset-typescript")]
+            ],
+
+            generatorOpts: {
+              compact: false
+            },
+
+            parserOpts: {
+              allowSuperOutsideMethod: true,
+              sourceType: "script"
+            },
+
+            passPerPreset: true
+          };
+
+          if (extraPreset[0].plugins.length) {
+            config.presets.push(extraPreset);
+          }
+          if (this.__privateMangling == "unreadable") {
+            config.blacklist = ["spec.functionName"];
+          }
+          result = babelCore.transform(src, config);
+        } catch (ex) {
+          qx.tool.compiler.Console.log(ex);
+          t.addMarker("compiler.syntaxError", ex.loc, ex.message);
+          t.__fatalCompileError = true;
+          t._compileDbClassInfo();
+          callback();
+          return;
+        }
+
+        if (!t.__numClassesDefined) {
+          t.addMarker("compiler.missingClassDef");
+          t.__fatalCompileError = true;
+          t._compileDbClassInfo();
+          callback();
+          return;
+        }
+
+        if (!t.__metaDefinitions[className]) {
+          t.addMarker("compiler.wrongClassName", null, className, Object.keys(t.__metaDefinitions).join(", "));
+
+          t._compileDbClassInfo();
+        }
+
+        var pos = className.lastIndexOf(".");
+        var name = pos > -1 ? className.substring(pos + 1) : className;
+        var outputPath = t.getOutputPath();
+        qx.tool.utils.Utils.mkParentPath(outputPath, function (err) {
           if (err) {
             callback(err);
             return;
           }
-          var result;
-          try {
-            let babelConfig = t.__analyser.getBabelConfig() || {};
-            let options = qx.lang.Object.clone(babelConfig.options || {}, true);
-            options.modules = false;
-            let extraPreset = [
-              {
-                plugins: []
-              }
-            ];
-
-            if (babelConfig.plugins) {
-              for (let key in babelConfig.plugins) {
-                if (babelConfig.plugins[key] === true) {
-                  extraPreset[0].plugins.push(require.resolve(key));
-                } else if (babelConfig.plugins[key]) {
-                  extraPreset[0].plugins.push([
-                    require.resolve(key),
-                    babelConfig.plugins[key]
-                  ]);
-                }
-              }
-            }
-            let myPlugins = t._babelClassPlugins();
-            var config = {
-              babelrc: false,
-              sourceFileName: t.getSourcePath(),
-              filename: t.getSourcePath(),
-              sourceMaps: true,
-              presets: [
-                [
-                  {
-                    plugins: [myPlugins.CodeElimination]
-                  }
-                ],
-
-                [
-                  {
-                    plugins: [myPlugins.Compiler]
-                  }
-                ],
-
-                [require.resolve("@babel/preset-env"), options],
-                [require.resolve("@babel/preset-typescript")],
-                [
-                  require.resolve("@babel/preset-react"),
-                  qx.tool.compiler.ClassFile.JSX_OPTIONS
-                ]
-              ],
-
-              generatorOpts: {
-                compact: false
-              },
-
-              parserOpts: {
-                allowSuperOutsideMethod: true,
-                sourceType: "script"
-              },
-
-              passPerPreset: true
-            };
-
-            if (extraPreset[0].plugins.length) {
-              config.presets.push(extraPreset);
-            }
-            if (this.__privateMangling == "unreadable") {
-              config.blacklist = ["spec.functionName"];
-            }
-            result = babelCore.transform(src, config);
-          } catch (ex) {
-            qx.tool.compiler.Console.log(ex);
-            t.addMarker("compiler.syntaxError", ex.loc, ex.message);
-            t.__fatalCompileError = true;
-            t._compileDbClassInfo();
-            callback();
-            return;
+          let mappingUrl = name + ".js.map";
+          if (qx.lang.Array.contains(t.__analyser.getApplicationTypes(), "browser")) {
+            mappingUrl += "?dt=" + new Date().getTime();
           }
-
-          if (!t.__numClassesDefined) {
-            t.addMarker("compiler.missingClassDef");
-            t.__fatalCompileError = true;
-            t._compileDbClassInfo();
-            callback();
-            return;
-          }
-
-          if (!t.__metaDefinitions[className]) {
-            t.addMarker(
-              "compiler.wrongClassName",
-              null,
-              className,
-              Object.keys(t.__metaDefinitions).join(", ")
-            );
-
-            t._compileDbClassInfo();
-          }
-
-          var pos = className.lastIndexOf(".");
-          var name = pos > -1 ? className.substring(pos + 1) : className;
-          var outputPath = t.getOutputPath();
-          qx.tool.utils.Utils.mkParentPath(outputPath, function (err) {
+          fs.writeFile(outputPath, result.code + "\n\n//# sourceMappingURL=" + mappingUrl, { encoding: "utf-8" }, function (err) {
             if (err) {
               callback(err);
               return;
             }
-            let mappingUrl = name + ".js.map";
-            if (
-              qx.lang.Array.contains(
-                t.__analyser.getApplicationTypes(),
-                "browser"
-              )
-            ) {
-              mappingUrl += "?dt=" + new Date().getTime();
-            }
-            fs.writeFile(
-              outputPath,
-              result.code + "\n\n//# sourceMappingURL=" + mappingUrl,
-              { encoding: "utf-8" },
-              function (err) {
-                if (err) {
-                  callback(err);
-                  return;
-                }
-                fs.writeFile(
-                  outputPath + ".map",
-                  JSON.stringify(result.map, null, 2),
-                  { encoding: "utf-8" },
-                  function (err) {
-                    if (err) {
-                      callback(err);
-                      return;
-                    }
-                    t._waitForTaskQueueDrain(function () {
-                      callback();
-                    });
-                  }
-                );
+            fs.writeFile(outputPath + ".map", JSON.stringify(result.map, null, 2), { encoding: "utf-8" }, function (err) {
+              if (err) {
+                callback(err);
+                return;
               }
-            );
+              t._waitForTaskQueueDrain(function () {
+                callback();
+              });
+            });
           });
-        }
-      );
+        });
+      });
     },
 
     /**
@@ -582,17 +549,13 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       }
 
       // Environment Checks
-      if (
-        Object.keys(this.__environmentChecks.provided).length ||
-        Object.keys(this.__environmentChecks.required).length
-      ) {
+      if (Object.keys(this.__environmentChecks.provided).length || Object.keys(this.__environmentChecks.required).length) {
         dbClassInfo.environment = { provided: [], required: {} };
         for (let key in this.__environmentChecks.provided) {
           dbClassInfo.environment.provided.push(key);
         }
         for (let key in this.__environmentChecks.required) {
-          dbClassInfo.environment.required[key] =
-            this.__environmentChecks.required[key];
+          dbClassInfo.environment.required[key] = this.__environmentChecks.required[key];
         }
       }
 
@@ -622,11 +585,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         } else {
           dbClassInfo.unresolved.push(item);
           for (var j = 0; j < item.locations.length; j++) {
-            t.addMarker(
-              "symbol.unresolved#" + name,
-              item.locations[j].start,
-              name
-            );
+            t.addMarker("symbol.unresolved#" + name, item.locations[j].start, name);
           }
         }
       }
@@ -646,11 +605,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         dbClassInfo.fonts = fontNames;
         for (let fontName in this.__requiredFonts) {
           if (!this.__analyser.getFont(fontName)) {
-            t.addMarker(
-              "fonts.unresolved#" + fontName,
-              this.__requiredFonts[fontName].loc.start,
-              fontName
-            );
+            t.addMarker("fonts.unresolved#" + fontName, this.__requiredFonts[fontName].loc.start, fontName);
           }
         }
       }
@@ -692,9 +647,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       if (Object.keys(this.__commonjsModules).length > 0) {
         dbClassInfo.commonjsModules = {};
         for (let moduleName in this.__commonjsModules) {
-          dbClassInfo.commonjsModules[moduleName] = [
-            ...this.__commonjsModules[moduleName]
-          ];
+          dbClassInfo.commonjsModules[moduleName] = [...this.__commonjsModules[moduleName]];
         }
       }
 
@@ -826,24 +779,16 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         });
         checkNodeJsDocDirectives(node);
 
-        if (
-          node.key?.name === "_createQxObjectImpl" &&
-          t.__classMeta.type !== "interface"
-        ) {
+        if (node.key?.name === "_createQxObjectImpl" && t.__classMeta.type !== "interface") {
           if (t.__classMeta.type === "mixin") {
             if (t.__classMeta.className === "qx.core.MObjectId") {
               return;
             }
-            qx.tool.compiler.Console.print(
-              "qx.tool.compiler.compiler.mixinQxObjectImpl",
-              t.__classMeta.className
-            );
+            qx.tool.compiler.Console.print("qx.tool.compiler.compiler.mixinQxObjectImpl", t.__classMeta.className);
           }
 
           const injectCode = `{
-            let object = qx.core.MObjectId.handleObjects(${
-              t.__classMeta.className ?? "this.constructor"
-            }, this, ...arguments);
+            let object = qx.core.MObjectId.handleObjects(${t.__classMeta.className ?? "this.constructor"}, this, ...arguments);
             if (object !== undefined) {
               return object;
             }
@@ -918,11 +863,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         }
 
         if (sectionName === "members" || sectionName === "statics") {
-          if (
-            node.type == "ObjectMethod" ||
-            node.value.type === "FunctionExpression" ||
-            node.value.type === "MemberExpression"
-          ) {
+          if (node.type == "ObjectMethod" || node.value.type === "FunctionExpression" || node.value.type === "MemberExpression") {
             meta.type = "function";
           } else {
             meta.type = "variable";
@@ -972,9 +913,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
           if (
             env["qx.environment.allowRuntimeMutations"] !== true &&
-            (name === "qx.core.Environment.select" ||
-              name === "qx.core.Environment.get") &&
-            types.isLiteral(path.node.arguments[0]) 
+            (name === "qx.core.Environment.select" || name === "qx.core.Environment.get") &&
+            types.isLiteral(path.node.arguments[0])
           ) {
             const arg = path.node.arguments[0];
             const envValue = env[arg.value];
@@ -986,15 +926,11 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 return;
               } else if (name === "qx.core.Environment.select") {
                 const subPath = path.get("arguments.1");
-                let option = subPath.node.properties.find(
-                  prop => prop.key.value === envValue.toString()
-                );
+                let option = subPath.node.properties.find(prop => prop.key.value === envValue.toString());
 
                 if (!option) {
                   // try to find default value
-                  option = subPath.node.properties.find(
-                    prop => prop.key.value === "default"
-                  );
+                  option = subPath.node.properties.find(prop => prop.key.value === "default");
                 }
 
                 if (option) {
@@ -1033,11 +969,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             let node = path.node;
             if (types.isLiteral(node.left) && types.isLiteral(node.right)) {
               let result =
-                (node.operator == "&&" &&
-                  node.left.value &&
-                  node.right.value) ||
-                (node.operator == "||" &&
-                  (node.left.value || node.right.value));
+                (node.operator == "&&" && node.left.value && node.right.value) ||
+                (node.operator == "||" && (node.left.value || node.right.value));
               path.replaceWith(literalValueToExpression(result));
             }
           }
@@ -1046,10 +979,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         BinaryExpression: {
           exit(path) {
             let node = path.node;
-            if (
-              isCollapsibleLiteral(node.left) &&
-              isCollapsibleLiteral(node.right)
-            ) {
+            if (isCollapsibleLiteral(node.left) && isCollapsibleLiteral(node.right)) {
               if ("+-*/".indexOf(node.operator) > -1) {
                 let result;
                 switch (node.operator) {
@@ -1096,10 +1026,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
         UnaryExpression: {
           exit(path) {
-            if (
-              path.node.operator === "!" &&
-              types.isLiteral(path.node.argument)
-            ) {
+            if (path.node.operator === "!" && types.isLiteral(path.node.argument)) {
               path.replaceWith(types.booleanLiteral(!path.node.argument.value));
             }
           }
@@ -1117,11 +1044,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             if (prop.type == "ObjectMethod") {
               result[key] = "[[ ObjectMethod Function ]]";
             } else {
-              var value = collectJson(
-                prop.value,
-                isProperties,
-                nextJsonPath + key
-              );
+              var value = collectJson(prop.value, isProperties, nextJsonPath + key);
 
               result[key] = value;
             }
@@ -1135,12 +1058,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         ) {
           if (typeof node.value == "string") {
             let isIdentifier = false;
-            if (
-              isProperties &&
-              (jsonPath === "apply" ||
-                jsonPath === "transform" ||
-                jsonPath === "isEqual")
-            ) {
+            if (isProperties && (jsonPath === "apply" || jsonPath === "transform" || jsonPath === "isEqual")) {
               isIdentifier = true;
             }
             node.value = t.encodePrivate(node.value, isIdentifier, node.loc);
@@ -1154,11 +1072,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         } else if (node.type == "Identifier") {
           node.name = t.encodePrivate(node.name, true, node.loc);
           result = node.name;
-        } else if (
-          node.type == "CallExpression" ||
-          node.type == "FunctionExpression" ||
-          node.type == "ArrowFunctionExpression"
-        ) {
+        } else if (node.type == "CallExpression" || node.type == "FunctionExpression" || node.type == "ArrowFunctionExpression") {
           result = new Function("[[ Function ]]");
         } else if (node.type == "MemberExpression") {
           result = collapseMemberExpression(node);
@@ -1175,10 +1089,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             }
           }
           result = "[[ UnaryExpression ]]";
-        } else if (
-          node.type == "NewExpression" ||
-          node.type == "BinaryExpression"
-        ) {
+        } else if (node.type == "NewExpression" || node.type == "BinaryExpression") {
           result = "[[ " + node.type + " ]]";
         } else {
           t.warn(
@@ -1186,9 +1097,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
               node.type +
               " at " +
               t.__className +
-              (node.loc
-                ? " [" + node.loc.start.line + "," + node.loc.start.column + "]"
-                : "")
+              (node.loc ? " [" + node.loc.start.line + "," + node.loc.start.column + "]" : "")
           );
 
           result = null;
@@ -1264,20 +1173,14 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       };
 
       function isValidExtendClause(prop) {
-        if (
-          prop.value.type == "MemberExpression" ||
-          prop.value.type == "Identifier" ||
-          prop.value.type == "NullLiteral"
-        ) {
+        if (prop.value.type == "MemberExpression" || prop.value.type == "Identifier" || prop.value.type == "NullLiteral") {
           return true;
         }
         if (t.__classMeta.type === "class") {
           return false;
         }
         if (prop.value.type == "ArrayExpression") {
-          return prop.value.elements.every(
-            elem => elem.type == "MemberExpression" || elem.type == "Identifier"
-          );
+          return prop.value.elements.every(elem => elem.type == "MemberExpression" || elem.type == "Identifier");
         }
         return false;
       }
@@ -1290,25 +1193,15 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
       function ensureCreateQxObjectImpl(membersPropertyPath) {
         // if we are in a class with no top-level properties, don't bother creating _createQxObjectImpl
-        if (
-          !membersPropertyPath.parent.properties.some(
-            p => p.key?.name === "objects"
-          )
-        ) {
+        if (!membersPropertyPath.parent.properties.some(p => p.key?.name === "objects")) {
           return;
         }
 
         const membersPropertyNode = membersPropertyPath.node;
-        const memberNames = membersPropertyNode?.value?.properties?.map(
-          it => it.key.name
-        );
+        const memberNames = membersPropertyNode?.value?.properties?.map(it => it.key.name);
 
         if (!memberNames) {
-          t.addMarker(
-            "compiler.membersNotAnObject",
-            membersPropertyPath.loc,
-            t.__classMeta.type
-          );
+          t.addMarker("compiler.membersNotAnObject", membersPropertyPath.loc, t.__classMeta.type);
 
           return;
         }
@@ -1325,14 +1218,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           errorRecovery: true
         }).program.body[0];
 
-        membersPropertyNode.value.properties.push(
-          types.objectMethod(
-            "method",
-            types.identifier("_createQxObjectImpl"),
-            [],
-            functionBlock
-          )
-        );
+        membersPropertyNode.value.properties.push(types.objectMethod("method", types.identifier("_createQxObjectImpl"), [], functionBlock));
       }
 
       function checkValidTopLevel(path) {
@@ -1340,16 +1226,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         var keyName = getKeyName(prop.key);
         let allowedKeys = ALLOWED_KEYS[t.__classMeta.type];
         if (t.__classMeta.type === "class") {
-          allowedKeys =
-            allowedKeys[t.__classMeta.isStatic ? "static" : "normal"];
+          allowedKeys = allowedKeys[t.__classMeta.isStatic ? "static" : "normal"];
         }
         if (allowedKeys[keyName] === undefined) {
-          t.addMarker(
-            "compiler.invalidClassDefinitionEntry",
-            prop.loc,
-            t.__classMeta.type,
-            keyName
-          );
+          t.addMarker("compiler.invalidClassDefinitionEntry", prop.loc, t.__classMeta.type, keyName);
         }
       }
 
@@ -1358,11 +1238,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           t.__hasDefer = true;
           t.__inDefer = true;
         }
-        var isSpecialFunctionName =
-          Object.keys(FUNCTION_NAMES).includes(keyName);
-        t.__classMeta.functionName = isSpecialFunctionName
-          ? FUNCTION_NAMES[keyName]
-          : keyName;
+        var isSpecialFunctionName = Object.keys(FUNCTION_NAMES).includes(keyName);
+        t.__classMeta.functionName = isSpecialFunctionName ? FUNCTION_NAMES[keyName] : keyName;
         if (isSpecialFunctionName) {
           makeMeta(keyName, null, functionNode);
         }
@@ -1417,13 +1294,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           }
           var keyName = getKeyName(prop.key);
           checkValidTopLevel(path);
-          var isSpecialFunctionName =
-            Object.keys(FUNCTION_NAMES).includes(keyName);
+          var isSpecialFunctionName = Object.keys(FUNCTION_NAMES).includes(keyName);
           if (isSpecialFunctionName) {
             let val = path.node.value;
-            val.leadingComments = (path.node.leadingComments || []).concat(
-              val.leadingComments || []
-            );
+            val.leadingComments = (path.node.leadingComments || []).concat(val.leadingComments || []);
 
             handleTopLevelMethods(path, keyName, val);
             return;
@@ -1454,12 +1328,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             path.traverse(COLLECT_CLASS_NAMES_VISITOR, {
               collectedClasses: t.__classMeta.mixins
             });
-          } else if (
-            keyName == "members" ||
-            keyName == "statics" ||
-            keyName == "objects" ||
-            keyName == "@"
-          ) {
+          } else if (keyName == "members" || keyName == "statics" || keyName == "objects" || keyName == "@") {
             t.__classMeta._topLevel = {
               path,
               keyName
@@ -1482,18 +1351,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 var data = collectJson(pdNode.value, true);
                 meta.name = propName;
                 meta.propertyType = "new";
-                [
-                  "refine",
-                  "themeable",
-                  "event",
-                  "inheritable",
-                  "apply",
-                  "async",
-                  "group",
-                  "nullable",
-                  "init",
-                  "transform"
-                ].forEach(name => (meta[name] = data[name]));
+                ["refine", "themeable", "event", "inheritable", "apply", "async", "group", "nullable", "init", "transform"].forEach(
+                  name => (meta[name] = data[name])
+                );
                 if (data.nullable !== undefined) {
                   meta.allowNull = data.nullable;
                 }
@@ -1585,20 +1445,13 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           },
           exit(path) {
             if (t.__analyser.isAddCreatedAt()) {
-              var fn = types.memberExpression(
-                types.identifier("qx"),
-                types.identifier("$$createdAt")
-              );
+              var fn = types.memberExpression(types.identifier("qx"), types.identifier("$$createdAt"));
 
               var tmp = types.callExpression(fn, [
                 path.node,
                 types.stringLiteral(t.__className.replace(/\./g, "/") + ".js"),
-                types.numericLiteral(
-                  path.node.loc ? path.node.loc.start.line : 0
-                ),
-                types.numericLiteral(
-                  path.node.loc ? path.node.loc.start.column : 0
-                ),
+                types.numericLiteral(path.node.loc ? path.node.loc.start.line : 0),
+                types.numericLiteral(path.node.loc ? path.node.loc.start.column : 0),
                 types.booleanLiteral(t.__analyser.isVerboseCreatedAt())
               ]);
 
@@ -1633,10 +1486,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             if (dbClassInfo.dependsOn) {
               copyInfo.dependsOn = {};
               Object.keys(dbClassInfo.dependsOn).forEach(key => {
-                let tmp = (copyInfo.dependsOn[key] = Object.assign(
-                  {},
-                  dbClassInfo.dependsOn[key]
-                ));
+                let tmp = (copyInfo.dependsOn[key] = Object.assign({}, dbClassInfo.dependsOn[key]));
 
                 if (tmp.load) {
                   delete tmp.load;
@@ -1658,31 +1508,19 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
               }
             }
             let tmp = types.variableDeclaration("var", [
-              types.variableDeclarator(
-                types.identifier("$$dbClassInfo"),
-                literalValueToExpression(copyInfo)
-              )
+              types.variableDeclarator(types.identifier("$$dbClassInfo"), literalValueToExpression(copyInfo))
             ]);
 
             let inject = [tmp];
             if (hasLoadDeps) {
-              tmp = babylon.parse(
-                "qx.Bootstrap.executePendingDefers($$dbClassInfo);"
-              ).program.body;
+              tmp = babylon.parse("qx.Bootstrap.executePendingDefers($$dbClassInfo);").program.body;
               inject.push(tmp[0]);
             }
             path.node.body.forEach(node => inject.push(node));
-            tmp = babylon.parse(
-              t.__className + ".$$dbClassInfo = $$dbClassInfo;"
-            ).program.body;
+            tmp = babylon.parse(t.__className + ".$$dbClassInfo = $$dbClassInfo;").program.body;
             inject.push(tmp[0]);
             let block = types.blockStatement(inject);
-            let rootFn = types.expressionStatement(
-              types.callExpression(
-                types.functionExpression(null, [], block),
-                []
-              )
-            );
+            let rootFn = types.expressionStatement(types.callExpression(types.functionExpression(null, [], block), []));
 
             path.node.body.splice(0, path.node.body.length, rootFn);
           }
@@ -1769,10 +1607,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           let root = path;
           while (root) {
             let parentType = root.parentPath.node.type;
-            if (
-              parentType == "MemberExpression" ||
-              parentType == "OptionalMemberExpression"
-            ) {
+            if (parentType == "MemberExpression" || parentType == "OptionalMemberExpression") {
               root = root.parentPath;
               continue;
             }
@@ -1848,23 +1683,14 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 let arg = path.node.arguments[0];
                 if (types.isLiteral(arg)) {
                   if (typeof arg.value != "string") {
-                    t.addMarker(
-                      "compiler.requireLiteralArguments",
-                      path.node.loc,
-                      arg.value
-                    );
+                    t.addMarker("compiler.requireLiteralArguments", path.node.loc, arg.value);
                   } else {
                     if (qx.tool.compiler.Console.getInstance().getVerbose()) {
                       qx.tool.compiler.Console.log(
-                        `${t.__className}:${path.node.loc.start.line}:` +
-                          ` automatically detected \'require(${arg.value})\``
+                        `${t.__className}:${path.node.loc.start.line}:` + ` automatically detected \'require(${arg.value})\``
                       );
                     }
-                    t.addCommonjsModule(
-                      arg.value,
-                      t.__className,
-                      path.node.loc.start.line
-                    );
+                    t.addCommonjsModule(arg.value, t.__className, path.node.loc.start.line);
 
                     // Don't show "unresolved" error for `require` since the
                     // browserified code defines it as a global
@@ -1876,9 +1702,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
             if (
               types.isMemberExpression(path.node.callee) ||
-              (es6ClassDeclarations == 0 &&
-                (path.node.callee.object?.type == "Super" ||
-                  path.node.callee.type == "Super"))
+              (es6ClassDeclarations == 0 && (path.node.callee.object?.type == "Super" || path.node.callee.type == "Super"))
             ) {
               let name = collapseMemberExpression(path.node.callee);
               let thisAlias = null;
@@ -1940,18 +1764,11 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
                 let meta = makeMeta("clazz", null, path.parent);
                 t.__classMeta.type = TYPE[name];
-                if (
-                  t.__definingType == "Class" ||
-                  t.__definingType == "Bootstrap"
-                ) {
-                  let typeProp = classDef.properties.find(
-                    prop =>
-                      prop.key.type == "Identifier" && prop.key.value == "type"
-                  );
+                if (t.__definingType == "Class" || t.__definingType == "Bootstrap") {
+                  let typeProp = classDef.properties.find(prop => prop.key.type == "Identifier" && prop.key.value == "type");
 
                   if (typeProp) {
-                    (t.__classMeta.isStatic == typeProp.value.type) ==
-                      "Literal" && typeProp.value.value === "static";
+                    (t.__classMeta.isStatic == typeProp.value.type) == "Literal" && typeProp.value.value === "static";
                   }
                 }
                 checkJsDocDirectives(meta.jsdoc, path.node.loc);
@@ -1964,20 +1781,13 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 path.skip();
 
                 const classDefPojo = path.node.arguments[1];
-                const objectsNode = classDefPojo.properties.find(
-                  prop => prop.key.name == "objects"
-                );
+                const objectsNode = classDefPojo.properties.find(prop => prop.key.name == "objects");
 
                 if (objectsNode) {
-                  const membersNode = classDefPojo.properties.find(
-                    prop => prop.key.name == "members"
-                  );
+                  const membersNode = classDefPojo.properties.find(prop => prop.key.name == "members");
 
                   if (!membersNode) {
-                    const membersProperty = types.objectProperty(
-                      types.identifier("members"),
-                      types.objectExpression([])
-                    );
+                    const membersProperty = types.objectProperty(types.identifier("members"), types.objectExpression([]));
 
                     classDefPojo.properties.push(membersProperty);
                   }
@@ -1989,26 +1799,16 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 let arg = path.node.arguments[0];
                 if (types.isLiteral(arg)) {
                   if (typeof arg.value != "string") {
-                    log.error(
-                      "Invalid argument to qx.core.Environment.add: " +
-                        arg.value
-                    );
+                    log.error("Invalid argument to qx.core.Environment.add: " + arg.value);
                   } else {
                     t.__environmentChecks.provided[arg.value] = true;
                     if (
                       !arg.value.startsWith(t.__className) &&
-                      !Object.prototype.hasOwnProperty.call(
-                        qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS,
-                        arg.value
-                      )
+                      !Object.prototype.hasOwnProperty.call(qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS, arg.value)
                     ) {
                       let symbol = t.__library.getSymbolType(arg.value);
                       if (!symbol || symbol.symbolType != "environment") {
-                        t.addMarker(
-                          "environment.unreachable",
-                          path.node.loc,
-                          arg.value
-                        );
+                        t.addMarker("environment.unreachable", path.node.loc, arg.value);
                       }
                     }
                   }
@@ -2021,10 +1821,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 let arg = path.node.arguments[0];
                 if (types.isLiteral(arg)) {
                   if (typeof arg.value != "string") {
-                    log.error(
-                      "Invalid argument to qx.core.Environment.get: " +
-                        arg.value
-                    );
+                    log.error("Invalid argument to qx.core.Environment.get: " + arg.value);
                   } else {
                     t.addEnvCheck(arg.value, path.node.loc);
                   }
@@ -2040,10 +1837,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 let arg = path.node.arguments[0];
                 if (types.isLiteral(arg)) {
                   if (typeof arg.value != "string") {
-                    log.error(
-                      "Invalid argument to qx.core.Environment.select: " +
-                        arg.value
-                    );
+                    log.error("Invalid argument to qx.core.Environment.select: " + arg.value);
                   } else {
                     t.addEnvCheck(arg.value, path.node.loc);
                   }
@@ -2056,50 +1850,30 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
                 path.skip();
                 path.traverse(VISITOR);
-              } else if (
-                name == "this.base" ||
-                (es6ClassDeclarations == 0 &&
-                  (name == "super" || name.startsWith("super.")))
-              ) {
+              } else if (name == "this.base" || (es6ClassDeclarations == 0 && (name == "super" || name.startsWith("super.")))) {
                 let expr;
 
                 // For mixins, there is never a valid time to call this.base() in the constructor; but it is
                 //  OK in methods - but we have to refer to superclass.methodName directly.  For ordinary
                 //  classes, we need to use constructor.methodName.base.
                 if (t.__definingType == "Mixin") {
-                  expr = types.callExpression(
-                    expandMemberExpression("qx.Mixin.baseClassMethod"),
-                    [
-                      expandMemberExpression("this.constructor"),
-                      types.identifier(t.__classMeta.className),
-                      types.stringLiteral(t.__classMeta.functionName)
-                    ]
-                  );
+                  expr = types.callExpression(expandMemberExpression("qx.Mixin.baseClassMethod"), [
+                    expandMemberExpression("this.constructor"),
+                    types.identifier(t.__classMeta.className),
+                    types.stringLiteral(t.__classMeta.functionName)
+                  ]);
 
                   expr = types.memberExpression(expr, types.identifier("call"));
                 } else if (t.__classMeta.functionName == "$$constructor") {
-                  expr = expandMemberExpression(
-                    t.__classMeta.superClass + ".constructor.call"
-                  );
+                  expr = expandMemberExpression(t.__classMeta.superClass + ".constructor.call");
                 } else if (t.__classMeta.className) {
                   expr = expandMemberExpression(
-                    t.__classMeta.className +
-                      ".superclass" +
-                      ".prototype." +
-                      t.__classMeta.functionName +
-                      ".call"
+                    t.__classMeta.className + ".superclass" + ".prototype." + t.__classMeta.functionName + ".call"
                   );
                 } else {
-                  expr = expandMemberExpression(
-                    t.__classMeta.superClass +
-                      ".prototype." +
-                      t.__classMeta.functionName +
-                      ".call"
-                  );
+                  expr = expandMemberExpression(t.__classMeta.superClass + ".prototype." + t.__classMeta.functionName + ".call");
                 }
-                let thisArgument = thisAlias
-                  ? types.identifier(thisAlias)
-                  : types.thisExpression();
+                let thisArgument = thisAlias ? types.identifier(thisAlias) : types.thisExpression();
                 if (name.startsWith("super")) {
                   path.node.arguments.unshift(thisArgument);
                 } else {
@@ -2107,31 +1881,16 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 }
                 let callExpr = types.callExpression(expr, path.node.arguments);
                 path.replaceWith(callExpr);
-              } else if (
-                name == "this.base.apply" ||
-                name == "this.base.call"
-              ) {
+              } else if (name == "this.base.apply" || name == "this.base.call") {
                 let methodName = name == "this.base.apply" ? "apply" : "call";
 
                 let expr;
                 if (t.__definingType == "Mixin") {
-                  expr = expandMemberExpression(
-                    "this.constructor.superclass.prototype." +
-                      t.__classMeta.functionName +
-                      ".call"
-                  );
+                  expr = expandMemberExpression("this.constructor.superclass.prototype." + t.__classMeta.functionName + ".call");
                 } else if (t.__classMeta.functionName == "$$constructor") {
-                  expr = expandMemberExpression(
-                    t.__classMeta.superClass + ".constructor." + methodName
-                  );
+                  expr = expandMemberExpression(t.__classMeta.superClass + ".constructor." + methodName);
                 } else {
-                  expr = expandMemberExpression(
-                    t.__className +
-                      ".prototype." +
-                      t.__classMeta.functionName +
-                      ".base." +
-                      methodName
-                  );
+                  expr = expandMemberExpression(t.__className + ".prototype." + t.__classMeta.functionName + ".base." + methodName);
                 }
 
                 // Original call to this.base.apply would have included arguments in the first element of the array
@@ -2139,23 +1898,14 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 //    `this.base.apply(this, args)` to
                 //    `this.base.apply(this, args.slice().shift())`
                 let exprSplice = types.callExpression(
-                  types.memberExpression(
-                    path.node.arguments[1],
-                    types.identifier("slice")
-                  ),
+                  types.memberExpression(path.node.arguments[1], types.identifier("slice")),
 
                   []
                 );
 
-                let exprUnshift = types.callExpression(
-                  types.memberExpression(exprSplice, types.identifier("shift")),
-                  []
-                );
+                let exprUnshift = types.callExpression(types.memberExpression(exprSplice, types.identifier("shift")), []);
 
-                let callExpr = types.callExpression(expr, [
-                  path.node.arguments[0],
-                  exprUnshift
-                ]);
+                let callExpr = types.callExpression(expr, [path.node.arguments[0], exprUnshift]);
 
                 path.replaceWith(callExpr);
               } else if (name == "this.self") {
@@ -2169,61 +1919,32 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
               ) {
                 let arg0 = getStringArg(0);
                 if (!arg0) {
-                  t.addMarker(
-                    "translate.invalidMessageId",
-                    path.node.loc,
-                    arg0 ?? ""
-                  );
+                  t.addMarker("translate.invalidMessageId", path.node.loc, arg0 ?? "");
                 } else {
                   addTranslation({ msgid: arg0 });
                 }
-              } else if (
-                name == "this.trn" ||
-                name == "qx.locale.Manager.trn"
-              ) {
+              } else if (name == "this.trn" || name == "qx.locale.Manager.trn") {
                 let arg0 = getStringArg(0);
                 let arg1 = getStringArg(1);
                 if (!arg0 || !arg1) {
-                  t.addMarker(
-                    "translate.invalidMessageIds",
-                    path.node.loc,
-                    arg0 ?? "",
-                    arg1 ?? ""
-                  );
+                  t.addMarker("translate.invalidMessageIds", path.node.loc, arg0 ?? "", arg1 ?? "");
                 } else {
                   addTranslation({ msgid: arg0, msgid_plural: arg1 });
                 }
-              } else if (
-                name == "this.trc" ||
-                name == "qx.locale.Manager.trc"
-              ) {
+              } else if (name == "this.trc" || name == "qx.locale.Manager.trc") {
                 let arg0 = getStringArg(0);
                 let arg1 = getStringArg(1);
                 if (!arg0 || !arg1) {
-                  t.addMarker(
-                    "translate.invalidMessageIds",
-                    path.node.loc,
-                    arg0,
-                    arg1
-                  );
+                  t.addMarker("translate.invalidMessageIds", path.node.loc, arg0, arg1);
                 } else {
                   addTranslation({ msgid: arg1, comment: arg0 });
                 }
-              } else if (
-                name == "this.trnc" ||
-                name == "qx.locale.Manager.trnc"
-              ) {
+              } else if (name == "this.trnc" || name == "qx.locale.Manager.trnc") {
                 let arg0 = getStringArg(0);
                 let arg1 = getStringArg(1);
                 let arg2 = getStringArg(2);
                 if (!arg0 || !arg1 || !arg2) {
-                  t.addMarker(
-                    "translate.invalidMessageIds3",
-                    path.node.loc,
-                    arg0,
-                    arg1,
-                    arg2
-                  );
+                  t.addMarker("translate.invalidMessageIds3", path.node.loc, arg0, arg1, arg2);
                 } else {
                   addTranslation({
                     msgid: arg1,
@@ -2261,10 +1982,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             }
 
             // Handle `[ 123 ].blah()` by visiting
-            if (
-              path.node.object.type == "MemberExpression" &&
-              path.node.object.object.type == "ArrayExpression"
-            ) {
+            if (path.node.object.type == "MemberExpression" && path.node.object.object.type == "ArrayExpression") {
               return;
             }
 
@@ -2301,14 +2019,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         ObjectProperty: {
           exit(path) {
             if (this.__privateMangling == "readable") {
-              if (
-                path.node.value.type == "FunctionExpression" &&
-                path.node.value.id === null
-              ) {
-                let functionName =
-                  typeof path.node.key.value == "string"
-                    ? path.node.key.value
-                    : path.node.key.name;
+              if (path.node.value.type == "FunctionExpression" && path.node.value.id === null) {
+                let functionName = typeof path.node.key.value == "string" ? path.node.key.value : path.node.key.name;
                 if (!qx.tool.compiler.ClassFile.RESERVED_WORDS[functionName]) {
                   path.node.value.id = types.identifier(functionName);
                 }
@@ -2318,29 +2030,15 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         },
 
         Property(path) {
-          if (
-            t.__classMeta &&
-            t.__classMeta._topLevel &&
-            t.__classMeta._topLevel.path == path.parentPath.parentPath
-          ) {
+          if (t.__classMeta && t.__classMeta._topLevel && t.__classMeta._topLevel.path == path.parentPath.parentPath) {
             t.__classMeta.functionName = getKeyName(path.node.key);
-            makeMeta(
-              t.__classMeta._topLevel.keyName,
-              t.__classMeta.functionName,
-              path.node
-            );
+            makeMeta(t.__classMeta._topLevel.keyName, t.__classMeta.functionName, path.node);
 
             path.skip();
             let functionId = null;
             if (this.__privateMangling == "readable") {
-              if (
-                path.node.value.type == "FunctionExpression" &&
-                path.node.value.id === null
-              ) {
-                let functionName =
-                  typeof path.node.key.value == "string"
-                    ? path.node.key.value
-                    : path.node.key.name;
+              if (path.node.value.type == "FunctionExpression" && path.node.value.id === null) {
+                let functionName = typeof path.node.key.value == "string" ? path.node.key.value : path.node.key.name;
                 if (!qx.tool.compiler.ClassFile.RESERVED_WORDS[functionName]) {
                   functionId = types.identifier(functionName);
                 }
@@ -2356,20 +2054,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
         ObjectMethod(path) {
           // Methods within a top level object (ie "members" or "statics"), record the method name and meta data
-          if (
-            t.__classMeta &&
-            t.__classMeta._topLevel &&
-            t.__classMeta._topLevel.path == path.parentPath.parentPath
-          ) {
-            t.__classMeta.functionName =
-              t.__classMeta._topLevel.keyName == "objects"
-                ? "_createQxObjectImpl"
-                : getKeyName(path.node.key);
-            makeMeta(
-              t.__classMeta._topLevel.keyName,
-              t.__classMeta.functionName,
-              path.node
-            );
+          if (t.__classMeta && t.__classMeta._topLevel && t.__classMeta._topLevel.path == path.parentPath.parentPath) {
+            t.__classMeta.functionName = t.__classMeta._topLevel.keyName == "objects" ? "_createQxObjectImpl" : getKeyName(path.node.key);
+            makeMeta(t.__classMeta._topLevel.keyName, t.__classMeta.functionName, path.node);
 
             path.skip();
             enterFunction(path);
@@ -2503,12 +2190,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       }
       let meta = this.__metaStack[this.__metaStack.length - 1];
       if (className && meta.className != className) {
-        throw new Error(
-          "Wrong __metaStack entries to pop, expected " +
-            className +
-            " found " +
-            meta.className
-        );
+        throw new Error("Wrong __metaStack entries to pop, expected " + className + " found " + meta.className);
       }
       this.__metaStack.pop();
       meta = this.__metaStack[this.__metaStack.length - 1] || null;
@@ -2548,10 +2230,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             locations: []
           };
         }
-        entry.locations.push.apply(
-          entry.locations,
-          old.unresolved[name].locations
-        );
+        entry.locations.push.apply(entry.locations, old.unresolved[name].locations);
       }
     },
 
@@ -2587,7 +2266,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         delete unresolved[name];
         // Escape special regex characters and anchor to start of string
         // to prevent "x" from matching "qx.foo" (only match "x.foo")
-        var escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         var re = new RegExp("^" + escapedName + "\\.");
         for (var tmp in unresolved) {
           if (re.test(tmp)) {
@@ -2632,12 +2311,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       }
 
       // Global variable or a local variable?
-      if (
-        name[0] === "this" ||
-        name[0] === "[]" ||
-        this.__globalSymbols[name[0]] ||
-        this.hasDeclaration(name[0])
-      ) {
+      if (name[0] === "this" || name[0] === "[]" || this.__globalSymbols[name[0]] || this.hasDeclaration(name[0])) {
         return;
       }
 
@@ -2652,11 +2326,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         }
       }
       name = str;
-      if (
-        name == this.__className ||
-        name.startsWith(this.__className + ".") ||
-        name.startsWith("(")
-      ) {
+      if (name == this.__className || name.startsWith(this.__className + ".") || name.startsWith("(")) {
         return;
       }
 
@@ -2688,12 +2358,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         __filename: 1
       };
 
-      if (
-        DO_NOT_ENCODE[name] ||
-        this.__privateMangling == "off" ||
-        !name.startsWith("__") ||
-        !name.match(/^[0-9a-z_$]+$/i)
-      ) {
+      if (DO_NOT_ENCODE[name] || this.__privateMangling == "off" || !name.startsWith("__") || !name.match(/^[0-9a-z_$]+$/i)) {
         return name;
       }
 
@@ -2729,11 +2394,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         }
 
         if (this.__privateMangling == "readable") {
-          coded = this.__privates[name] =
-            name + prefix + Object.keys(this.__privates).length;
+          coded = this.__privates[name] = name + prefix + Object.keys(this.__privates).length;
         } else {
-          coded = this.__privates[name] =
-            prefix + Object.keys(this.__privates).length;
+          coded = this.__privates[name] = prefix + Object.keys(this.__privates).length;
         }
       }
       return coded;
@@ -2848,8 +2511,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       var requiredOpts = {
         load: t.isLoadScope(),
         defer: t.__inDefer,
-        construct:
-          t.__classMeta && t.__classMeta.functionName == "$$constructor",
+        construct: t.__classMeta && t.__classMeta.functionName == "$$constructor",
         location: location
       };
 
@@ -2868,12 +2530,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       }
       t._requireClass("qx.core.Environment", { location: location });
       let info = t.__analyser.getSymbolType(name);
-      if (
-        !Object.prototype.hasOwnProperty.call(
-          qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS,
-          name
-        )
-      ) {
+      if (!Object.prototype.hasOwnProperty.call(qx.tool.compiler.ClassFile.ENVIRONMENT_CONSTANTS, name)) {
         // Generally speaking, we try to have as few load dependencies as possible, and this
         // means that in a class' `.defer()` we will still allow for runtime loading.  However,
         // we pull environment checks up as this is a common use case; the problem this is trying
@@ -2986,8 +2643,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       let requireOpts = {
         load: t.isLoadScope(),
         defer: t.__inDefer,
-        construct:
-          t.__classMeta && t.__classMeta.functionName == "$$constructor"
+        construct: t.__classMeta && t.__classMeta.functionName == "$$constructor"
       };
 
       if (opts) {
@@ -3037,9 +2693,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
           if (!name.startsWith(t.__className)) {
             if (
-              !qx.tool.compiler.ClassFile.DEFER_SAFE_SYMBOLS.some(function (
-                symbol
-              ) {
+              !qx.tool.compiler.ClassFile.DEFER_SAFE_SYMBOLS.some(function (symbol) {
                 return name.startsWith(symbol);
               })
             ) {
@@ -3178,11 +2832,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     /**
      * Classes which are safe to access from defer methods (in addition to the class being defined)
      */
-    DEFER_SAFE_SYMBOLS: [
-      "qx.core.Environment",
-      "qx.Bootstrap",
-      "qx.core.Aspect"
-    ],
+    DEFER_SAFE_SYMBOLS: ["qx.core.Environment", "qx.Bootstrap", "qx.core.Aspect"],
 
     /**
      * List of global symbols to be ignored
@@ -3294,16 +2944,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       "localStorage"
     ],
 
-    NODE_GLOBALS: [
-      "Module",
-      "Buffer",
-      "require",
-      "module",
-      "process",
-      "setImmediate",
-      "__dirname",
-      "__filename"
-    ],
+    NODE_GLOBALS: ["Module", "Buffer", "require", "module", "process", "setImmediate", "__dirname", "__filename"],
 
     RHINO_GLOBALS: ["Packages", "java"],
 

@@ -207,6 +207,11 @@ qx.Class.define("qx.data.controller.List", {
     }
   },
 
+  events: {
+    beforeApplyModel: "qx.event.type.Event",
+    afterApplyModel: "qx.event.type.Event"
+  },
+
   members: {
     /**
      * Listener ID for the 'change' event of property `model`
@@ -263,17 +268,9 @@ qx.Class.define("qx.data.controller.List", {
      */
     _applyIconOptions(value, old) {
       if (qx.core.Environment.get("qx.debug")) {
-        this.assertFalse(
-          value && !qx.lang.Type.isObject(value),
-          "expecting an object"
-        );
+        this.assertFalse(value && !qx.lang.Type.isObject(value), "expecting an object");
 
-        this.assertTrue(
-          !!value.converter ||
-            !!value.onUpdate ||
-            !!value.onSetFail ||
-            !!value.ignoreConverter
-        );
+        this.assertTrue(!!value.converter || !!value.onUpdate || !!value.onSetFail || !!value.ignoreConverter);
       }
       this.__renewBindings();
     },
@@ -287,17 +284,9 @@ qx.Class.define("qx.data.controller.List", {
      */
     _applyLabelOptions(value, old) {
       if (qx.core.Environment.get("qx.debug")) {
-        this.assertFalse(
-          value && !qx.lang.Type.isObject(value),
-          "expecting an object"
-        );
+        this.assertFalse(value && !qx.lang.Type.isObject(value), "expecting an object");
 
-        this.assertTrue(
-          !!value.converter ||
-            !!value.onUpdate ||
-            !!value.onSetFail ||
-            !!value.ignoreConverter
-        );
+        this.assertTrue(!!value.converter || !!value.onUpdate || !!value.onSetFail || !!value.ignoreConverter);
       }
       this.__renewBindings();
     },
@@ -365,6 +354,8 @@ qx.Class.define("qx.data.controller.List", {
      * @param old {qx.data.Array|null} The old model array.
      */
     _applyModel(value, old) {
+      this.fireEvent("beforeApplyModel");
+
       // remove the old listener
       if (old != undefined) {
         if (this.__changeModelListenerId != undefined) {
@@ -374,21 +365,14 @@ qx.Class.define("qx.data.controller.List", {
 
       if (!this.getAllowSelectionNotInModel()) {
         //erase the selection if there is something selected
-        if (
-          this.getSelection() != undefined &&
-          this.getSelection().length > 0
-        ) {
+        if (this.getSelection() != undefined && this.getSelection().length > 0) {
           this.getSelection().splice(0, this.getSelection().length).dispose();
         }
       }
 
       if (value != null) {
         // add a new listener
-        this.__changeModelListenerId = value.addListener(
-          "change",
-          this.__changeModel,
-          this
-        );
+        this.__changeModelListenerId = value.addListener("change", this.__changeModel, this);
 
         // renew the index lookup table
         this.__buildUpLookupTable();
@@ -428,6 +412,8 @@ qx.Class.define("qx.data.controller.List", {
           }
         }
       }
+
+      this.fireEvent("afterApplyModel");
     },
 
     /**
@@ -581,11 +567,7 @@ qx.Class.define("qx.data.controller.List", {
       // maybe there is no model in some scenarios
       if (model != null) {
         model.removeListenerById(this.__changeModelListenerId);
-        this.__changeModelListenerId = model.addListener(
-          "change",
-          this.__changeModel,
-          this
-        );
+        this.__changeModelListenerId = model.addListener("change", this.__changeModel, this);
       }
     },
 
@@ -716,23 +698,16 @@ qx.Class.define("qx.data.controller.List", {
       this.bindProperty("", "model", null, item, index);
 
       // label
-      this.bindProperty(
-        this.getLabelPath(),
-        "label",
-        this.getLabelOptions(),
-        item,
-        index
-      );
+      this.bindProperty(this.getLabelPath(), "label", this.getLabelOptions(), item, index);
 
       // if the iconPath is set
       if (this.getIconPath() != null) {
-        this.bindProperty(
-          this.getIconPath(),
-          "icon",
-          this.getIconOptions(),
-          item,
-          index
-        );
+        this.bindProperty(this.getIconPath(), "icon", this.getIconOptions(), item, index);
+      }
+
+      // readonly state
+      if (typeof item.setReadOnly === "function") {
+        this.bind("target.readOnly", item, "readOnly");
       }
     },
 
@@ -853,16 +828,11 @@ qx.Class.define("qx.data.controller.List", {
       // go through all reverse bound properties
       for (var i = 0; i < this.__boundPropertiesReverse.length; i++) {
         // get the binding id and remove it, if possible
-        var id = item.getUserData(
-          this.__boundPropertiesReverse[i] + "ReverseBindingId"
-        );
+        var id = item.getUserData(this.__boundPropertiesReverse[i] + "ReverseBindingId");
 
         if (id != null) {
           item.removeBinding(id);
-          item.getUserData(
-            this.__boundPropertiesReverse[i] + "ReverseBindingId",
-            null
-          );
+          item.getUserData(this.__boundPropertiesReverse[i] + "ReverseBindingId", null);
         }
       }
     },
@@ -903,11 +873,7 @@ qx.Class.define("qx.data.controller.List", {
      * @param old {Object} The old delegate.
      */
     _setConfigureItem(value, old) {
-      if (
-        value != null &&
-        value.configureItem != null &&
-        this.getTarget() != null
-      ) {
+      if (value != null && value.configureItem != null && this.getTarget() != null) {
         var children = this.getTarget().getChildren();
         for (var i = 0; i < children.length; i++) {
           value.configureItem(children[i]);
@@ -926,11 +892,7 @@ qx.Class.define("qx.data.controller.List", {
       // if a new bindItem function is set
       if (value != null && value.bindItem != null) {
         // do nothing if the bindItem function did not change
-        if (
-          old != null &&
-          old.bindItem != null &&
-          value.bindItem == old.bindItem
-        ) {
+        if (old != null && old.bindItem != null && value.bindItem == old.bindItem) {
           return;
         }
         this.__renewBindings();
@@ -945,12 +907,7 @@ qx.Class.define("qx.data.controller.List", {
      * @param old {Object} The old delegate.
      */
     _setCreateItem(value, old) {
-      if (
-        this.getTarget() == null ||
-        this.getModel() == null ||
-        value == null ||
-        value.createItem == null
-      ) {
+      if (this.getTarget() == null || this.getModel() == null || value == null || value.createItem == null) {
         return;
       }
       this._startSelectionModification();
@@ -985,21 +942,12 @@ qx.Class.define("qx.data.controller.List", {
      */
     _setFilter(value, old) {
       // update the filter if it has been removed
-      if (
-        (value == null || value.filter == null) &&
-        old != null &&
-        old.filter != null
-      ) {
+      if ((value == null || value.filter == null) && old != null && old.filter != null) {
         this.__removeFilter();
       }
 
       // check if it is necessary to do anything
-      if (
-        this.getTarget() == null ||
-        this.getModel() == null ||
-        value == null ||
-        value.filter == null
-      ) {
+      if (this.getTarget() == null || this.getModel() == null || value == null || value.filter == null) {
         return;
       }
       // if yes, continue

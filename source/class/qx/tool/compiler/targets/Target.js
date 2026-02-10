@@ -194,6 +194,15 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     },
 
     /**
+     * Whether to support browserify for browser targets
+     */
+    browserify: {
+      init: true,
+      nullable: false,
+      check: "Boolean"
+    },
+
+    /**
      * Whether to use relative paths in source maps
      */
     sourceMapRelativePaths: {
@@ -257,9 +266,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      * Returns the root for applications
      */
     getApplicationRoot(application) {
-      return (
-        path.join(this.getOutputDir(), this.getProjectDir(application)) + "/"
-      );
+      return path.join(this.getOutputDir(), this.getProjectDir(application)) + "/";
     },
 
     /**
@@ -355,8 +362,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       var analyser = application.getAnalyser();
       var rm = analyser.getResourceManager();
 
-      let appMeta = (this.__appMeta =
-        new qx.tool.compiler.targets.meta.ApplicationMeta(this, application));
+      let appMeta = (this.__appMeta = new qx.tool.compiler.targets.meta.ApplicationMeta(this, application));
       appMeta.setAddTimestampsToUrls(this.getAddTimestampsToUrls());
 
       let targetUri = "";
@@ -367,14 +373,10 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       var appRootDir = this.getApplicationRoot(application);
 
-      let mapTo = this.getPathMapping(
-        path.join(appRootDir, this.getOutputDir(), "transpiled/")
-      );
+      let mapTo = this.getPathMapping(path.join(appRootDir, this.getOutputDir(), "transpiled/"));
 
       appMeta.setSourceUri(mapTo ? mapTo : targetUri + "transpiled/");
-      mapTo = this.getPathMapping(
-        path.join(appRootDir, this.getOutputDir(), "resource")
-      );
+      mapTo = this.getPathMapping(path.join(appRootDir, this.getOutputDir(), "resource"));
 
       appMeta.setResourceUri(mapTo ? mapTo : targetUri + "resource");
 
@@ -396,8 +398,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
               return;
             }
             externals[filename.toLowerCase()] = true;
-            let actualType =
-              type || (filename.endsWith(".js") ? "urisBefore" : "cssBefore");
+            let actualType = type || (filename.endsWith(".js") ? "urisBefore" : "cssBefore");
             if (filename.match(/^https?:/)) {
               appMeta.addExternal(actualType, filename);
             } else {
@@ -416,10 +417,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         var library = analyser.findLibrary(libnamespace);
         appMeta.addLibrary(library);
         if (this.isWriteLibraryInfo()) {
-          let libraryInfoMap = appMeta.getEnvironmentValue(
-            "qx.libraryInfoMap",
-            {}
-          );
+          let libraryInfoMap = appMeta.getEnvironmentValue("qx.libraryInfoMap", {});
 
           libraryInfoMap[libnamespace] = library.getLibraryInfo();
         }
@@ -444,31 +442,24 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       let bootJs = new qx.tool.compiler.targets.meta.BootJs(appMeta);
       let bootPackage = appMeta.createPackage();
       appMeta.setBootMetaJs(bootJs);
-      bootPackage.addJavascriptMeta(
-        new qx.tool.compiler.targets.meta.PolyfillJs(appMeta)
-      );
+      bootPackage.addJavascriptMeta(new qx.tool.compiler.targets.meta.PolyfillJs(appMeta));
 
       // Add browserified CommonJS modules, if any. The Browserify
       // class will always bundle local modules specified for an
       // application in compile.json, but will not bundle `require()`d
       // modules that are Node modules.
-      if (
-        appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser"
-      ) {
-        bootPackage.addJavascriptMeta(
-          new qx.tool.compiler.targets.meta.Browserify(appMeta)
-        );
+      if (appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser" && this.isBrowserify()) {
+        bootPackage.addJavascriptMeta(new qx.tool.compiler.targets.meta.Browserify(appMeta));
       }
 
       /*
        * Assemble the Parts
        */
       var partsData = application.getPartsDependencies();
-      let matchBundle =
-        qx.tool.compiler.app.Application.createWildcardMatchFunction(
-          application.getBundleInclude(),
-          application.getBundleExclude()
-        );
+      let matchBundle = qx.tool.compiler.app.Application.createWildcardMatchFunction(
+        application.getBundleInclude(),
+        application.getBundleExclude()
+      );
 
       let lastPackage = bootPackage;
       let packages = {
@@ -484,21 +475,13 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         partData.classes.forEach(classname => {
           let classFilename = classname.replace(/\./g, "/") + ".js";
 
-          let transpiledClassFilename = path.join(
-            this.getOutputDir(),
-            "transpiled",
-            classFilename
-          );
+          let transpiledClassFilename = path.join(this.getOutputDir(), "transpiled", classFilename);
 
           let db = analyser.getDatabase();
           let dbClassInfo = db.classInfo[classname];
           let library = analyser.findLibrary(dbClassInfo.libraryName);
           let sourcePath = library.getFilename(classFilename);
-          let jsMeta = new qx.tool.compiler.targets.meta.Javascript(
-            appMeta,
-            transpiledClassFilename,
-            sourcePath
-          );
+          let jsMeta = new qx.tool.compiler.targets.meta.Javascript(appMeta, transpiledClassFilename, sourcePath);
 
           let packageName = matchBundle(classname) ? "__bundle" : partData.name;
           let pkg = packages[packageName];
@@ -535,12 +518,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       if (analyser.getApplicationTypes().indexOf("browser") > -1) {
         appMeta.addPreBootCode("qx.$$fontBootstrap={};\n");
         await this.__writeDeprecatedWebFonts(application, appMeta, assets);
-        await this.__writeManifestFonts(
-          application,
-          appMeta,
-          assets,
-          bootPackage
-        );
+        await this.__writeManifestFonts(application, appMeta, assets, bootPackage);
       }
       await this._writeApplication();
       this.__appMeta = null;
@@ -610,11 +588,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
             appMeta.addPreBootCode(code);
           }
         } catch (ex) {
-          qx.tool.compiler.Console.print(
-            "qx.tool.compiler.webfonts.error",
-            font.toString(),
-            ex.toString()
-          );
+          qx.tool.compiler.Console.print("qx.tool.compiler.webfonts.error", font.toString(), ex.toString());
         }
       };
 
@@ -688,10 +662,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
         // It is important to always prefer local fonts if we have them and are not instructed to prefer CDNs
         let useLocalFonts = cssUrls.length == 0 && !hasUrlFontResources;
-        if (
-          this.isPreferLocalFonts() &&
-          (cssResources.length > 0 || hasLocalFontResources)
-        ) {
+        if (this.isPreferLocalFonts() && (cssResources.length > 0 || hasLocalFontResources)) {
           useLocalFonts = true;
         }
 
@@ -721,19 +692,9 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       if (this.isUpdatePoFiles()) {
         let policy = this.getLibraryPoPolicy();
         if (policy != "ignore") {
-          await analyser.updateTranslations(
-            appMeta.getAppLibrary(),
-            this.getLocales(),
-            appMeta.getLibraries(),
-            policy == "all"
-          );
+          await analyser.updateTranslations(appMeta.getAppLibrary(), this.getLocales(), appMeta.getLibraries(), policy == "all");
         } else {
-          await analyser.updateTranslations(
-            appMeta.getAppLibrary(),
-            this.getLocales(),
-            null,
-            false
-          );
+          await analyser.updateTranslations(appMeta.getAppLibrary(), this.getLocales(), null, false);
         }
       }
 
@@ -760,8 +721,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         localeId = localeId.toLowerCase();
         var pos = localeId.indexOf("_");
         if (pos > -1) {
-          localeId =
-            localeId.substring(0, pos) + localeId.substring(pos).toUpperCase();
+          localeId = localeId.substring(0, pos) + localeId.substring(pos).toUpperCase();
         }
         return localeId;
       });
@@ -805,9 +765,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       var promises = t.getLocales().map(async localeId => {
         let localeOptions = await loadLocaleData(localeId);
-        let pkg = this.isI18nAsParts()
-          ? appMeta.getLocalePackage(localeId)
-          : bootPackage;
+        let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
         pkg.addLocale(localeId, localeOptions);
       });
 
@@ -825,20 +783,16 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       var translations = {};
       var promises = [];
       t.getLocales().forEach(localeId => {
-        let pkg = this.isI18nAsParts()
-          ? appMeta.getLocalePackage(localeId)
-          : bootPackage;
+        let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
         function addTrans(library, localeId) {
-          return analyser
-            .getTranslation(library, localeId)
-            .then(translation => {
-              var id = library.getNamespace() + ":" + localeId;
-              translations[id] = translation;
-              var entries = translation.getEntries();
-              for (var msgid in entries) {
-                pkg.addTranslationEntry(localeId, entries[msgid]);
-              }
-            });
+          return analyser.getTranslation(library, localeId).then(translation => {
+            var id = library.getNamespace() + ":" + localeId;
+            translations[id] = translation;
+            var entries = translation.getEntries();
+            for (var msgid in entries) {
+              pkg.addTranslationEntry(localeId, entries[msgid]);
+            }
+          });
         }
         appMeta.getLibraries().forEach(function (library) {
           if (library === appMeta.getAppLibrary()) {
@@ -865,9 +819,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       var translations = {};
       var promises = [];
       t.getLocales().forEach(localeId => {
-        let pkg = this.isI18nAsParts()
-          ? appMeta.getLocalePackage(localeId)
-          : bootPackage;
+        let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
         appMeta.getLibraries().forEach(function (library) {
           promises.push(
             analyser.getTranslation(library, localeId).then(translation => {
@@ -890,9 +842,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
             return;
           }
           t.getLocales().forEach(localeId => {
-            let localePkg = this.isI18nAsParts()
-              ? appMeta.getLocalePackage(localeId)
-              : pkg;
+            let localePkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : pkg;
             dbClassInfo.translations.forEach(transInfo => {
               let entry;
               let id = appMeta.getAppLibrary().getNamespace() + ":" + localeId;
@@ -930,10 +880,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       var appRootDir = appMeta.getApplicationRoot();
 
       if (!appMeta.getAppLibrary()) {
-        qx.tool.compiler.Console.print(
-          "qx.tool.compiler.target.missingAppLibrary",
-          application.getName()
-        );
+        qx.tool.compiler.Console.print("qx.tool.compiler.target.missingAppLibrary", application.getName());
 
         return;
       }
@@ -979,11 +926,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
         });
       });
 
-      await fs.writeFileAsync(
-        appRootDir + "/compile-info.json",
-        JSON.stringify(appSummary, null, 2) + "\n",
-        { encoding: "utf8" }
-      );
+      await fs.writeFileAsync(appRootDir + "/compile-info.json", JSON.stringify(appSummary, null, 2) + "\n", { encoding: "utf8" });
 
       await this.fireEventAsync("writtenApplication");
     },
@@ -1007,17 +950,10 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       var resDir = this.getApplicationRoot(application);
 
       let timeStamp = new Date().getTime();
-      let pathToTarget =
-        path.relative(
-          path.join(t.getOutputDir(), t.getProjectDir(application)),
-          t.getOutputDir()
-        ) + "/";
+      let pathToTarget = path.relative(path.join(t.getOutputDir(), t.getProjectDir(application)), t.getOutputDir()) + "/";
       let indexJsTimestamp = "";
       if (this.isAddTimestampsToUrls()) {
-        let indexJsFilename = path.join(
-          appMeta.getApplicationRoot(),
-          "index.js"
-        );
+        let indexJsFilename = path.join(appMeta.getApplicationRoot(), "index.js");
 
         indexJsTimestamp = "?" + fs.statSync(indexJsFilename).mtimeMs;
       }
@@ -1033,10 +969,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       function replaceVars(code) {
         for (let varName in TEMPLATE_VARS) {
-          code = code.replace(
-            new RegExp(`\\$\{${varName}\}`, "g"),
-            TEMPLATE_VARS[varName]
-          );
+          code = code.replace(new RegExp(`\\$\{${varName}\}`, "g"), TEMPLATE_VARS[varName]);
         }
         return code;
       }
@@ -1060,51 +993,38 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       var bootDir = application.getBootPath();
       let indexHtml = null;
       if (bootDir) {
-        bootDir = path.join(
-          appMeta.getAppLibrary().getRootDir(),
-          application.getBootPath()
-        );
+        bootDir = path.join(appMeta.getAppLibrary().getRootDir(), application.getBootPath());
 
         var stats = await qx.tool.utils.files.Utils.safeStat(bootDir);
         if (stats && stats.isDirectory()) {
-          await qx.tool.utils.files.Utils.sync(
-            bootDir,
-            resDir,
-            async (from, to) => {
-              if (!from.endsWith(".html")) {
-                return true;
-              }
-              let data = await fs.readFileAsync(from, "utf8");
-              if (path.basename(from) == "index.html") {
-                if (!data.match(/\$\{\s*preBootJs\s*\}/)) {
-                  /* eslint-disable no-template-curly-in-string */
-                  data = data.replace("</body>", "\n${preBootJs}\n</body>");
-                  /* eslint-enable no-template-curly-in-string */
-                  qx.tool.compiler.Console.print(
-                    "qx.tool.compiler.target.missingPreBootJs",
-                    from
-                  );
-                }
-                if (!data.match(/\s*index.js\s*/)) {
-                  /* eslint-disable no-template-curly-in-string */
-                  data = data.replace(
-                    "</body>",
-                    '\n  <script type="text/javascript" src="${appPath}index.js${indexJsTimestamp}"></script>\n</body>'
-                  );
-
-                  /* eslint-enable no-template-curly-in-string */
-                  qx.tool.compiler.Console.print(
-                    "qx.tool.compiler.target.missingBootJs",
-                    from
-                  );
-                }
-                indexHtml = data;
-              }
-              data = replaceVars(data);
-              await fs.writeFileAsync(to, data, "utf8");
-              return false;
+          await qx.tool.utils.files.Utils.sync(bootDir, resDir, async (from, to) => {
+            if (!from.endsWith(".html")) {
+              return true;
             }
-          );
+            let data = await fs.readFileAsync(from, "utf8");
+            if (path.basename(from) == "index.html") {
+              if (!data.match(/\$\{\s*preBootJs\s*\}/)) {
+                /* eslint-disable no-template-curly-in-string */
+                data = data.replace("</body>", "\n${preBootJs}\n</body>");
+                /* eslint-enable no-template-curly-in-string */
+                qx.tool.compiler.Console.print("qx.tool.compiler.target.missingPreBootJs", from);
+              }
+              if (!data.match(/\s*index.js\s*/)) {
+                /* eslint-disable no-template-curly-in-string */
+                data = data.replace(
+                  "</body>",
+                  '\n  <script type="text/javascript" src="${appPath}index.js${indexJsTimestamp}"></script>\n</body>'
+                );
+
+                /* eslint-enable no-template-curly-in-string */
+                qx.tool.compiler.Console.print("qx.tool.compiler.target.missingBootJs", from);
+              }
+              indexHtml = data;
+            }
+            data = replaceVars(data);
+            await fs.writeFileAsync(to, data, "utf8");
+            return false;
+          });
         }
       }
       if (!indexHtml) {
@@ -1126,11 +1046,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
           indexJsTimestamp: indexJsTimestamp
         };
 
-        await fs.writeFileAsync(
-          t.getOutputDir() + "index.html",
-          replaceVars(indexHtml),
-          { encoding: "utf8" }
-        );
+        await fs.writeFileAsync(t.getOutputDir() + "index.html", replaceVars(indexHtml), { encoding: "utf8" });
       }
     },
 

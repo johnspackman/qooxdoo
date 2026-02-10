@@ -147,27 +147,20 @@ qx.Class.define("qx.tool.compiler.app.Library", {
       if (this.__promiseLoadManifest) {
         return this.__promiseLoadManifest;
       }
-      return (this.__promiseLoadManifest =
-        this.__loadManifestImpl(loadFromDir));
+      return (this.__promiseLoadManifest = this.__loadManifestImpl(loadFromDir));
     },
 
     async __loadManifestImpl(loadFromDir) {
       var Console = qx.tool.compiler.Console.getInstance();
       let rootDir = loadFromDir;
 
-      rootDir = await qx.tool.utils.files.Utils.correctCase(
-        path.resolve(loadFromDir)
-      );
+      rootDir = await qx.tool.utils.files.Utils.correctCase(path.resolve(loadFromDir));
 
       this.setRootDir(rootDir);
-      let data = await qx.tool.utils.Json.loadJsonAsync(
-        rootDir + "/Manifest.json"
-      );
+      let data = await qx.tool.utils.Json.loadJsonAsync(rootDir + "/Manifest.json");
 
       if (!data) {
-        throw new Error(
-          Console.decode("qx.tool.compiler.library.emptyManifest", rootDir)
-        );
+        throw new Error(Console.decode("qx.tool.compiler.library.emptyManifest", rootDir));
       }
       this.setNamespace(data.provides.namespace);
       this.setVersion(data.info.version);
@@ -193,27 +186,13 @@ qx.Class.define("qx.tool.compiler.app.Library", {
       const fixLibraryPath = async dir => {
         let d = path.resolve(rootDir, dir);
         if (!fs.existsSync(d)) {
-          this.warn(
-            Console.decode(
-              "qx.tool.compiler.library.cannotFindPath",
-              this.getNamespace(),
-              dir
-            )
-          );
+          this.warn(Console.decode("qx.tool.compiler.library.cannotFindPath", this.getNamespace(), dir));
 
           return dir;
         }
         let correctedDir = await qx.tool.utils.files.Utils.correctCase(d);
-        if (
-          correctedDir.substring(0, rootDir.length + 1) !=
-          rootDir + path.sep
-        ) {
-          this.warn(
-            Console.decode(
-              "qx.tool.compiler.library.cannotCorrectCase",
-              rootDir
-            )
-          );
+        if (correctedDir.substring(0, rootDir.length + 1) != rootDir + path.sep) {
+          this.warn(Console.decode("qx.tool.compiler.library.cannotCorrectCase", rootDir));
 
           return dir;
         }
@@ -244,9 +223,7 @@ qx.Class.define("qx.tool.compiler.app.Library", {
       if (data.provides.webfonts) {
         let fonts = [];
         if (data.provides.webfonts.length) {
-          qx.tool.compiler.Console.print(
-            "qx.tool.compiler.webfonts.deprecated"
-          );
+          qx.tool.compiler.Console.print("qx.tool.compiler.webfonts.deprecated", rootDir);
         }
         data.provides.webfonts.forEach(wf => {
           var font = new qx.tool.compiler.app.WebFont(this).set(wf);
@@ -267,10 +244,7 @@ qx.Class.define("qx.tool.compiler.app.Library", {
         this.setRequires(data.requires);
       }
       if (data.provides && data.provides.boot) {
-        qx.tool.compiler.Console.print(
-          "qx.tool.compiler.cli.compile.deprecatedProvidesBoot",
-          rootDir
-        );
+        qx.tool.compiler.Console.print("qx.tool.compiler.cli.compile.deprecatedProvidesBoot", rootDir);
       }
     },
 
@@ -323,7 +297,7 @@ qx.Class.define("qx.tool.compiler.app.Library", {
                 }
 
                 // Make sure it looks like a file
-                var match = filename.match(/(.*)(\.\w+)$/);
+                var match = filename.match(/^([a-z0-9_\$]+)(\.[jt]s)$/i);
                 if (!match) {
                   log.trace("Skipping file " + folder + "/" + filename);
                   cb();
@@ -369,13 +343,7 @@ qx.Class.define("qx.tool.compiler.app.Library", {
       let rootDir = path.join(t.getRootDir(), t.getSourcePath());
       if (!fs.existsSync(rootDir)) {
         let Console = qx.tool.compiler.Console.getInstance();
-        qx.tool.compiler.Console.warn(
-          Console.decode(
-            "qx.tool.compiler.library.cannotFindPath",
-            t.getNamespace(),
-            rootDir
-          )
-        );
+        qx.tool.compiler.Console.warn(Console.decode("qx.tool.compiler.library.cannotFindPath", t.getNamespace(), rootDir));
 
         cb(null, []);
         return;
@@ -395,16 +363,12 @@ qx.Class.define("qx.tool.compiler.app.Library", {
       let isWebFont = false;
       if (filename.endsWith("svg")) {
         let fonts = this.getWebFonts() || [];
-        isWebFont = fonts.find(webFont =>
-          webFont.getResources().find(resource => resource == filename)
-        );
+        isWebFont = fonts.find(webFont => webFont.getResources().find(resource => resource == filename));
 
         if (!isWebFont) {
           for (let fontId in this.__fontsData) {
             let fontData = this.__fontsData[fontId];
-            isWebFont = (fontData.fontFaces || []).find(fontFace =>
-              (fontFace.paths || []).find(resource => resource == filename)
-            );
+            isWebFont = (fontData.fontFaces || []).find(fontFace => (fontFace.paths || []).find(resource => resource == filename));
 
             if (isWebFont) {
               break;

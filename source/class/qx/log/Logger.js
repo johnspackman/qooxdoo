@@ -320,8 +320,7 @@ qx.Bootstrap.define("qx.log.Logger", {
           "The method '" +
             functionName +
             "' is deprecated: " +
-            (msg ||
-              "Please consult the API documentation of this method for alternatives.")
+            (msg || "Please consult the API documentation of this method for alternatives.")
         );
 
         this.trace();
@@ -339,11 +338,7 @@ qx.Bootstrap.define("qx.log.Logger", {
       if (qx.core.Environment.get("qx.debug")) {
         var className = clazz.classname || "unknown";
         this.warn(
-          "The class '" +
-            className +
-            "' is deprecated: " +
-            (msg ||
-              "Please consult the API documentation of this class for alternatives.")
+          "The class '" + className + "' is deprecated: " + (msg || "Please consult the API documentation of this class for alternatives.")
         );
 
         this.trace();
@@ -367,8 +362,7 @@ qx.Bootstrap.define("qx.log.Logger", {
             "' from class '" +
             className +
             "' is deprecated: " +
-            (msg ||
-              "Please consult the API documentation of this class for alternatives.")
+            (msg || "Please consult the API documentation of this class for alternatives.")
         );
 
         this.trace();
@@ -386,11 +380,7 @@ qx.Bootstrap.define("qx.log.Logger", {
       if (qx.core.Environment.get("qx.debug")) {
         var mixinName = clazz ? clazz.name : "unknown";
         this.warn(
-          "The mixin '" +
-            mixinName +
-            "' is deprecated: " +
-            (msg ||
-              "Please consult the API documentation of this class for alternatives.")
+          "The mixin '" + mixinName + "' is deprecated: " + (msg || "Please consult the API documentation of this class for alternatives.")
         );
 
         this.trace();
@@ -414,11 +404,7 @@ qx.Bootstrap.define("qx.log.Logger", {
           var constantValue = clazz[constant];
           clazz.__defineGetter__(constant, function () {
             self.warn(
-              "The constant '" +
-                constant +
-                "' is deprecated: " +
-                (msg ||
-                  "Please consult the API documentation for alternatives.")
+              "The constant '" + constant + "' is deprecated: " + (msg || "Please consult the API documentation for alternatives.")
             );
 
             self.trace();
@@ -499,6 +485,9 @@ qx.Bootstrap.define("qx.log.Logger", {
       if (object) {
         if (object.classname) {
           return object.classname;
+        }
+        if (object.$$type === "Mixin") {
+          return object.name;
         }
         if (typeof object == "string") {
           return object;
@@ -618,8 +607,7 @@ qx.Bootstrap.define("qx.log.Logger", {
         // Test
         if (!filter.loggerMatch || filter.loggerMatch.test(className)) {
           if (filter.appenderName) {
-            appenders[filter.appenderName] =
-              this.__appendersByName[filter.appenderName];
+            appenders[filter.appenderName] = this.__appendersByName[filter.appenderName];
           } else {
             return (this.__appendersCache[cacheId] = this.__appendersByName);
           }
@@ -651,12 +639,7 @@ qx.Bootstrap.define("qx.log.Logger", {
 
       var type = typeof value;
 
-      if (
-        type === "function" ||
-        type == "string" ||
-        type === "number" ||
-        type === "boolean"
-      ) {
+      if (type === "function" || type == "string" || type === "number" || type === "boolean") {
         return type;
       } else if (type === "object") {
         if (value.nodeType) {
@@ -738,8 +721,7 @@ qx.Bootstrap.define("qx.log.Logger", {
 
         case "error":
           trace = qx.dev.StackTrace.getStackTraceFromError(value);
-          text =
-            (value.basename ? value.basename + ": " : "") + value.toString();
+          text = (value.basename ? value.basename + ": " : "") + value.toString();
           break;
 
         case "array":

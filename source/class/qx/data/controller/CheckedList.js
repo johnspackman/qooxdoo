@@ -26,6 +26,8 @@
  *
  * The `checked` pseudo property in this `CheckedList` controller relates to the checked
  * property of the UI widget.
+ *
+ * The official item to add to the list is `qx.ui.form.CheckedListItem`
  */
 qx.Class.define("qx.data.controller.CheckedList", {
   extend: qx.data.controller.List,
@@ -46,6 +48,7 @@ qx.Class.define("qx.data.controller.CheckedList", {
   },
 
   properties: {
+    /** The array of model items which are ticked in the list */
     checked: {
       init: null,
       nullable: true,
@@ -119,7 +122,7 @@ qx.Class.define("qx.data.controller.CheckedList", {
       if (delegate != null && delegate.createItem != null) {
         item = delegate.createItem();
       } else {
-        item = new qx.ui.form.CheckBox();
+        item = new qx.ui.form.CheckedListItem();
       }
 
       // if there is a configure method, invoke it
@@ -191,40 +194,20 @@ qx.Class.define("qx.data.controller.CheckedList", {
     _applyTarget(value, oldValue) {
       super._applyTarget(value, oldValue);
       if (oldValue) {
-        oldValue.removeListener(
-          "changeChecked",
-          this.__onTargetCheckedChange,
-          this
-        );
+        oldValue.removeListener("changeChecked", this.__onTargetCheckedChange, this);
 
         if (qx.Class.supportsEvent(oldValue.constructor, "attachResultsTag")) {
-          oldValue.removeListener(
-            "attachResultsTag",
-            this.__onTargetAttachResultsTag,
-            this
-          );
+          oldValue.removeListener("attachResultsTag", this.__onTargetAttachResultsTag, this);
 
-          oldValue.removeListener(
-            "detachResultsTag",
-            this.__onTargetDetachResultsTag,
-            this
-          );
+          oldValue.removeListener("detachResultsTag", this.__onTargetDetachResultsTag, this);
         }
       }
       if (value) {
         value.addListener("changeChecked", this.__onTargetCheckedChange, this);
         if (qx.Class.supportsEvent(value.constructor, "attachResultsTag")) {
-          value.addListener(
-            "attachResultsTag",
-            this.__onTargetAttachResultsTag,
-            this
-          );
+          value.addListener("attachResultsTag", this.__onTargetAttachResultsTag, this);
 
-          value.addListener(
-            "detachResultsTag",
-            this.__onTargetDetachResultsTag,
-            this
-          );
+          value.addListener("detachResultsTag", this.__onTargetDetachResultsTag, this);
         }
       }
     },
@@ -293,20 +276,10 @@ qx.Class.define("qx.data.controller.CheckedList", {
       let itemModel = item.getModel();
       let bindData = {};
       if (this.getCheckedLabelPath()) {
-        bindData.checkedLabelId = itemModel.bind(
-          this.getCheckedLabelPath(),
-          tagWidget,
-          "label",
-          this.getCheckedLabelOptions()
-        );
+        bindData.checkedLabelId = itemModel.bind(this.getCheckedLabelPath(), tagWidget, "label", this.getCheckedLabelOptions());
       }
       if (this.getCheckedIconPath()) {
-        bindData.checkedIconId = itemModel.bind(
-          this.getCheckedIconPath(),
-          tagWidget,
-          "label",
-          this.getCheckedIconOptions()
-        );
+        bindData.checkedIconId = itemModel.bind(this.getCheckedIconPath(), tagWidget, "label", this.getCheckedIconOptions());
       }
       itemModel.setUserData(this.classname + ".bindData", bindData);
     },

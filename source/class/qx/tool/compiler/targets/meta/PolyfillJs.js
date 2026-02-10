@@ -45,10 +45,14 @@ qx.Class.define("qx.tool.compiler.targets.meta.PolyfillJs", {
      * @Override
      */
     async writeSourceCodeToStream(ws) {
-      await this.__write(
-        path.join(require.resolve("core-js-bundle"), "../minified.js"),
-        ws
-      );
+      let bundlePath = require.resolve("core-js-bundle");
+      if (
+        this.getAppMeta().getTarget() instanceof
+        qx.tool.compiler.targets.BuildTarget
+      ) {
+        bundlePath = path.join(bundlePath, "../minified.js");
+      }
+      await this.__write(bundlePath, ws);
 
       await new Promise(resolve => {
         ws.write("\n", resolve);

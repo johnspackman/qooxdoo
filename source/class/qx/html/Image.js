@@ -34,8 +34,7 @@ qx.Class.define("qx.html.Image", {
       "source",
       null,
       this._setSourceProperty,
-      (writer, key, property) =>
-        property.value && writer("src=" + JSON.stringify(property.value))
+      (serializer, key, property) => property.value && serializer.setAttribute("src", JSON.stringify(property.value))
     );
 
     this.registerProperty("scale", null, this._setScaleProperty);
@@ -70,10 +69,7 @@ qx.Class.define("qx.html.Image", {
       this.__paddingTop = paddingTop;
 
       if (this.getNodeName() == "div") {
-        this.setStyle(
-          "backgroundPosition",
-          paddingLeft + "px " + paddingTop + "px"
-        );
+        this.setStyle("backgroundPosition", paddingLeft + "px " + paddingTop + "px");
       }
     },
 
@@ -145,9 +141,7 @@ qx.Class.define("qx.html.Image", {
         if (this.tagNameHint != null) {
           this.setNodeName(this.tagNameHint);
         } else {
-          this.setNodeName(
-            qx.bom.element.Decoration.getTagName(repeat, source)
-          );
+          this.setNodeName(qx.bom.element.Decoration.getTagName(repeat, source));
         }
       } else {
         this.setNodeName(qx.bom.element.Decoration.getTagName(repeat));
