@@ -375,6 +375,61 @@ classes but excludes `qx.util.*` classes from bundling together.
     },
 ```
 
+## Custom compiler
+
+It is possible for the user to define their own compiler by extending the default Qooxdoo compiler. This is useful for things like implementing your own language or transforming classes which are used on both the client and the server where the class need to be slightly different on the client. 
+
+To define a custom compiler, you need to first create an application in the `applications` section and set the flag `compiler: true` like so:
+```json5  
+  {
+    "type": "node", // always "node"
+    "compiler": true, //required
+    "class": "qx.tool.compiler.cli.Application", // required
+    "environment": {
+      "qx.tool.compiler.Compiler.compilerClass": "com.mycompany.myapp.CustomCompiler"
+    },
+    "name": "custom-compiler", // This can be anything you want, but it should be a meaningful name
+    "include": ["com.mycompany.myapp.CustomCompiler", "qx.tool.*"] // must be your custom compiler name and "qx.tool.*"
+  } 
+
+```
+
+You also need to create a specific target for the compiler. This is so that the compiled output source files for your compiler will not overwrite your project's compiled files. You need to add something like this to the `targets` section:
+
+```json5
+{
+  "compiler": true, //required
+  "type": "source",
+  "application-types": ["node"],
+  "outputPath": "compiled/source-compiler", // can be anything but make it meaningful
+  "babelOptions": {
+    "targets": "chrome >= 80, firefox >= 80"
+  }
+}
+```
+
+Of course, you will also need to create a similar target but for `build`.
+
+Your project needs to include a special custom compiler class. This class must implement the interface `qx.tool.compiler.ICompilerInterface`, but you can extend the default implementation `qx.tool.compiler.Compiler`. You need to set the environment setting "qx.tool.compiler.Compiler.compilerClass" to the name of the class, and also list it in `include`. You also need to copy over the Qooxdoo compiler's dependencies to your `package.json`.
+
+### Source transformers
+You can make your compiler class do anything you want as long as it conforms to the interface, but you will most likely want to intercept the stage before your code gets passed down to the Qooxdoo compiler and make it transform the source. To do this, you need to define your own source transformer class, which implements `qx.tool.compiler.ISourceTransformer` and define how to determine whether a class should be transformed and how to transform it by overriding its methods. Then inside your custom compiler, you set the **name of the transformer class** (not an instance of the class or the class itself) to the maker's `transformerClass` property. For example, this can be done by extending from `qx.tool.compiler.Compiler` and overriding `_createMakersFromConfig` like so:
+
+```js
+qx.Class.define("com.mycompany.myapp.compiler.CustomCompiler", {
+  extend: qx.tool.compiler.Compiler,
+  members: {
+    /**@override */
+    async _createMakersFromConfig() {
+      let makers = await super._createMakersFromConfig();
+      let browserMakers = makers.filter(maker => maker.getAnalyzer().getApplicationTypes().includes("browser"));
+      browserMakers.forEach(maker => maker.setTransformerClass(com.mycompany.myapp.compiler.SourceTransformer.classname));
+      return makers;
+    }
+  }
+});
+```
+
 ## Libraries
 
 If you don't specify a `libraries` key, then by default it uses the current
