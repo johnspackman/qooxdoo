@@ -351,8 +351,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
         qxVersion: await this.getQxVersion()
       };
 
-      //TODO others' code
-      /*
       let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       if (this.argv.set) {
         this.argv.set.forEach(function (kv) {
@@ -368,10 +366,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
           }
         });
       }
-      */
 
-
-      let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       if (this.argv["feedback"] === null) {
         this.argv["feedback"] = configDb.db("qx.default.feedback", true);
       }
