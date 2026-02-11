@@ -435,10 +435,9 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       compiler.start(data);
       await new Promise(resolve => {
         compiler.addListenerOnce("made", () => {
-          compiler.getMakers().then(makers => {
-            this.__makers = makers;
-            this.fireEvent("made");
-          });//cbh
+          let makers = compiler.getMakers();
+          this.__makers = makers;
+          this.fireEvent("made");
           if (!this.argv.watch) {
             this.__exit();
             compiler.stop();
