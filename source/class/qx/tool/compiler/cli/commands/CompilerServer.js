@@ -16,7 +16,7 @@
 
 ************************************************************************ */
 /**
- * This application runs in the compiler worker thread and creates an instance of ClassFile, which invokes Babel.
+ * This application hosts a Qooxdoo compiler in a child process and provides a NodeJS IPC interface to it.
  *
  */
 
@@ -40,11 +40,11 @@ qx.Class.define("qx.tool.compiler.cli.commands.CompilerServer", {
       let CompilerClass = qx.Class.getByName(compilerClassName);
 
       if (!CompilerClass) {
-        throw new Error("Could not find compiler class: " + compilerClassName);
+        throw new Error("Could not find compiler class: " + compilerClassName + " Make sure you required the class in your project.");
       }
 
-      if (!qx.Class.isSubClassOf(CompilerClass, qx.tool.compiler.Compiler)) {
-        throw new Error("Compiler class " + compilerClassName + " is not a subclass of qx.tool.compiler.Compiler");
+      if (!qx.Class.hasInterface(CompilerClass, qx.tool.compiler.ICompilerInterface)) {
+        throw new Error("Compiler class " + compilerClassName + " does not implement qx.tool.compiler.ICompilerInterface");
       }
 
       let compiler = new CompilerClass();

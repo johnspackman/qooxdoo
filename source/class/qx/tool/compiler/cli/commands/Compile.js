@@ -412,6 +412,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
 
       let customCompiler = compileConfig.applications.find(app => app.compiler);
       if (customCompiler) {
+        //we will compile our custom compiler first, then run it in a child process and communicate with it via IPC.
         let compilerCompiler = new qx.tool.compiler.Compiler();
         //make a backup of the config because it will be modified during compilation!
         let configBak = qx.lang.Object.clone(data.config, true) ;
