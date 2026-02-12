@@ -410,16 +410,6 @@ qx.Class.define("qx.tool.compiler.Maker", {
     },
 
     /**
-     * Returns the output directory, with a trailing slash
-     *
-     * @returns {String}
-     * @abstract
-     */
-    getOutputDir() {
-      throw new Error("No implementation for " + this.classname + ".getOutputDir");
-    },
-
-    /**
      * Erases the output directory
      */
     async eraseOutputDir() {

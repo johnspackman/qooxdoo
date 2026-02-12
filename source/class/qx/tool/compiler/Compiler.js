@@ -255,7 +255,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       let allAppNames = {};
       config.applications.forEach((appConfig, index) => {
         //Ensure we only consider the compiler application if we are in compilerOnly mode, and the opposite if we're not
-        if (!!data.compilerOnly !== !!appConfig.compiler) return;
+        if (!!data.compilerOnly !== !!appConfig.compiler) {
+          return;
+        }
 
         if (appConfig.name) {
           if (allAppNames[appConfig.name]) {

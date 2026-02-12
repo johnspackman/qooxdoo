@@ -32,9 +32,11 @@ qx.Class.define("qx.tool.compiler.meta.AnnoUtil", {
       let out = [];
       for (let code of Object.values(classMeta.annotation || {})) {
         let a = AnnoUtil.evalAnno(code);
-        if (!a) continue;
+        if (!a) {
+          continue;
+        }
         if (a.constructor === anno) {
-          out.push({code, anno: a});
+          out.push({ code, anno: a });
         }
       }
       return out;

@@ -178,10 +178,14 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
      * @param {Object} worker Optional specific worker to check
      */
     __checkQueue(worker = null) {
-      if (this.__queue.length === 0) return;
+      if (this.__queue.length === 0) {
+        return;
+      }
       let workers = worker ? [worker] : this.__workers;
       for (let workerTracker of workers) {
-        if (this.__queue.length === 0) return;
+        if (this.__queue.length === 0) {
+          return;
+        }
         if (workerTracker.ready) {
           let callTracker = this.__queue.shift();
           this.__callMethodOnWorker(callTracker, workerTracker);

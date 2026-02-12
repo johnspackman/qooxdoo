@@ -388,9 +388,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
       const compileClass = (classname, sync) => {
         let value = this.__cachedClassInfo[classname];
         if (value === undefined) {
-          value = this.__controller.compileClass(this, classname).then(v => {
-            return (this.__cachedClassInfo[classname] = v);
-          });
+          value = this.__controller.compileClass(this, classname).then(v => (this.__cachedClassInfo[classname] = v));
           this.__cachedClassInfo[classname] = value;
         }
         if (qx.core.Environment.get("qx.debug")) {
@@ -458,7 +456,9 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
        */
       const processClass = async classname => {
         let dbClassInfo = await compileClass(classname);
-        if (!dbClassInfo) return; //This means class failed to compile. Assume the error has already been handled.
+        if (!dbClassInfo) {
+          return; //This means class failed to compile. Assume the error has already been handled.
+        };
         if (dbClassInfo?.dependsOn) {
           Object.keys(dbClassInfo.dependsOn).forEach(depName => ensureProcessed(depName));
         }

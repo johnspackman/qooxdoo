@@ -445,9 +445,9 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
     },
 
     /**
-     * Returns the list of makers to make
+     * Returns the list of makers to make, as POJO objects
      *
-     * @return {Maker[]}
+     * @return {Object[]}
      */
     getMakers() {
       return this.__makers;
@@ -1304,28 +1304,6 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         return targetClass;
       }
       return null;
-    },
-
-    /**
-     * Returns the list of makers to make
-     *
-     * @return  {qx.tool.compiler.Maker[]}
-     */
-    getMakers() {
-      return this.__makers;
-    },
-
-    /**
-     * Returns the makers for a given application name
-     *
-     * @param appName {String} the name of the application
-     * @return {qx.tool.compiler.Maker}
-     */
-    getMakersForApp(appName) {
-      return this.__makers.filter(maker => {
-        let res = maker.getApplications().find(app => app.getName() == appName);
-        return res;
-      });
     },
 
     /**
