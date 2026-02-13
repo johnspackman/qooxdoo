@@ -291,20 +291,22 @@ qx.Class.define("qx.tool.compiler.Controller", {
       //If we are using Node workers, we need to send the maker info to the workers
       let infoByMaker = {};
       
-      await Promise.all(makers.map(async maker =>{
-        makers.push(maker);
-        await maker.init();
-        if (this.__transpilerPool) {
-          infoByMaker[maker.toHashCode()] = {
-            classFileConfig: maker.getAnalyzer().getClassFileConfig().serialize(),
-            transformerClass: maker.getTransformerClass()
-          };
-        }
-        
-        if (maker.getTransformer()) {           
-          await maker.getTransformer().init(metaDb);
-        }
-      }));
+      await Promise.all(
+        makers.map(async maker => {
+          makers.push(maker);
+          await maker.init();
+          if (this.__transpilerPool) {
+            infoByMaker[maker.toHashCode()] = {
+              classFileConfig: maker.getAnalyzer().getClassFileConfig().serialize(),
+              transformerClass: maker.getTransformerClass()
+            };
+          }
+
+          if (maker.getTransformer()) {
+            await maker.getTransformer().init(metaDb);
+          }
+        })
+      );
 
       if (this.__transpilerPool) {
         await this.__transpilerPool.callAll("setMakerInfo", [infoByMaker]);

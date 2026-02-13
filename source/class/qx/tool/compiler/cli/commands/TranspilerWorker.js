@@ -40,10 +40,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
   },
   members: {
     /**
-     * @type {Object<string, qx.tool.compiler.Controller.MakerInfo>}
-     */
-    __infoByMaker: null,
-    /**
      * String showing the ranges of times when this thread was compiling
      */
     __stats: "",
@@ -59,8 +55,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
      * Map of the hashcode of the maker to its related information (e.g. source transformer or class file config).
      * When the compiler initally starts, we pass in this data just once for optimization reasons.
      * Then each transpile call can look up its data because we may be compiling for different makers at once.
-     * @type {Object<string, qx.tool.compiler.MakerInfo>}
-     * 
+     * @type {Object.<string, qx.tool.compiler.Controller.MakerInfo>}
      */
     __infoByMaker: null,
 

@@ -6,7 +6,6 @@ const path = require("upath");
  * @use(qx.core.BaseInit)
  * @use(qx.tool.*)
  * 
- * @typedef {Object} CompilerData A large POJO containing all the options for the compiler
  */
 
 qx.Class.define("qx.tool.compiler.Compiler", {
@@ -22,7 +21,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
   },
   members: {
     /**
-     * @type {CompilerData} the data passed to the compiler
+     * @type {qx.tool.compiler.ICompilerInterface.CompilerData} the data passed to the compiler
      */
     __data: null,
     /** @type {String} the path to the root of the meta files by classname */
@@ -43,7 +42,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
     /**
      * @override
-     * @param {CompilerData} data 
+     * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data 
      */
     async start(data) {      
       this.__data = data;
@@ -70,8 +69,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     },
 
     /**
-     * 
-     * @param {CompilerData} data 
+     * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data 
      * @returns 
      */
     async compileOnce(data) {
@@ -257,7 +255,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       let allAppNames = {};
       config.applications.forEach((appConfig, index) => {
         //Ensure we only consider the compiler application if we are in compilerOnly mode, and the opposite if we're not
-        if (!!data.compilerOnly !== !!appConfig.compiler) return;
+        if (!!data.compilerOnly !== !!appConfig.compiler) {
+          return;
+        }
 
         if (appConfig.name) {
           if (allAppNames[appConfig.name]) {

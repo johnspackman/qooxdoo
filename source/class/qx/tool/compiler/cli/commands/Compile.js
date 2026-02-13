@@ -351,8 +351,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
         qxVersion: await this.getQxVersion()
       };
 
-      //TODO others' code
-      /*
       let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       if (this.argv.set) {
         this.argv.set.forEach(function (kv) {
@@ -368,10 +366,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
           }
         });
       }
-      */
 
-
-      let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       if (this.argv["feedback"] === null) {
         this.argv["feedback"] = configDb.db("qx.default.feedback", true);
       }
@@ -412,6 +407,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
 
       let customCompiler = compileConfig.applications.find(app => app.compiler);
       if (customCompiler) {
+        //we will compile our custom compiler first, then run it in a child process and communicate with it via IPC.
         let compilerCompiler = new qx.tool.compiler.Compiler();
         //make a backup of the config because it will be modified during compilation!
         let configBak = qx.lang.Object.clone(data.config, true) ;
@@ -450,9 +446,9 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
     },
 
     /**
-     * Returns the list of makers to make
+     * Returns the list of makers to make, as POJO objects
      *
-     * @return {Maker[]}
+     * @return {Object[]}
      */
     getMakers() {
       return this.__makers;
@@ -1309,28 +1305,6 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
         return targetClass;
       }
       return null;
-    },
-
-    /**
-     * Returns the list of makers to make
-     *
-     * @return  {qx.tool.compiler.Maker[]}
-     */
-    getMakers() {
-      return this.__makers;
-    },
-
-    /**
-     * Returns the makers for a given application name
-     *
-     * @param appName {String} the name of the application
-     * @return {qx.tool.compiler.Maker}
-     */
-    getMakersForApp(appName) {
-      return this.__makers.filter(maker => {
-        let res = maker.getApplications().find(app => app.getName() == appName);
-        return res;
-      });
     },
 
     /**
