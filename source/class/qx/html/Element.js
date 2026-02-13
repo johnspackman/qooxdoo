@@ -242,7 +242,7 @@ qx.Class.define("qx.html.Element", {
         // hiding or showing an object and deleting it right after that may
         // cause an disposed object in the visibility queue [BUG #3607]
         if (!obj.$$disposed) {
-          element.style.display = obj.isVisible() ? "" : "none";
+          element.style.display = obj.isVisible() ? (element.style.display == "none" ? "" : element.style.display) : "none";
           // also hide the element (fixed some rendering problem in IE<8 & IE8 quirks)
           if (qx.core.Environment.get("engine.name") == "mshtml") {
             if (!(document.documentMode >= 8)) {
@@ -946,6 +946,18 @@ qx.Class.define("qx.html.Element", {
       this.useNode(helper.firstChild);
 
       return this._domNode;
+    },
+
+    /**
+     * Allows the HTML to be set directly.  Use with caution.
+     *
+     * @param {String} html
+     */
+    dangerouslySetInnerHtml(html) {
+      if (qx.core.Environment.get("qx.debug")) {
+        this.warn("Dangerously setting innerHTML - this is a security risk and should be avoided where possible");
+      }
+      this._setProperty("innerHtml", html);
     },
 
     /**
@@ -1973,6 +1985,14 @@ qx.Class.define("qx.html.Element", {
      */
     getAttribute(key) {
       return this.__attribValues ? this.__attribValues[key] : null;
+    },
+
+    /**
+     * Get all attributes in a pojo.
+     * @return {Record<string, any>} the attributes
+     */
+    getAllAttributes() {
+      return { ...this.__attribValues };
     }
   },
 

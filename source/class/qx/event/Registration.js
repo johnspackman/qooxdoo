@@ -51,9 +51,7 @@ qx.Class.define("qx.event.Registration", {
     getManager(target) {
       if (target == null) {
         if (qx.core.Environment.get("qx.debug")) {
-          qx.log.Logger.error(
-            "qx.event.Registration.getManager(null) was called!"
-          );
+          qx.log.Logger.error("qx.event.Registration.getManager(null) was called!");
 
           qx.log.Logger.trace(this);
         }
@@ -66,11 +64,11 @@ qx.Class.define("qx.event.Registration", {
       }
 
       var hash = target.$$hash || qx.core.ObjectRegistry.toHashCode(target);
-      var manager = this.__managers[hash];
+      var manager = qx.event.Registration.__managers[hash];
 
       if (!manager) {
         manager = new qx.event.Manager(target, this);
-        this.__managers[hash] = manager;
+        qx.event.Registration.__managers[hash] = manager;
       }
 
       return manager;
@@ -86,7 +84,7 @@ qx.Class.define("qx.event.Registration", {
      */
     removeManager(mgr) {
       var id = mgr.getWindowId();
-      delete this.__managers[id];
+      delete qx.event.Registration.__managers[id];
     },
 
     /**
@@ -109,13 +107,7 @@ qx.Class.define("qx.event.Registration", {
      *         using the {@link #removeListenerById} method.
      */
     addListener(target, type, listener, self, capture) {
-      return this.getManager(target).addListener(
-        target,
-        type,
-        listener,
-        self,
-        capture
-      );
+      return qx.event.Registration.getManager(target).addListener(target, type, listener, self, capture);
     },
 
     /**
@@ -135,13 +127,7 @@ qx.Class.define("qx.event.Registration", {
      *    the event was already removed before.
      */
     removeListener(target, type, listener, self, capture) {
-      return this.getManager(target).removeListener(
-        target,
-        type,
-        listener,
-        self,
-        capture
-      );
+      return qx.event.Registration.getManager(target).removeListener(target, type, listener, self, capture);
     },
 
     /**
@@ -154,7 +140,7 @@ qx.Class.define("qx.event.Registration", {
      *    the event was already removed before.
      */
     removeListenerById(target, id) {
-      return this.getManager(target).removeListenerById(target, id);
+      return qx.event.Registration.getManager(target).removeListenerById(target, id);
     },
 
     /**
@@ -164,7 +150,7 @@ qx.Class.define("qx.event.Registration", {
      * @return {Boolean} Whether the events were existant and were removed successfully.
      */
     removeAllListeners(target) {
-      return this.getManager(target).removeAllListeners(target);
+      return qx.event.Registration.getManager(target).removeAllListeners(target);
     },
 
     /**
@@ -178,7 +164,7 @@ qx.Class.define("qx.event.Registration", {
     deleteAllListeners(target) {
       var targetKey = target.$$hash;
       if (targetKey) {
-        this.getManager(target).deleteAllListeners(targetKey);
+        qx.event.Registration.getManager(target).deleteAllListeners(targetKey);
       }
     },
 
@@ -193,7 +179,7 @@ qx.Class.define("qx.event.Registration", {
      * @return {Boolean} Whether the target has event listeners of the given type.
      */
     hasListener(target, type, capture) {
-      return this.getManager(target).hasListener(target, type, capture);
+      return qx.event.Registration.getManager(target).hasListener(target, type, capture);
     },
 
     /**
@@ -204,7 +190,7 @@ qx.Class.define("qx.event.Registration", {
      *   <code>handler</code>, <code>self</code>, <code>type</code> and <code>capture</code>.
      */
     serializeListeners(target) {
-      return this.getManager(target).serializeListeners(target);
+      return qx.event.Registration.getManager(target).serializeListeners(target);
     },
 
     /**
@@ -222,9 +208,7 @@ qx.Class.define("qx.event.Registration", {
       if (qx.core.Environment.get("qx.debug")) {
         if (arguments.length > 1 && clazz === undefined) {
           throw new Error(
-            "Create event of type " +
-              type +
-              " with undefined class. Please use null to explicit fallback to default event type!"
+            "Create event of type " + type + " with undefined class. Please use null to explicit fallback to default event type!"
           );
         }
       }
@@ -264,10 +248,7 @@ qx.Class.define("qx.event.Registration", {
      *     Returns true, when the event was NOT prevented.
      */
     dispatchEvent(target, event) {
-      return qx.event.Registration.getManager(target).dispatchEvent(
-        target,
-        event
-      );
+      return qx.event.Registration.getManager(target).dispatchEvent(target, event);
     },
 
     /**
@@ -295,32 +276,19 @@ qx.Class.define("qx.event.Registration", {
       if (qx.core.Environment.get("qx.debug")) {
         if (arguments.length > 2 && clazz === undefined && args !== undefined) {
           throw new Error(
-            "Create event of type " +
-              type +
-              " with undefined class. Please use null to explicit fallback to default event type!"
+            "Create event of type " + type + " with undefined class. Please use null to explicit fallback to default event type!"
           );
         }
 
-        var msg =
-          "Could not fire event '" +
-          type +
-          "' on target '" +
-          (target ? target.classname : "undefined") +
-          "': ";
+        var msg = "Could not fire event '" + type + "' on target '" + (target ? target.classname : "undefined") + "': ";
 
-        qx.core.Assert.assertNotUndefined(
-          target,
-          msg + "Invalid event target."
-        );
+        qx.core.Assert.assertNotUndefined(target, msg + "Invalid event target.");
 
         qx.core.Assert.assertNotNull(target, msg + "Invalid event target.");
       }
 
       var evt = qx.event.Registration.createEvent(type, clazz || null, args);
-      var promise = qx.event.Registration.getManager(target).dispatchEvent(
-        target,
-        evt
-      );
+      var promise = qx.event.Registration.getManager(target).dispatchEvent(target, evt);
 
       if (qx.lang.Type.isPromise(promise)) {
         return promise.then(() => !evt.getDefaultPrevented());
@@ -344,27 +312,20 @@ qx.Class.define("qx.event.Registration", {
      */
     fireEventAsync(target, type, clazz, args) {
       if (!qx.core.Environment.get("qx.promise")) {
-        throw new Error(
-          `${qx.event.Registration.classname}.fireEventAsync not supported because qx.promise==false`
-        );
+        throw new Error(`${qx.event.Registration.classname}.fireEventAsync not supported because qx.promise==false`);
       }
 
       if (qx.core.Environment.get("qx.debug")) {
         if (arguments.length > 2 && clazz === undefined && args !== undefined) {
-          throw new Error(
-            `Create event of type ${type} with undefined class. Please use null to explicit fallback to default event type!`
-          );
+          throw new Error(`Create event of type ${type} with undefined class. Please use null to explicit fallback to default event type!`);
         }
 
         var msg = `Could not fire event '${type}' on target '${target?.classname || "undefined"}': `;
-        qx.core.Assert.assertNotUndefined(
-          target,
-          msg + "Invalid event target."
-        );
+        qx.core.Assert.assertNotUndefined(target, msg + "Invalid event target.");
         qx.core.Assert.assertNotNull(target, msg + "Invalid event target.");
       }
 
-      return qx.Promise.resolve(this.fireEvent(target, type, clazz, args));
+      return qx.Promise.resolve(qx.event.Registration.fireEvent(target, type, clazz, args));
     },
 
     /**
@@ -384,19 +345,17 @@ qx.Class.define("qx.event.Registration", {
       if (qx.core.Environment.get("qx.debug")) {
         if (arguments.length > 2 && clazz === undefined && args !== undefined) {
           throw new Error(
-            "Create event of type " +
-              type +
-              " with undefined class. Please use null to explicit fallback to default event type!"
+            "Create event of type " + type + " with undefined class. Please use null to explicit fallback to default event type!"
           );
         }
       }
 
-      var mgr = this.getManager(target);
+      var mgr = qx.event.Registration.getManager(target);
       if (!mgr.hasListener(target, type, false)) {
         return null;
       }
 
-      var evt = this.createEvent(type, clazz || null, args);
+      var evt = qx.event.Registration.createEvent(type, clazz || null, args);
       mgr.dispatchEvent(target, evt);
       return evt;
     },
@@ -416,7 +375,7 @@ qx.Class.define("qx.event.Registration", {
      * @see #createEvent
      */
     fireNonBubblingEvent(target, type, clazz, args) {
-      var evt = this.__fireNonBubblingEvent.apply(this, arguments);
+      var evt = qx.event.Registration.__fireNonBubblingEvent.apply(this, arguments);
       if (evt === null) {
         return true;
       }
@@ -439,17 +398,14 @@ qx.Class.define("qx.event.Registration", {
      */
     fireNonBubblingEventAsync: qx.core.Environment.select("qx.promise", {
       true(target, type, clazz, args) {
-        var evt = this.__fireNonBubblingEvent.apply(this, arguments);
+        var evt = qx.event.Registration.__fireNonBubblingEvent.apply(this, arguments);
         if (evt === null) {
           return qx.Promise.resolve(true);
         }
         return evt.promise();
       },
       false() {
-        throw new Error(
-          this.classname +
-            ".fireNonBubblingEventAsync not supported because qx.promise==false"
-        );
+        throw new Error(qx.event.Registration.classname + ".fireNonBubblingEventAsync not supported because qx.promise==false");
       }
     }),
 
@@ -485,18 +441,14 @@ qx.Class.define("qx.event.Registration", {
      */
     addHandler(handler) {
       if (qx.core.Environment.get("qx.debug")) {
-        qx.core.Assert.assertInterface(
-          handler,
-          qx.event.IEventHandler,
-          "Invalid event handler."
-        );
+        qx.core.Assert.assertInterface(handler, qx.event.IEventHandler, "Invalid event handler.");
       }
 
       // Append to list
-      this.__handlers.push(handler);
+      qx.event.Registration.__handlers.push(handler);
 
       // Re-sort list
-      this.__handlers.sort(function (a, b) {
+      qx.event.Registration.__handlers.sort(function (a, b) {
         return a.PRIORITY - b.PRIORITY;
       });
     },
@@ -507,7 +459,7 @@ qx.Class.define("qx.event.Registration", {
      * @return {qx.event.IEventHandler[]} registered event handlers
      */
     getHandlers() {
-      return this.__handlers;
+      return qx.event.Registration.__handlers;
     },
 
     /*
@@ -531,18 +483,14 @@ qx.Class.define("qx.event.Registration", {
      */
     addDispatcher(dispatcher, priority) {
       if (qx.core.Environment.get("qx.debug")) {
-        qx.core.Assert.assertInterface(
-          dispatcher,
-          qx.event.IEventDispatcher,
-          "Invalid event dispatcher!"
-        );
+        qx.core.Assert.assertInterface(dispatcher, qx.event.IEventDispatcher, "Invalid event dispatcher!");
       }
 
       // Append to list
-      this.__dispatchers.push(dispatcher);
+      qx.event.Registration.__dispatchers.push(dispatcher);
 
       // Re-sort list
-      this.__dispatchers.sort(function (a, b) {
+      qx.event.Registration.__dispatchers.sort(function (a, b) {
         return a.PRIORITY - b.PRIORITY;
       });
     },
@@ -553,7 +501,7 @@ qx.Class.define("qx.event.Registration", {
      * @return {qx.event.IEventDispatcher[]} all registered event dispatcher
      */
     getDispatchers() {
-      return this.__dispatchers;
+      return qx.event.Registration.__dispatchers;
     }
   }
 });

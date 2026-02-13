@@ -171,12 +171,10 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         if (states.pressed || states.abandoned || states.checked) {
-          var decorator =
-            !states.inner && states.focused ? "focused-inset" : "inset";
+          var decorator = !states.inner && states.focused ? "focused-inset" : "inset";
           var padding = [4, 3, 2, 5];
         } else {
-          var decorator =
-            !states.inner && states.focused ? "focused-outset" : "outset";
+          var decorator = !states.inner && states.focused ? "focused-outset" : "outset";
           var padding = [3, 4];
         }
 
@@ -304,9 +302,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
         return {
           gap: 4,
           padding: states.lead ? [2, 4] : [3, 5],
-          backgroundColor: useSelectionState
-            ? "background-selected"
-            : undefined,
+          backgroundColor: useSelectionState ? "background-selected" : undefined,
           textColor: useSelectionState ? "text-selected" : undefined,
           decorator: states.lead ? "lead-item" : undefined,
           opacity: states.drag ? 0.5 : undefined
@@ -425,6 +421,8 @@ qx.Theme.define("qx.theme.classic.Appearance", {
         };
       }
     },
+
+    checkedlistitem: "checkbox",
 
     radiobutton: {
       alias: "checkbox",
@@ -672,11 +670,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
           cursor: "default",
           decorator: border,
           padding: padding,
-          backgroundColor: states.abandoned
-            ? "button-abandoned"
-            : states.checked
-            ? "background-light"
-            : "button"
+          backgroundColor: states.abandoned ? "button-abandoned" : states.checked ? "background-light" : "button"
         };
       }
     },
@@ -732,9 +726,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         return {
-          icon: states.vertical
-            ? "decoration/arrows/down.gif"
-            : "decoration/arrows/next.gif"
+          icon: states.vertical ? "decoration/arrows/down.gif" : "decoration/arrows/next.gif"
         };
       }
     },
@@ -745,9 +737,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         return {
-          icon: states.vertical
-            ? "decoration/arrows/up.gif"
-            : "decoration/arrows/left.gif"
+          icon: states.vertical ? "decoration/arrows/up.gif" : "decoration/arrows/left.gif"
         };
       }
     },
@@ -1057,9 +1047,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
     "tree-folder/open": {
       style(states) {
         return {
-          source: states.opened
-            ? "decoration/tree/minus.gif"
-            : "decoration/tree/plus.gif"
+          source: states.opened ? "decoration/tree/minus.gif" : "decoration/tree/plus.gif"
         };
       }
     },
@@ -1068,9 +1056,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
       style(states) {
         return {
           padding: [2, 3, 2, 0],
-          icon: states.opened
-            ? "icon/16/places/folder-open.png"
-            : "icon/16/places/folder.png",
+          icon: states.opened ? "icon/16/places/folder-open.png" : "icon/16/places/folder.png",
           iconOpened: "icon/16/places/folder-open.png",
           opacity: states.drag ? 0.5 : undefined
         };
@@ -1135,9 +1121,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
     "treevirtual-folder": {
       style(states) {
         return {
-          icon: states.opened
-            ? "icon/16/places/folder-open.png"
-            : "icon/16/places/folder.png",
+          icon: states.opened ? "icon/16/places/folder-open.png" : "icon/16/places/folder.png",
           opacity: states.drag ? 0.5 : undefined
         };
       }
@@ -1283,12 +1267,8 @@ qx.Theme.define("qx.theme.classic.Appearance", {
       style(states) {
         return {
           padding: 1,
-          backgroundColor: states.active
-            ? "window-active-caption"
-            : "window-inactive-caption",
-          textColor: states.active
-            ? "window-active-caption-text"
-            : "window-inactive-caption-text"
+          backgroundColor: states.active ? "window-active-caption" : "window-inactive-caption",
+          textColor: states.active ? "window-active-caption-text" : "window-inactive-caption-text"
         };
       }
     },
@@ -1405,9 +1385,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
     "splitpane/splitter/knob": {
       style(states) {
         return {
-          source: states.horizontal
-            ? "decoration/splitpane/knob-horizontal.png"
-            : "decoration/splitpane/knob-vertical.png",
+          source: states.horizontal ? "decoration/splitpane/knob-horizontal.png" : "decoration/splitpane/knob-vertical.png",
           padding: 2
         };
       }
@@ -1483,11 +1461,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
       style(states) {
         return {
           backgroundColor: "date-chooser",
-          textColor: states.disabled
-            ? "text-disabled"
-            : states.invalid
-            ? "invalid"
-            : undefined,
+          textColor: states.disabled ? "text-disabled" : states.invalid ? "invalid" : undefined,
           padding: [2, 10]
         };
       }
@@ -1565,14 +1539,8 @@ qx.Theme.define("qx.theme.classic.Appearance", {
           decorator: "datechooser-weekday",
           font: "bold",
           textAlign: "center",
-          textColor: states.disabled
-            ? "text-disabled"
-            : states.weekend
-            ? "date-chooser-title"
-            : "date-chooser",
-          backgroundColor: states.weekend
-            ? "date-chooser"
-            : "date-chooser-title"
+          textColor: states.disabled ? "text-disabled" : states.weekend ? "date-chooser-title" : "date-chooser",
+          backgroundColor: states.weekend ? "date-chooser" : "date-chooser-title"
         };
       }
     },
@@ -1589,11 +1557,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
             : states.otherMonth
             ? "text-disabled"
             : undefined,
-          backgroundColor: states.disabled
-            ? undefined
-            : states.selected
-            ? "date-chooser-selected"
-            : undefined,
+          backgroundColor: states.disabled ? undefined : states.selected ? "date-chooser-selected" : undefined,
           padding: [2, 4]
         };
       }
@@ -1605,9 +1569,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
           textAlign: "center",
           textColor: "date-chooser-title",
           padding: [2, 4],
-          decorator: states.header
-            ? "datechooser-week-header"
-            : "datechooser-week"
+          decorator: states.header ? "datechooser-week-header" : "datechooser-week"
         };
       }
     },
@@ -1683,8 +1645,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
           iconColumnWidth: 16,
           arrowColumnWidth: 4,
           padding: 1,
-          placementModeY:
-            states.submenu || states.contextmenu ? "best-fit" : "keep-align"
+          placementModeY: states.submenu || states.contextmenu ? "best-fit" : "keep-align"
         };
 
         if (states.submenu) {
@@ -1719,9 +1680,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         return {
-          icon: states.hovered
-            ? "decoration/arrows/up-invert.gif"
-            : "decoration/arrows/up.gif"
+          icon: states.hovered ? "decoration/arrows/up-invert.gif" : "decoration/arrows/up.gif"
         };
       }
     },
@@ -1731,9 +1690,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         return {
-          icon: states.hovered
-            ? "decoration/arrows/down-invert.gif"
-            : "decoration/arrows/down.gif"
+          icon: states.hovered ? "decoration/arrows/down-invert.gif" : "decoration/arrows/down.gif"
         };
       }
     },
@@ -1801,9 +1758,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         return {
-          source: states.selected
-            ? "decoration/arrows/right-invert.gif"
-            : "decoration/arrows/right.gif",
+          source: states.selected ? "decoration/arrows/right-invert.gif" : "decoration/arrows/right.gif",
           alignY: "middle"
         };
       }
@@ -1815,11 +1770,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         return {
-          icon: !states.checked
-            ? undefined
-            : states.selected
-            ? "decoration/menu/checkbox-invert.gif"
-            : "decoration/menu/checkbox.gif"
+          icon: !states.checked ? undefined : states.selected ? "decoration/menu/checkbox-invert.gif" : "decoration/menu/checkbox.gif"
         };
       }
     },
@@ -1830,11 +1781,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
 
       style(states) {
         return {
-          icon: !states.checked
-            ? undefined
-            : states.selected
-            ? "decoration/menu/radiobutton-invert.gif"
-            : "decoration/menu/radiobutton.gif"
+          icon: !states.checked ? undefined : states.selected ? "decoration/menu/radiobutton-invert.gif" : "decoration/menu/radiobutton.gif"
         };
       }
     },
@@ -1860,12 +1807,8 @@ qx.Theme.define("qx.theme.classic.Appearance", {
       style(states) {
         return {
           padding: [2, 6],
-          backgroundColor:
-            states.pressed || (states.hovered && !states.disabled)
-              ? "background-selected"
-              : undefined,
-          textColor:
-            states.pressed || states.hovered ? "text-selected" : undefined
+          backgroundColor: states.pressed || (states.hovered && !states.disabled) ? "background-selected" : undefined,
+          textColor: states.pressed || states.hovered ? "text-selected" : undefined
         };
       }
     },
@@ -2071,12 +2014,8 @@ qx.Theme.define("qx.theme.classic.Appearance", {
           paddingLeft: 2,
           paddingRight: 2,
           paddingBottom: states.hovered ? 0 : 2,
-          decorator: states.hovered
-            ? "table-header-cell-hovered"
-            : "table-header-cell",
-          backgroundColor: states.hovered
-            ? "table-header-cell-hover"
-            : "table-header-cell",
+          decorator: states.hovered ? "table-header-cell-hovered" : "table-header-cell",
+          backgroundColor: states.hovered ? "table-header-cell-hover" : "table-header-cell",
           sortIcon: states.sorted
             ? states.sortedAscending
               ? "decoration/table/ascending.png"
@@ -2287,9 +2226,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
     cell: {
       style(states) {
         return {
-          backgroundColor: states.selected
-            ? "table-row-background-selected"
-            : "table-row-background-even",
+          backgroundColor: states.selected ? "table-row-background-selected" : "table-row-background-even",
           textColor: states.selected ? "text-selected" : "text",
           padding: [3, 6]
         };
@@ -2332,9 +2269,7 @@ qx.Theme.define("qx.theme.classic.Appearance", {
     "progressbar/progress": {
       style(states) {
         return {
-          backgroundColor: states.disabled
-            ? "background-disabled"
-            : "background-selected"
+          backgroundColor: states.disabled ? "background-disabled" : "background-selected"
         };
       }
     },

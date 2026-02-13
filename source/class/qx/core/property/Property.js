@@ -80,6 +80,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
      * @type {Boolean} whether this property is inheritable or not
      */
     __inheritable: null,
+
     /** @type {String} the name of the property */
     __propertyName: null,
 
@@ -590,7 +591,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
         if (this.__apply) {
           this.__callFunction(thisObj, this.__apply, value, undefined, this.__propertyName);
         }
-            
+
         if (this.__eventName && qx.event.Registration.hasListener(thisObj, this.__eventName)) {
           thisObj.fireDataEvent(this.__eventName, value, undefined);
         }
@@ -670,7 +671,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
         if (this.__pseudoProperty) {
           throw new Error(`${this}: Pseudo properties do not support getSafe`);
         }
-      }      
+      }
       if (async) {
         return this.__getAsyncImpl(thisObj, true);
       }

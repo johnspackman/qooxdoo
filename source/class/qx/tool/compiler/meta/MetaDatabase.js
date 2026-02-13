@@ -27,7 +27,11 @@ const path = require("upath");
  * MetaDatabase is used to store the metadata for all classes in a qooxdoo compilation;
  * it covers all classes in all libraries, and has scope to incorporate pre-compilers
  * in the future.
- * 
+ *
+ * @ignore(TextEncoder)
+ * @ignore(SharedArrayBuffer)
+ * @ignore(TextDecoder)
+ *
  * @typedef {Object} Database
  * @property {string[]} classnames List of all class names in the database
  */
@@ -78,9 +82,9 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     /** @type {Object<String,Boolean>} list of classes which need to have their second pass */
     __dirtyClasses: null,
 
-    /** 
-     * @type {Database} 
-     * The database 
+    /**
+     * @type {Database}
+     * The database
      */
     __database: null,
 
@@ -93,12 +97,12 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @type {SharedArrayBuffer?} serialized form of the database.
      * This is necessary in order to provide the meta database to compilation worker threads
      * in an efficient way which does not involve copying large amounts of data.
-     * 
+     *
      * The meta database is serialized when it's saved or loaded.
      * We can deserialize it in worker threads using the static method `deserialize`.
      * The deserialized reconstructed metadatabase will be read-only and not have functionalities like addFile, save, or load.
      */
-    __serialized: null,    
+    __serialized: null,
 
     __startupDetectedOutOfDate: null,
 
@@ -113,7 +117,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     },
 
     /**
-     * 
+     *
      * @returns {number?} Unix timestamp of the last time the database was serialized.
      */
     getLastSerialized() {
@@ -165,35 +169,37 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
 
         let classnamesToLoad = data.classnames || [];
         //2026-JAN-15 - I don't think we need to limit concurrency here? - NodeJs should be able to handle loads of parallel disk IO operations
-        await Promise.all(classnamesToLoad.map(async classname => {
-          let segs = classname.split(".");
-          
-          for (let i = 0; i < segs.length - 1; i++) {
-            let seg = segs.slice(0, i + 1).join(".");
-            this.__packages[seg] = true;
-          }
-          let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
-          if (fs.existsSync(filename)) {
-            await qx.tool.utils.Utils.makeParentDir(filename);
-            let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
-            await metaReader.loadMeta(filename);
-            if (await metaReader.isOutOfDate()) {
-              this.__startupDetectedOutOfDate[filename] = true;
-            }
-            this.__metaByClassname[classname] = metaReader;
-            let classFilename = metaReader.getMetaData().classFilename;
-            classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
+        await Promise.all(
+          classnamesToLoad.map(async classname => {
+            let segs = classname.split(".");
 
-            this.__metaByFilename[classFilename] = metaReader;
-          }
-        }));
+            for (let i = 0; i < segs.length - 1; i++) {
+              let seg = segs.slice(0, i + 1).join(".");
+              this.__packages[seg] = true;
+            }
+            let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
+            if (fs.existsSync(filename)) {
+              await qx.tool.utils.Utils.makeParentDir(filename);
+              let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
+              await metaReader.loadMeta(filename);
+              if (await metaReader.isOutOfDate()) {
+                this.__startupDetectedOutOfDate[filename] = true;
+              }
+              this.__metaByClassname[classname] = metaReader;
+              let classFilename = metaReader.getMetaData().classFilename;
+              classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
+
+              this.__metaByFilename[classFilename] = metaReader;
+            }
+          })
+        );
       }
       this.__updateSerialized();
       this.fireEvent("started");
     },
 
     /**
-     * 
+     *
      * @returns {SharedArrayBuffer} A serialized form of the database, useful for passing efficiently to node workers.
      * The MetaDataBase object can then be reconstructed using the static method `deserialize`.
      */
@@ -206,18 +212,18 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @returns {SharedArrayBuffer} The updated serialized form
      */
     __updateSerialized() {
-      let pojo ={
+      let pojo = {
         metaByClassname: qx.lang.Object.map(this.__metaByClassname, meta => meta.getMetaData()),
         packages: this.__packages,
         environmentChecks: this.__database.environmentChecks || {}
       };
-      
+
       let encoded = new TextEncoder().encode(JSON.stringify(pojo));
       let sab = new SharedArrayBuffer(encoded.byteLength);
       new Uint8Array(sab).set(encoded);
 
       this.__lastSerialized = Date.now();
-      return this.__serialized = sab;
+      return (this.__serialized = sab);
     },
 
     /**
@@ -288,7 +294,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      *
      * @param {String} filename
      * @param {Boolean} force Always recompute the meta, even if it's up to date
-     * @returns {Promise<boolean>} Whether the file was added successfully. 
+     * @returns {Promise<boolean>} Whether the file was added successfully.
      */
     async addFile(filename, force) {
       filename = await qx.tool.utils.files.Utils.correctCase(filename);
@@ -475,25 +481,27 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         }
       }
 
-      await Promise.all(classnames.map(async className => {
-        let metaReader = this.__metaByClassname[className];
-        let metaData = metaReader.getMetaData();
+      await Promise.all(
+        classnames.map(async className => {
+          let metaReader = this.__metaByClassname[className];
+          let metaData = metaReader.getMetaData();
 
-        const typeResolver = {
-          resolveType: this.resolveType.bind(this, metaData)
-        };
+          const typeResolver = {
+            resolveType: this.resolveType.bind(this, metaData)
+          };
 
-        metaReader.fixupJsDoc(typeResolver);
+          metaReader.fixupJsDoc(typeResolver);
 
-        this.__fixupMembers(metaData);
+          this.__fixupMembers(metaData);
 
-        this.__fixupEntries(metaData, "members");
-        this.__fixupEntries(metaData, "statics");
-        this.__fixupEntries(metaData, "properties");
+          this.__fixupEntries(metaData, "members");
+          this.__fixupEntries(metaData, "statics");
+          this.__fixupEntries(metaData, "properties");
 
-        let filename = this.getRootDir() + "/" + className.replace(/\./g, "/") + ".json";
-        await metaReader.saveMeta(filename);
-      }));
+          let filename = this.getRootDir() + "/" + className.replace(/\./g, "/") + ".json";
+          await metaReader.saveMeta(filename);
+        })
+      );
     },
 
     /**
@@ -572,11 +580,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @returns {string[]} list of classes where the entry appears
      */
     __findAppearances(metaData, entryKind, entryName) {
-      const getSuperLikes = meta => [
-        ...(meta.mixins ?? []),
-        ...(meta.superClass ? [meta.superClass] : []),
-        ...(meta.interfaces ?? [])
-      ];
+      const getSuperLikes = meta => [...(meta.mixins ?? []), ...(meta.superClass ? [meta.superClass] : []), ...(meta.interfaces ?? [])];
 
       const resolve = meta => {
         if (meta[entryKind]?.[entryName]) {
@@ -708,12 +712,12 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     },
 
     /**
-     * 
+     *
      * @param {qx.tool.compiler.meta.MetaDatabase} other
      * @returns {qx.tool.compiler.meta.MetaDatabase}
      */
-    move(other) {      
-      this.__metaByClassname = other.__metaByClassname
+    move(other) {
+      this.__metaByClassname = other.__metaByClassname;
       this.__packages = other.__packages;
       this.__database = {
         environmentChecks: other.__database.environmentChecks
@@ -726,7 +730,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   statics: {
     /**
      * Reconstructs the MetaDatabase from its SharedArrayBuffer representation
-     * @param {ShardArrayBuffer} buffer 
+     * @param {ShardArrayBuffer} buffer
      * @returns {qx.tool.compiler.meta.MetaDatabase}
      */
     deserialize(buffer) {

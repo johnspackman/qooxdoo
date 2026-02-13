@@ -122,6 +122,13 @@ qx.Class.define("qx.ui.form.AbstractSelectBox", {
   */
 
   members: {
+    /**
+     * @Override
+     */
+    _forwardStates: {
+      readonly: true
+    },
+
     // overridden
     _createChildControlImpl(id, hash) {
       var control;
@@ -141,25 +148,15 @@ qx.Class.define("qx.ui.form.AbstractSelectBox", {
           this.bind("readOnly", control, "readOnly");
 
           const listId = "list-" + control.toHashCode();
-          const childrenContainerEl = control
-            .getChildrenContainer()
-            .getContentElement();
+          const childrenContainerEl = control.getChildrenContainer().getContentElement();
           childrenContainerEl.setAttribute("id", listId);
           childrenContainerEl.setAttribute("role", "listbox");
           this.getContentElement().setAttribute("aria-owns", listId);
 
           control.addListener("addItem", this._onListAddItem, this);
-          control.addListener(
-            "changeSelection",
-            this._onListChangeSelection,
-            this
-          );
+          control.addListener("changeSelection", this._onListChangeSelection, this);
 
-          control.addListener(
-            "pointerdown",
-            this.__onListPointerDownImpl,
-            this
-          );
+          control.addListener("pointerdown", this.__onListPointerDownImpl, this);
 
           control.getChildControl("pane").addListener("tap", this.close, this);
           break;
@@ -170,11 +167,7 @@ qx.Class.define("qx.ui.form.AbstractSelectBox", {
           control.setKeepActive(true);
           control.add(this.getChildControl("list"));
 
-          control.addListener(
-            "changeVisibility",
-            this._onPopupChangeVisibility,
-            this
-          );
+          control.addListener("changeVisibility", this._onPopupChangeVisibility, this);
 
           break;
       }
@@ -193,9 +186,23 @@ qx.Class.define("qx.ui.form.AbstractSelectBox", {
       this.getChildControl("list").setMaxHeight(value);
     },
 
-    _applyReadOnly() {
-      // no-op
+    /**
+     * Apply for `readOnly` property.
+     */
+    _applyReadOnly(value) {
+      if (value) {
+        this.addState("readonly");
+      } else {
+        this.removeState("readonly");
+      }
+      let lst = this.getChildControl("list");
+      if (typeof lst.setReadOnly == "function") {
+        lst.setReadOnly(value);
+      } else {
+        lst.setEnabled(!value);
+      }
     },
+
     /*
     ---------------------------------------------------------------------------
     PUBLIC METHODS
@@ -206,13 +213,13 @@ qx.Class.define("qx.ui.form.AbstractSelectBox", {
      */ getChildrenContainer() {
       return this.getChildControl("list");
     },
-    
+
     /*
     ---------------------------------------------------------------------------
     LIST STUFF
     ---------------------------------------------------------------------------
     */
-    
+
     /**
      * Shows the list popup.
      */
@@ -297,18 +304,12 @@ qx.Class.define("qx.ui.form.AbstractSelectBox", {
       var listPopup = this.getChildControl("popup");
 
       // disabled pageUp and pageDown keys
-      if (
-        listPopup.isHidden() &&
-        (identifier == "PageDown" || identifier == "PageUp")
-      ) {
+      if (listPopup.isHidden() && (identifier == "PageDown" || identifier == "PageUp")) {
         e.stopPropagation();
       }
 
       // hide the list always on escape and tab
-      else if (
-        !listPopup.isHidden() &&
-        (identifier == "Escape" || identifier == "Tab")
-      ) {
+      else if (!listPopup.isHidden() && (identifier == "Escape" || identifier == "Tab")) {
         this.close();
         e.stop();
       }

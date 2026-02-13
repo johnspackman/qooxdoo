@@ -26,39 +26,22 @@ qx.Class.define("qx.html.Factory", {
   construct() {
     super();
     this.__factoriesByTagName = {};
-    this.registerFactory(
-      "#text",
-      (tagName, styles, attributes) => new qx.html.Text("")
-    );
+    this.registerFactory("#text", (tagName, styles, attributes) => new qx.html.Text(""));
 
-    this.registerFactory(
-      "iframe",
-      (tagName, styles, attributes) =>
-        new qx.html.Iframe(attributes.src, styles, attributes)
-    );
+    this.registerFactory("iframe", (tagName, styles, attributes) => new qx.html.Iframe(attributes.src, styles, attributes));
 
-    this.registerFactory(
-      "input",
-      (tagName, styles, attributes) =>
-        new qx.html.Input(attributes.type || "text", styles, attributes)
-    );
+    this.registerFactory("input", (tagName, styles, attributes) => new qx.html.Input(attributes.type || "text", styles, attributes));
 
     this.registerFactory("slot", (tagName, styles, attributes) => {
       if (tagName !== "slot") {
-        throw new Error(
-          `Cannot create slot with tag <${tagName}> - only <slot> is supported`
-        );
+        throw new Error(`Cannot create slot with tag <${tagName}> - only <slot> is supported`);
       }
       if (Object.keys(styles).length > 0) {
-        throw new Error(
-          `Cannot create slot with attribute "style" - only the "name" attribute is supported`
-        );
+        throw new Error(`Cannot create slot with attribute "style" - only the "name" attribute is supported`);
       }
       Object.keys(attributes).forEach(key => {
         if (key !== "name") {
-          throw new Error(
-            `Cannot create slot with attribute "${key}" - only the "name" attribute is supported`
-          );
+          throw new Error(`Cannot create slot with attribute "${key}" - only the "name" attribute is supported`);
         }
       });
       return new qx.html.Slot(attributes.name);
@@ -105,14 +88,18 @@ qx.Class.define("qx.html.Factory", {
 
         var styles = {};
         if (attributes.style) {
-          attributes.style.split(/;/).forEach(function (seg) {
-            var pos = seg.indexOf(":");
-            var key = seg.substring(0, pos);
-            var value = seg.substring(pos + 1).trim();
-            if (key) {
+          let styleArray = attributes.style.replace(/\/\*.*?\*\//g, "").split(";");
+          for (let styleRule of styleArray) {
+            let pos = styleRule.indexOf(":");
+            if (pos === -1) {
+              continue;
+            }
+            let key = styleRule.substring(0, pos).trim();
+            let value = styleRule.substring(pos + 1).trim();
+            if (key.length) {
               styles[key] = value;
             }
-          });
+          }
           delete attributes.style;
         }
 
@@ -120,9 +107,7 @@ qx.Class.define("qx.html.Factory", {
         if (classname) {
           var clazz = qx.Class.getByName(classname);
           if (qx.core.Environment.get("qx.debug")) {
-            this.assertTrue(
-              clazz && qx.Class.isSubClassOf(clazz, qx.html.Element)
-            );
+            this.assertTrue(clazz && qx.Class.isSubClassOf(clazz, qx.html.Element));
 
             return new clazz(tagName, styles, attributes);
           }
@@ -133,10 +118,7 @@ qx.Class.define("qx.html.Factory", {
       if (factories) {
         for (var i = factories.length - 1; i > -1; i--) {
           var factory = factories[i];
-          if (
-            factory.classname &&
-            qx.Class.getByName(factory.classname) === factory
-          ) {
+          if (factory.classname && qx.Class.getByName(factory.classname) === factory) {
             return new factory(tagName, styles, attributes);
           }
 

@@ -90,10 +90,7 @@ qx.Class.define("qx.Promise", {
               args.shift();
               args.unshift(qx.Promise.__DEFAULT_ERROR);
             } else if (reason && !(reason instanceof Error)) {
-              self.error(
-                "Calling reject with non-error object, createdAt=" +
-                  JSON.stringify(self.$$createdAt || null)
-              );
+              self.error("Calling reject with non-error object, createdAt=" + JSON.stringify(self.$$createdAt || null));
             }
             reject.apply(this, args);
           });
@@ -228,15 +225,11 @@ qx.Class.define("qx.Promise", {
     cancel() {
       if (qx.core.Environment.get("qx.debug")) {
         if (qx.core.Environment.get("qx.Promise.useNativePromise")) {
-          throw new Error(
-            "qx.Promise.cancel is not supported when the environment key 'qx.Promise.useNativePromise' is true"
-          );
+          throw new Error("qx.Promise.cancel is not supported when the environment key 'qx.Promise.useNativePromise' is true");
         } else if (!qx.Promise.__cancelWarningShown) {
           qx.Promise.__cancelWarningShown = true;
           // eslint-disable-next-line
-          console.warn(
-            "qx.Promise.cancel is deprecated and will be removed in the future"
-          );
+          console.warn("qx.Promise.cancel is deprecated and will be removed in the future");
         }
       }
       return this._callMethod("cancel", arguments);
@@ -437,9 +430,7 @@ qx.Class.define("qx.Promise", {
       args = qx.Promise.__bindArgs(args);
       return qx.Promise.__wrap(
         this.__p.then(function (value) {
-          var newP = qx.Promise.Impl.resolve(
-            value instanceof qx.data.Array ? value.toArray() : value
-          );
+          var newP = qx.Promise.Impl.resolve(value instanceof qx.data.Array ? value.toArray() : value);
 
           return qx.Promise.__wrap(newP[methodName].apply(newP, args));
         })
@@ -511,10 +502,7 @@ qx.Class.define("qx.Promise", {
       }
 
       if (qx.core.Environment.get("qx.debug")) {
-        if (
-          typeof value.finally != "function" ||
-          typeof value.catch != "function"
-        ) {
+        if (typeof value.finally != "function" || typeof value.catch != "function") {
           qx.log.Logger.warn(
             qx.Promise,
             'Calling `isPromise` on a "thenable" instance but the object does not also support `.catch` and/or `.finally`'
@@ -941,16 +929,9 @@ qx.Class.define("qx.Promise", {
       qx.Promise.__initialized = true;
       var isNode = typeof process !== "undefined";
       if (isNode) {
-        process.on(
-          "unhandledRejection",
-          qx.Promise.__onUnhandledRejection.bind(this)
-        );
+        process.on("unhandledRejection", qx.Promise.__onUnhandledRejection.bind(this));
       } else {
-        qx.bom.Event.addNativeListener(
-          window,
-          "unhandledrejection",
-          qx.Promise.__onUnhandledRejection.bind(this)
-        );
+        qx.bom.Event.addNativeListener(window, "unhandledrejection", qx.Promise.__onUnhandledRejection.bind(this));
       }
       if (!qx.core.Environment.get("qx.promise")) {
         qx.log.Logger.error(
@@ -965,22 +946,23 @@ qx.Class.define("qx.Promise", {
      * @param e {NativeEvent}
      */
     __onUnhandledRejection(e) {
-      if (qx.lang.Type.isFunction(e.preventDefault)) {
-        e.preventDefault();
-      }
       var reason = null;
-      if (e instanceof Error) {
-        reason = e;
-      } else if (e.reason instanceof Error) {
-        reason = e.reason;
-      } else if (e.detail && e.detail.reason instanceof Error) {
-        reason = e.detail.reason;
+      if (e) {
+        if (qx.lang.Type.isFunction(e.preventDefault)) {
+          e.preventDefault();
+        }
+        if (e instanceof Error) {
+          reason = e;
+        } else if (e.reason instanceof Error) {
+          reason = e.reason;
+        } else if (e.detail && e.detail.reason instanceof Error) {
+          reason = e.detail.reason;
+        }
+        qx.log.Logger.error(this, "Unhandled promise rejection: " + (reason ? reason.stack : "(not from exception)"));
+      } else {
+        reason = new Error("Unhandled promise rejection");
+        qx.log.Logger.error(this, "Unhandled promise rejection (with no error)");
       }
-      qx.log.Logger.error(
-        this,
-        "Unhandled promise rejection: " +
-          (reason ? reason.stack : "(not from exception)")
-      );
 
       qx.event.GlobalError.handleError(reason);
     },
@@ -1038,12 +1020,7 @@ qx.Class.define("qx.Promise", {
      */
     __callStaticMethod(methodName, args, minArgs) {
       args = qx.Promise.__bindArgs(args, minArgs);
-      return qx.Promise.__wrap(
-        qx.Promise.Impl[methodName].apply(
-          qx.Promise.Impl,
-          qx.Promise.__mapArgs(args)
-        )
-      );
+      return qx.Promise.__wrap(qx.Promise.Impl[methodName].apply(qx.Promise.Impl, qx.Promise.__mapArgs(args)));
     },
 
     /**

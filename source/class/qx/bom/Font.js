@@ -170,9 +170,10 @@ qx.Class.define("qx.bom.Font", {
     /**
      * The line height as scaling factor of the default line height. A value
      * of 1 corresponds to the default line height
+     *
+     * Note that this should *not* have a check of Number, because it can also be a string like "normal" or "1.5em"
      */
     lineHeight: {
-      check: "Number",
       nullable: true,
       apply: "_applyLineHeight"
     },
@@ -202,10 +203,7 @@ qx.Class.define("qx.bom.Font", {
      */
     version: {
       check(value) {
-        return (
-          value === null ||
-          (typeof value === "string" && /^[a-zA-Z0-9.-]+$/.test(value))
-        );
+        return value === null || (typeof value === "string" && /^[a-zA-Z0-9.-]+$/.test(value));
       },
       init: null,
       nullable: true
@@ -333,8 +331,7 @@ qx.Class.define("qx.bom.Font", {
     // property apply
     _applyFontName(value) {
       if (value) {
-        let data =
-          qx.theme.manager.Font.getInstance().getManifestFonts()[value];
+        let data = qx.theme.manager.Font.getInstance().getManifestFonts()[value];
         if (!data) {
           this.warn("Cannot find a font called " + value);
         } else {
@@ -351,14 +348,12 @@ qx.Class.define("qx.bom.Font", {
 
     // property apply
     _applyBold(value, old) {
-      this.__lookupMap.fontWeight =
-        value == null ? null : value ? "bold" : "normal";
+      this.__lookupMap.fontWeight = value == null ? null : value ? "bold" : "normal";
     },
 
     // property apply
     _applyItalic(value, old) {
-      this.__lookupMap.fontStyle =
-        value == null ? null : value ? "italic" : "normal";
+      this.__lookupMap.fontStyle = value == null ? null : value ? "italic" : "normal";
     },
 
     // property apply
@@ -370,8 +365,7 @@ qx.Class.define("qx.bom.Font", {
     _applyColor(value, old) {
       this.__lookupMap.color = null;
       if (value) {
-        this.__lookupMap.color =
-          qx.theme.manager.Color.getInstance().resolve(value);
+        this.__lookupMap.color = qx.theme.manager.Color.getInstance().resolve(value);
       }
     },
 

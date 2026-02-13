@@ -194,6 +194,15 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     },
 
     /**
+     * Whether to support browserify for browser targets
+     */
+    browserify: {
+      init: true,
+      nullable: false,
+      check: "Boolean"
+    },
+
+    /**
      * Whether to use relative paths in source maps
      */
     sourceMapRelativePaths: {
@@ -427,12 +436,8 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       // class will always bundle local modules specified for an
       // application in compile.json, but will not bundle `require()`d
       // modules that are Node modules.
-      if (
-        appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser"
-      ) {
-        bootPackage.addJavascriptMeta(
-          new qx.tool.compiler.targets.meta.Browserify(appMeta)
-        );
+      if (appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser" && this.isBrowserify()) {
+        bootPackage.addJavascriptMeta(new qx.tool.compiler.targets.meta.Browserify(appMeta));
       }
 
       /*
@@ -499,12 +504,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       if (analyzer.getApplicationTypes().indexOf("browser") > -1) {
         appMeta.addPreBootCode("qx.$$fontBootstrap={};\n");
         await this.__writeDeprecatedWebFonts(application, appMeta, assets);
-        await this.__writeManifestFonts(
-          application,
-          appMeta,
-          assets,
-          bootPackage
-        );
+        await this.__writeManifestFonts(application, appMeta, assets, bootPackage);
       }
       await this._writeApplication();
       this.__appMeta = null;
@@ -751,9 +751,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       var promises = t.getLocales().map(async localeId => {
         let localeOptions = await loadLocaleData(localeId);
-        let pkg = this.isI18nAsParts()
-          ? appMeta.getLocalePackage(localeId)
-          : bootPackage;
+        let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
         pkg.addLocale(localeId, localeOptions);
       });
 

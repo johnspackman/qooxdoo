@@ -84,11 +84,7 @@ qx.Theme.define("qx.theme.tangible.Decoration", {
         shadowVerticalLength: [3, 2, 1],
         shadowBlurRadius: [1, 2, 5],
         shadowSpreadRadius: [-2, 0, 0],
-        shadowColor: [
-          "rgba(0, 0, 0, 0.2)",
-          "rgba(0, 0, 0, 0.14)",
-          "rgba(0, 0, 0, 0.12)"
-        ],
+        shadowColor: ["rgba(0, 0, 0, 0.2)", "rgba(0, 0, 0, 0.14)", "rgba(0, 0, 0, 0.12)"],
 
         transitionProperty: ["all"],
         transitionDuration: "0s"
@@ -1091,6 +1087,18 @@ qx.Theme.define("qx.theme.tangible.Decoration", {
     },
 
     "table-header-cell-first": { include: "table-header-cell" },
+
+    "virtual-background-header": {
+      include: "table-header-cell"
+    },
+
+    "virtual-background-span": {
+      include: "table-header-cell",
+      style: {
+        color: "table-row-line",
+        width: [0, 0, 1, 0]
+      }
+    },
 
     "progressive-table-header": {
       include: "button-box",

@@ -47,15 +47,11 @@ qx.Class.define("qx.bom.element.Scroll", {
       };
 
       var getBorderRight = function (el) {
-        return Style.get(el, "borderRightStyle") == "none"
-          ? 0
-          : getStyleSize(el, "borderRightWidth");
+        return Style.get(el, "borderRightStyle") == "none" ? 0 : getStyleSize(el, "borderRightWidth");
       };
 
       var getBorderLeft = function (el) {
-        return Style.get(el, "borderLeftStyle") == "none"
-          ? 0
-          : getStyleSize(el, "borderLeftWidth");
+        return Style.get(el, "borderLeftStyle") == "none" ? 0 : getStyleSize(el, "borderLeftWidth");
       };
 
       var getInsetRight = qx.core.Environment.select("engine.name", {
@@ -72,16 +68,12 @@ qx.Class.define("qx.bom.element.Scroll", {
           // clientWidth == 0 could mean both: unavailable or really 0
           if (el.clientWidth == 0) {
             var ov = Style.get(el, "overflow");
-            var sbv =
-              ov == "scroll" || ov == "-moz-scrollbars-vertical" ? 16 : 0;
+            var sbv = ov == "scroll" || ov == "-moz-scrollbars-vertical" ? 16 : 0;
 
             return Math.max(0, getBorderRight(el) + sbv);
           }
 
-          return Math.max(
-            0,
-            el.offsetWidth - el.clientWidth - getBorderLeft(el)
-          );
+          return Math.max(0, el.offsetWidth - el.clientWidth - getBorderLeft(el));
         }
       });
 
@@ -140,11 +132,7 @@ qx.Class.define("qx.bom.element.Scroll", {
       // Go up the parent chain
       while (parent && parent != stop) {
         // "overflow" is always visible for both: document.body and document.documentElement
-        if (
-          parent.scrollWidth > parent.clientWidth &&
-          (parent === body ||
-            qx.bom.element.Style.get(parent, "overflowY") != "visible")
-        ) {
+        if (parent.scrollWidth > parent.clientWidth && (parent === body || qx.bom.element.Style.get(parent, "overflowY") != "visible")) {
           // Calculate parent data
           // Special handling for body element
           if (parent === body) {
@@ -163,21 +151,9 @@ qx.Class.define("qx.bom.element.Scroll", {
             parentOuterWidth = parent.offsetWidth;
             parentClientWidth = parent.clientWidth;
             parentScrollWidth = parent.scrollWidth;
-            parentLeftBorder =
-              parseInt(
-                qx.bom.element.Style.get(parent, "borderLeftWidth"),
-                10
-              ) || 0;
-            parentRightBorder =
-              parseInt(
-                qx.bom.element.Style.get(parent, "borderRightWidth"),
-                10
-              ) || 0;
-            parentScrollBarWidth =
-              parentOuterWidth -
-              parentClientWidth -
-              parentLeftBorder -
-              parentRightBorder;
+            parentLeftBorder = parseInt(qx.bom.element.Style.get(parent, "borderLeftWidth"), 10) || 0;
+            parentRightBorder = parseInt(qx.bom.element.Style.get(parent, "borderRightWidth"), 10) || 0;
+            parentScrollBarWidth = parentOuterWidth - parentClientWidth - parentLeftBorder - parentRightBorder;
           }
 
           // Calculate element data
@@ -262,11 +238,7 @@ qx.Class.define("qx.bom.element.Scroll", {
       // Go up the parent chain
       while (parent && parent != stop) {
         // "overflow" is always visible for both: document.body and document.documentElement
-        if (
-          parent.scrollHeight > parent.clientHeight &&
-          (parent === body ||
-            qx.bom.element.Style.get(parent, "overflowY") != "visible")
-        ) {
+        if (parent.scrollHeight > parent.clientHeight && (parent === body || qx.bom.element.Style.get(parent, "overflowY") != "visible")) {
           // Calculate parent data
           // Special handling for body element
           if (parent === body) {
@@ -285,21 +257,9 @@ qx.Class.define("qx.bom.element.Scroll", {
             parentOuterHeight = parent.offsetHeight;
             parentClientHeight = parent.clientHeight;
             parentScrollHeight = parent.scrollHeight;
-            parentTopBorder =
-              parseInt(
-                qx.bom.element.Style.get(parent, "borderTopWidth"),
-                10
-              ) || 0;
-            parentBottomBorder =
-              parseInt(
-                qx.bom.element.Style.get(parent, "borderBottomWidth"),
-                10
-              ) || 0;
-            parentScrollBarHeight =
-              parentOuterHeight -
-              parentClientHeight -
-              parentTopBorder -
-              parentBottomBorder;
+            parentTopBorder = parseInt(qx.bom.element.Style.get(parent, "borderTopWidth"), 10) || 0;
+            parentBottomBorder = parseInt(qx.bom.element.Style.get(parent, "borderBottomWidth"), 10) || 0;
+            parentScrollBarHeight = parentOuterHeight - parentClientHeight - parentTopBorder - parentBottomBorder;
           }
 
           // Calculate element data
@@ -338,7 +298,20 @@ qx.Class.define("qx.bom.element.Scroll", {
             scrollDiff = bottomOffset + parentScrollBarHeight;
           }
 
-          parent.scrollTop += scrollDiff;
+          // Calculate the maximum scrollTop value to prevent scrolling beyond the scrollable area
+          let scrollMaxY = 0;
+          var paneSize = parent.clientHeight;
+          var scrollSize = parent.scrollHeight;
+
+          if (paneSize && scrollSize) {
+            scrollMaxY = Math.max(0, scrollSize.height - paneSize.height);
+          }
+          var scrollTop = parent.scrollTop + scrollDiff;
+          if (scrollTop > scrollMaxY) {
+            scrollTop = scrollMaxY;
+          }
+
+          parent.scrollTop = scrollTop;
 
           // Browsers that follow the CSSOM View Spec fire the "scroll"
           // event asynchronously.

@@ -194,6 +194,7 @@ async function bootstrapCompiler(options) {
   if (options.clean) {
     console.log("Deleting previous bootstrap compiler");
     await deleteRecursive("bootstrap");
+    await deleteRecursive("compiled");
     await deleteRecursive("known-good/node_modules");
   }
 

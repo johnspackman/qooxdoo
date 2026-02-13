@@ -159,15 +159,23 @@ qx.Bootstrap.define("qx.bom.Selector", {
  * @lint ignoreUnused(j, rnot, rendsWithNot)
  */
 
+// prettier-ignore
+
+/**
+ * Below is the original Sizzle code. Snapshot date is mentioned in the head of
+ * this file.
+ * @lint ignoreUnused(j, rnot, rendsWithNot)
+ */
+
 /*!
- * Sizzle CSS Selector Engine v2.3.0
+ * Sizzle CSS Selector Engine v2.3.10
  * https://sizzlejs.com/
  *
- * Copyright jQuery Foundation and other contributors
+ * Copyright JS Foundation and other contributors
  * Released under the MIT license
- * http://jquery.org/license
+ * https://js.foundation/
  *
- * Date: 2016-01-04
+ * Date: 2023-02-14
  */
 (function (window) {
   var i,
@@ -198,6 +206,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
     classCache = createCache(),
     tokenCache = createCache(),
     compilerCache = createCache(),
+    nonnativeSelectorCache = createCache(),
     sortOrder = function (a, b) {
       if (a === b) {
         hasDuplicate = true;
@@ -208,7 +217,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
     hasOwn = {}.hasOwnProperty,
     arr = [],
     pop = arr.pop,
-    push_native = arr.push,
+    pushNative = arr.push,
     push = arr.push,
     slice = arr.slice,
     // Use a stripped-down indexOf as it's faster than native
@@ -224,13 +233,17 @@ qx.Bootstrap.define("qx.bom.Selector", {
       return -1;
     },
     booleans =
-      "checked|selected|async|autofocus|autoplay|controls|defer|disabled|hidden|ismap|loop|multiple|open|readonly|required|scoped",
+      "checked|selected|async|autofocus|autoplay|controls|defer|disabled|hidden|" +
+      "ismap|loop|multiple|open|readonly|required|scoped",
     // Regular expressions
 
     // http://www.w3.org/TR/css3-selectors/#whitespace
     whitespace = "[\\x20\\t\\r\\n\\f]",
-    // http://www.w3.org/TR/CSS21/syndata.html#value-def-identifier
-    identifier = "(?:\\\\.|[\\w-]|[^\0-\\xa0])+",
+    // https://www.w3.org/TR/css-syntax-3/#ident-token-diagram
+    identifier =
+      "(?:\\\\[\\da-fA-F]{1,6}" +
+      whitespace +
+      "?|\\\\[^\\r\\n\\f]|[\\w-]|[^\0-\\x7f])+",
     // Attribute selectors: http://www.w3.org/TR/selectors/#attribute-selectors
     attributes =
       "\\[" +
@@ -242,7 +255,8 @@ qx.Bootstrap.define("qx.bom.Selector", {
       // Operator (capture 2)
       "*([*^$|!~]?=)" +
       whitespace +
-      // "Attribute values must be CSS identifiers [capture 5] or strings [capture 3 or capture 4]"
+      // "Attribute values must be CSS identifiers [capture 5]
+      // or strings [capture 3 or capture 4]"
       "*(?:'((?:\\\\.|[^\\\\'])*)'|\"((?:\\\\.|[^\\\\\"])*)\"|(" +
       identifier +
       "))|)" +
@@ -269,13 +283,10 @@ qx.Bootstrap.define("qx.bom.Selector", {
       "g"
     ),
     rcomma = new RegExp("^" + whitespace + "*," + whitespace + "*"),
-    rcombinators = new RegExp(
+    rleadingCombinator = new RegExp(
       "^" + whitespace + "*([>+~]|" + whitespace + ")" + whitespace + "*"
     ),
-    rattributeQuotes = new RegExp(
-      "=" + whitespace + "*([^\\]'\"]*?)" + whitespace + "*\\]",
-      "g"
-    ),
+    rdescend = new RegExp(whitespace + "|>"),
     rpseudo = new RegExp(pseudos),
     ridentifier = new RegExp("^" + identifier + "$"),
     matchExpr = {
@@ -298,6 +309,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
       ),
 
       bool: new RegExp("^(?:" + booleans + ")$", "i"),
+
       // For use in libraries implementing .is()
       // We use this for POS matching in `select`
       needsContext: new RegExp(
@@ -311,6 +323,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
         "i"
       )
     },
+    rhtml = /HTML$/i,
     rinputs = /^(?:input|select|textarea|button)$/i,
     rheader = /^h\d$/i,
     rnative = /^[^{]+\{\s*\[native \w/,
@@ -320,27 +333,26 @@ qx.Bootstrap.define("qx.bom.Selector", {
     // CSS escapes
     // http://www.w3.org/TR/CSS21/syndata.html#escaped-characters
     runescape = new RegExp(
-      "\\\\([\\da-f]{1,6}" + whitespace + "?|(" + whitespace + ")|.)",
-      "ig"
+      "\\\\[\\da-fA-F]{1,6}" + whitespace + "?|\\\\([^\\r\\n\\f])",
+      "g"
     ),
-    funescape = function (_, escaped, escapedWhitespace) {
-      var high = "0x" + escaped - 0x10000;
-      // NaN means non-codepoint
-      // Support: Firefox<24
-      // Workaround erroneous numeric interpretation of +"0x"
-      /* eslint-disable-next-line no-self-compare */
-      return high !== high || escapedWhitespace
-        ? escaped
-        : high < 0
-        ? // BMP codepoint
-          String.fromCharCode(high + 0x10000)
-        : // Supplemental Plane codepoint (surrogate pair)
-          String.fromCharCode((high >> 10) | 0xd800, (high & 0x3ff) | 0xdc00);
+    funescape = function (escape, nonHex) {
+      var high = "0x" + escape.slice(1) - 0x10000;
+
+      return nonHex
+        ? // Strip the backslash prefix from a non-hex escape sequence
+          nonHex
+        : // Replace a hexadecimal escape sequence with the encoded Unicode code point
+        // Support: IE <=11+
+        // For values outside the Basic Multilingual Plane (BMP), manually construct a
+        // surrogate pair
+        high < 0
+        ? String.fromCharCode(high + 0x10000)
+        : String.fromCharCode((high >> 10) | 0xd800, (high & 0x3ff) | 0xdc00);
     },
     // CSS string/identifier serialization
     // https://drafts.csswg.org/cssom/#common-serializing-idioms
-    /* eslint-disable-next-line no-control-regex */
-    rcssescape = /([\0-\x1f\x7f]|^-?\d)|^-$|[^\x80-\uFFFF\w-]/g,
+    rcssescape = /([\0-\x1f\x7f]|^-?\d)|^-$|[^\0-\x1f\x7f-\uFFFF\w-]/g,
     fcssescape = function (ch, asCodePoint) {
       if (asCodePoint) {
         // U+0000 NULL becomes U+FFFD REPLACEMENT CHARACTER
@@ -367,9 +379,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
     unloadHandler = function () {
       setDocument();
     },
-    disabledAncestor = addCombinator(
+    inDisabledFieldset = addCombinator(
       function (elem) {
-        return elem.disabled === true;
+        return (
+          elem.disabled === true && elem.nodeName.toLowerCase() === "fieldset"
+        );
       },
       { dir: "parentNode", next: "legend" }
     );
@@ -383,19 +397,21 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
     // Support: Android<4.0
     // Detect silently failing push.apply
+    // eslint-disable-next-line no-unused-expressions
     arr[preferredDoc.childNodes.length].nodeType;
   } catch (e) {
     push = {
       apply: arr.length
         ? // Leverage slice if possible
           function (target, els) {
-            push_native.apply(target, slice.call(els));
+            pushNative.apply(target, slice.call(els));
           }
         : // Support: IE<9
           // Otherwise append directly
           function (target, els) {
             var j = target.length,
               i = 0;
+
             // Can't trust NodeList.length
             while ((target[j++] = els[i++])) {}
             target.length = j - 1;
@@ -428,11 +444,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
     // Try to shortcut find operations (as opposed to filters) in HTML documents
     if (!seed) {
-      if (
-        (context ? context.ownerDocument || context : preferredDoc) !== document
-      ) {
-        setDocument(context);
-      }
+      setDocument(context);
       context = context || document;
 
       if (documentIsHTML) {
@@ -490,49 +502,60 @@ qx.Bootstrap.define("qx.bom.Selector", {
         // Take advantage of querySelectorAll
         if (
           support.qsa &&
-          !compilerCache[selector + " "] &&
-          (!rbuggyQSA || !rbuggyQSA.test(selector))
+          !nonnativeSelectorCache[selector + " "] &&
+          (!rbuggyQSA || !rbuggyQSA.test(selector)) &&
+          // Support: IE 8 only
+          // Exclude object elements
+          (nodeType !== 1 || context.nodeName.toLowerCase() !== "object")
         ) {
-          if (nodeType !== 1) {
-            newContext = context;
-            newSelector = selector;
+          newSelector = selector;
+          newContext = context;
 
-            // qSA looks outside Element context, which is not what we want
-            // Thanks to Andrew Dupont for this workaround technique
-            // Support: IE <=8
-            // Exclude object elements
-          } else if (context.nodeName.toLowerCase() !== "object") {
-            // Capture the context ID, setting it first if necessary
-            if ((nid = context.getAttribute("id"))) {
-              nid = nid.replace(rcssescape, fcssescape);
-            } else {
-              context.setAttribute("id", (nid = expando));
+          // qSA considers elements outside a scoping root when evaluating child or
+          // descendant combinators, which is not what we want.
+          // In such cases, we work around the behavior by prefixing every selector in the
+          // list with an ID selector referencing the scope context.
+          // The technique has to be used as well when a leading combinator is used
+          // as such selectors are not recognized by querySelectorAll.
+          // Thanks to Andrew Dupont for this technique.
+          if (
+            nodeType === 1 &&
+            (rdescend.test(selector) || rleadingCombinator.test(selector))
+          ) {
+            // Expand context for sibling selectors
+            newContext =
+              (rsibling.test(selector) && testContext(context.parentNode)) ||
+              context;
+
+            // We can use :scope instead of the ID hack if the browser
+            // supports it & if we're not changing the context.
+            if (newContext !== context || !support.scope) {
+              // Capture the context ID, setting it first if necessary
+              if ((nid = context.getAttribute("id"))) {
+                nid = nid.replace(rcssescape, fcssescape);
+              } else {
+                context.setAttribute("id", (nid = expando));
+              }
             }
 
             // Prefix every selector in the list
             groups = tokenize(selector);
             i = groups.length;
             while (i--) {
-              groups[i] = "#" + nid + " " + toSelector(groups[i]);
+              groups[i] =
+                (nid ? "#" + nid : ":scope") + " " + toSelector(groups[i]);
             }
             newSelector = groups.join(",");
-
-            // Expand context for sibling selectors
-            newContext =
-              (rsibling.test(selector) && testContext(context.parentNode)) ||
-              context;
           }
 
-          if (newSelector) {
-            try {
-              push.apply(results, newContext.querySelectorAll(newSelector));
-
-              return results;
-            } catch (qsaError) {
-            } finally {
-              if (nid === expando) {
-                context.removeAttribute("id");
-              }
+          try {
+            push.apply(results, newContext.querySelectorAll(newSelector));
+            return results;
+          } catch (qsaError) {
+            nonnativeSelectorCache(selector, true);
+          } finally {
+            if (nid === expando) {
+              context.removeAttribute("id");
             }
           }
         }
@@ -545,7 +568,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Create key-value caches of limited size
-   * @return {function} Returns the Object data after storing it on itself with
+   * @returns {function(string, object)} Returns the Object data after storing it on itself with
    *	property name the (space-suffixed) string and (if the cache is larger than Expr.cacheLength)
    *	deleting the oldest entry
    */
@@ -565,7 +588,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Mark a function for special use by Sizzle
-   * @param fn {Function} The function to mark
+   * @param {Function} fn The function to mark
    */
   function markFunction(fn) {
     fn[expando] = true;
@@ -574,7 +597,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Support testing using an element
-   * @param fn {Function} Passed the created element and returns a boolean result
+   * @param {Function} fn Passed the created element and returns a boolean result
    */
   function assert(fn) {
     var el = document.createElement("fieldset");
@@ -588,6 +611,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
       if (el.parentNode) {
         el.parentNode.removeChild(el);
       }
+
       // release memory in IE
       el = null;
     }
@@ -595,8 +619,8 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Adds the same handler for all of the specified attrs
-   * @param attrs {String} Pipe-separated list of attributes
-   * @param handler {Function} The method that will be applied
+   * @param {String} attrs Pipe-separated list of attributes
+   * @param {Function} handler The method that will be applied
    */
   function addHandle(attrs, handler) {
     var arr = attrs.split("|"),
@@ -609,9 +633,9 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Checks document order of two siblings
-   * @param a {Element}
-   * @param b {Element}
-   * @return {Number} Returns less than 0 if a precedes b, greater than 0 if a follows b
+   * @param {Element} a
+   * @param {Element} b
+   * @returns {Number} Returns less than 0 if a precedes b, greater than 0 if a follows b
    */
   function siblingCheck(a, b) {
     var cur = b && a,
@@ -640,7 +664,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Returns a function to use in pseudos for input types
-   * @param type {String}
+   * @param {String} type
    */
   function createInputPseudo(type) {
     return function (elem) {
@@ -651,7 +675,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Returns a function to use in pseudos for buttons
-   * @param type {String}
+   * @param {String} type
    */
   function createButtonPseudo(type) {
     return function (elem) {
@@ -662,34 +686,60 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Returns a function to use in pseudos for :enabled/:disabled
-   * @param disabled {Boolean} true for :disabled; false for :enabled
+   * @param {Boolean} disabled true for :disabled; false for :enabled
    */
   function createDisabledPseudo(disabled) {
-    // Known :disabled false positives:
-    // IE: *[disabled]:not(button, input, select, textarea, optgroup, option, menuitem, fieldset)
-    // not IE: fieldset[disabled] > legend:nth-of-type(n+2) :can-disable
+    // Known :disabled false positives: fieldset[disabled] > legend:nth-of-type(n+2) :can-disable
     return function (elem) {
-      // Check form elements and option elements for explicit disabling
-      return (
-        ("label" in elem && elem.disabled === disabled) ||
-        ("form" in elem && elem.disabled === disabled) ||
-        // Check non-disabled form elements for fieldset[disabled] ancestors
-        ("form" in elem &&
-          elem.disabled === false &&
-          // Support: IE6-11+
-          // Ancestry is covered for us
-          (elem.isDisabled === disabled ||
-            // Otherwise, assume any non-<option> under fieldset[disabled] is disabled
+      // Only certain elements can match :enabled or :disabled
+      // https://html.spec.whatwg.org/multipage/scripting.html#selector-enabled
+      // https://html.spec.whatwg.org/multipage/scripting.html#selector-disabled
+      if ("form" in elem) {
+        // Check for inherited disabledness on relevant non-disabled elements:
+        // * listed form-associated elements in a disabled fieldset
+        //   https://html.spec.whatwg.org/multipage/forms.html#category-listed
+        //   https://html.spec.whatwg.org/multipage/forms.html#concept-fe-disabled
+        // * option elements in a disabled optgroup
+        //   https://html.spec.whatwg.org/multipage/forms.html#concept-option-disabled
+        // All such elements have a "form" property.
+        if (elem.parentNode && elem.disabled === false) {
+          // Option elements defer to a parent optgroup if present
+          if ("label" in elem) {
+            if ("label" in elem.parentNode) {
+              return elem.parentNode.disabled === disabled;
+            } else {
+              return elem.disabled === disabled;
+            }
+          }
+
+          // Support: IE 6 - 11
+          // Use the isDisabled shortcut property to check for disabled fieldset ancestors
+          return (
+            elem.isDisabled === disabled ||
+            // Where there is no isDisabled, check manually
             /* jshint -W018 */
             (elem.isDisabled !== !disabled &&
-              ("label" in elem || !disabledAncestor(elem)) !== disabled)))
-      );
+              inDisabledFieldset(elem) === disabled)
+          );
+        }
+
+        return elem.disabled === disabled;
+
+        // Try to winnow out elements that can't be disabled before trusting the disabled property.
+        // Some victims get caught in our net (label, legend, menu, track), but it shouldn't
+        // even exist on them, let alone have a boolean value.
+      } else if ("label" in elem) {
+        return elem.disabled === disabled;
+      }
+
+      // Remaining elements are neither :enabled nor :disabled
+      return false;
     };
   }
 
   /**
    * Returns a function to use in pseudos for positionals
-   * @param fn {Function}
+   * @param {Function} fn
    */
   function createPositionalPseudo(fn) {
     return markFunction(function (argument) {
@@ -711,8 +761,8 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Checks a node for validity as a Sizzle context
-   * @param context {Element|Object}
-   * @return {Element|Object|Boolean} The input node if acceptable, otherwise a falsy value
+   * @param {Element|Object=} context
+   * @returns {Element|Object|Boolean} The input node if acceptable, otherwise a falsy value
    */
   function testContext(context) {
     return (
@@ -725,20 +775,23 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Detects XML nodes
-   * @param elem {Element|Object} An element or a document
-   * @return {Boolean} True iff elem is a non-HTML XML node
+   * @param {Element|Object} elem An element or a document
+   * @returns {Boolean} True iff elem is a non-HTML XML node
    */
   isXML = Sizzle.isXML = function (elem) {
-    // documentElement is verified for cases where it doesn't yet exist
-    // (such as loading iframes in IE - #4833)
-    var documentElement = elem && (elem.ownerDocument || elem).documentElement;
-    return documentElement ? documentElement.nodeName !== "HTML" : false;
+    var namespace = elem && elem.namespaceURI,
+      docElem = elem && (elem.ownerDocument || elem).documentElement;
+
+    // Support: IE <=8
+    // Assume HTML when documentElement doesn't yet exist, such as inside loading iframes
+    // https://bugs.jquery.com/ticket/4833
+    return !rhtml.test(namespace || (docElem && docElem.nodeName) || "HTML");
   };
 
   /**
    * Sets document-related variables once based on the current document
-   * @param doc {Element|Object} An element or document object to use to set the document
-   * @return {Object} Returns the current document
+   * @param {Element|Object} [doc] An element or document object to use to set the document
+   * @returns {Object} Returns the current document
    */
   setDocument = Sizzle.setDocument = function (node) {
     var hasCompare,
@@ -746,7 +799,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
       doc = node ? node.ownerDocument || node : preferredDoc;
 
     // Return early if doc is invalid or already selected
-    if (doc === document || doc.nodeType !== 9 || !doc.documentElement) {
+    // Support: IE 11+, Edge 17 - 18+
+    // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+    // two documents; shallow comparisons work.
+    // eslint-disable-next-line eqeqeq
+    if (doc == document || doc.nodeType !== 9 || !doc.documentElement) {
       return document;
     }
 
@@ -755,10 +812,14 @@ qx.Bootstrap.define("qx.bom.Selector", {
     docElem = document.documentElement;
     documentIsHTML = !isXML(document);
 
-    // Support: IE 9-11, Edge
+    // Support: IE 9 - 11+, Edge 12 - 18+
     // Accessing iframe documents after unload throws "permission denied" errors (jQuery #13936)
+    // Support: IE 11+, Edge 17 - 18+
+    // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+    // two documents; shallow comparisons work.
+    // eslint-disable-next-line eqeqeq
     if (
-      preferredDoc !== document &&
+      preferredDoc != document &&
       (subWindow = document.defaultView) &&
       subWindow.top !== subWindow
     ) {
@@ -771,6 +832,37 @@ qx.Bootstrap.define("qx.bom.Selector", {
         subWindow.attachEvent("onunload", unloadHandler);
       }
     }
+
+    // Support: IE 8 - 11+, Edge 12 - 18+, Chrome <=16 - 25 only, Firefox <=3.6 - 31 only,
+    // Safari 4 - 5 only, Opera <=11.6 - 12.x only
+    // IE/Edge & older browsers don't support the :scope pseudo-class.
+    // Support: Safari 6.0 only
+    // Safari 6.0 supports :scope but it's an alias of :root there.
+    support.scope = assert(function (el) {
+      docElem.appendChild(el).appendChild(document.createElement("div"));
+      return (
+        typeof el.querySelectorAll !== "undefined" &&
+        !el.querySelectorAll(":scope fieldset div").length
+      );
+    });
+
+    // Support: Chrome 105 - 110+, Safari 15.4 - 16.3+
+    // Make sure the the `:has()` argument is parsed unforgivingly.
+    // We include `*` in the test to detect buggy implementations that are
+    // _selectively_ forgiving (specifically when the list includes at least
+    // one valid selector).
+    // Note that we treat complete lack of support for `:has()` as if it were
+    // spec-compliant support, which is fine because use of `:has()` in such
+    // environments will fail in the qSA path and fall back to jQuery traversal
+    // anyway.
+    support.cssHas = assert(function () {
+      try {
+        document.querySelector(":has(*,:jqfake)");
+        return false;
+      } catch (e) {
+        return true;
+      }
+    });
 
     /* Attributes
     ---------------------------------------------------------------------- */
@@ -809,25 +901,21 @@ qx.Bootstrap.define("qx.bom.Selector", {
       );
     });
 
-    // ID find and filter
+    // ID filter and find
     if (support.getById) {
-      Expr.find["ID"] = function (id, context) {
-        if (typeof context.getElementById !== "undefined" && documentIsHTML) {
-          var m = context.getElementById(id);
-          return m ? [m] : [];
-        }
-      };
       Expr.filter["ID"] = function (id) {
         var attrId = id.replace(runescape, funescape);
         return function (elem) {
           return elem.getAttribute("id") === attrId;
         };
       };
+      Expr.find["ID"] = function (id, context) {
+        if (typeof context.getElementById !== "undefined" && documentIsHTML) {
+          var elem = context.getElementById(id);
+          return elem ? [elem] : [];
+        }
+      };
     } else {
-      // Support: IE6/7
-      // getElementById is not reliable as a find shortcut
-      delete Expr.find["ID"];
-
       Expr.filter["ID"] = function (id) {
         var attrId = id.replace(runescape, funescape);
         return function (elem) {
@@ -836,6 +924,37 @@ qx.Bootstrap.define("qx.bom.Selector", {
             elem.getAttributeNode("id");
           return node && node.value === attrId;
         };
+      };
+
+      // Support: IE 6 - 7 only
+      // getElementById is not reliable as a find shortcut
+      Expr.find["ID"] = function (id, context) {
+        if (typeof context.getElementById !== "undefined" && documentIsHTML) {
+          var node,
+            i,
+            elems,
+            elem = context.getElementById(id);
+
+          if (elem) {
+            // Verify the id attribute
+            node = elem.getAttributeNode("id");
+            if (node && node.value === id) {
+              return [elem];
+            }
+
+            // Fall back on getElementsByName
+            elems = context.getElementsByName(id);
+            i = 0;
+            while ((elem = elems[i++])) {
+              node = elem.getAttributeNode("id");
+              if (node && node.value === id) {
+                return [elem];
+              }
+            }
+          }
+
+          return [];
+        }
       };
     }
 
@@ -901,6 +1020,8 @@ qx.Bootstrap.define("qx.bom.Selector", {
       // Build QSA regex
       // Regex strategy adopted from Diego Perini
       assert(function (el) {
+        var input;
+
         // Select is set to empty string on purpose
         // This is to test IE's treatment of not explicitly
         // setting a boolean content attribute,
@@ -934,6 +1055,26 @@ qx.Bootstrap.define("qx.bom.Selector", {
           rbuggyQSA.push("~=");
         }
 
+        // Support: IE 11+, Edge 15 - 18+
+        // IE 11/Edge don't find elements on a `[name='']` query in some cases.
+        // Adding a temporary attribute to the document before the selection works
+        // around the issue.
+        // Interestingly, IE 10 & older don't seem to have the issue.
+        input = document.createElement("input");
+        input.setAttribute("name", "");
+        el.appendChild(input);
+        if (!el.querySelectorAll("[name='']").length) {
+          rbuggyQSA.push(
+            "\\[" +
+              whitespace +
+              "*name" +
+              whitespace +
+              "*=" +
+              whitespace +
+              "*(?:''|\"\")"
+          );
+        }
+
         // Webkit/Opera - :checked should return selected option elements
         // http://www.w3.org/TR/2011/REC-css3-selectors-20110929/#checked
         // IE8 throws error here and will not see later tests
@@ -947,6 +1088,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
         if (!el.querySelectorAll("a#" + expando + "+*").length) {
           rbuggyQSA.push(".#.+[+~]");
         }
+
+        // Support: Firefox <=3.6 - 5 only
+        // Old Firefox doesn't throw on a badly-escaped identifier.
+        el.querySelectorAll("\\\f");
+        rbuggyQSA.push("[\\r\\n\\f]");
       });
 
       assert(function (el) {
@@ -979,6 +1125,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
           rbuggyQSA.push(":enabled", ":disabled");
         }
 
+        // Support: Opera 10 - 11 only
         // Opera 10-11 does not throw on post-comma invalid pseudos
         el.querySelectorAll("*,:x");
         rbuggyQSA.push(",.*:");
@@ -1007,6 +1154,16 @@ qx.Bootstrap.define("qx.bom.Selector", {
       });
     }
 
+    if (!support.cssHas) {
+      // Support: Chrome 105 - 110+, Safari 15.4 - 16.3+
+      // Our regular `try-catch` mechanism fails to detect natively-unsupported
+      // pseudo-classes inside `:has()` (such as `:has(:contains("Foo"))`)
+      // in browsers that parse the `:has()` argument as a forgiving selector list.
+      // https://drafts.csswg.org/selectors/#relational now requires the argument
+      // to be parsed unforgivingly, but browsers have not yet fully adjusted.
+      rbuggyQSA.push(":has");
+    }
+
     rbuggyQSA = rbuggyQSA.length && new RegExp(rbuggyQSA.join("|"));
     rbuggyMatches = rbuggyMatches.length && new RegExp(rbuggyMatches.join("|"));
 
@@ -1020,7 +1177,13 @@ qx.Bootstrap.define("qx.bom.Selector", {
     contains =
       hasCompare || rnative.test(docElem.contains)
         ? function (a, b) {
-            var adown = a.nodeType === 9 ? a.documentElement : a,
+            // Support: IE <9 only
+            // IE doesn't have `contains` on `document` so we need to check for
+            // `documentElement` presence.
+            // We need to fall back to `a` when `documentElement` is missing
+            // as `ownerDocument` of elements within `<template/>` may have
+            // a null one - a default behavior of all modern browsers.
+            var adown = (a.nodeType === 9 && a.documentElement) || a,
               bup = b && b.parentNode;
             return (
               a === bup ||
@@ -1064,8 +1227,12 @@ qx.Bootstrap.define("qx.bom.Selector", {
           }
 
           // Calculate position if both inputs belong to the same document
+          // Support: IE 11+, Edge 17 - 18+
+          // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+          // two documents; shallow comparisons work.
+          // eslint-disable-next-line eqeqeq
           compare =
-            (a.ownerDocument || a) === (b.ownerDocument || b)
+            (a.ownerDocument || a) == (b.ownerDocument || b)
               ? a.compareDocumentPosition(b)
               : // Otherwise we know they are disconnected
                 1;
@@ -1076,15 +1243,24 @@ qx.Bootstrap.define("qx.bom.Selector", {
             (!support.sortDetached && b.compareDocumentPosition(a) === compare)
           ) {
             // Choose the first element that is related to our preferred document
+            // Support: IE 11+, Edge 17 - 18+
+            // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+            // two documents; shallow comparisons work.
+            // eslint-disable-next-line eqeqeq
             if (
-              a === document ||
-              (a.ownerDocument === preferredDoc && contains(preferredDoc, a))
+              a == document ||
+              (a.ownerDocument == preferredDoc && contains(preferredDoc, a))
             ) {
               return -1;
             }
+
+            // Support: IE 11+, Edge 17 - 18+
+            // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+            // two documents; shallow comparisons work.
+            // eslint-disable-next-line eqeqeq
             if (
-              b === document ||
-              (b.ownerDocument === preferredDoc && contains(preferredDoc, b))
+              b == document ||
+              (b.ownerDocument == preferredDoc && contains(preferredDoc, b))
             ) {
               return 1;
             }
@@ -1113,11 +1289,16 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
           // Parentless nodes are either documents or disconnected
           if (!aup || !bup) {
-            return a === document
+            // Support: IE 11+, Edge 17 - 18+
+            // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+            // two documents; shallow comparisons work.
+            /* eslint-disable eqeqeq */
+            return a == document
               ? -1
-              : b === document
+              : b == document
               ? 1
-              : aup
+              : /* eslint-enable eqeqeq */
+              aup
               ? -1
               : bup
               ? 1
@@ -1149,11 +1330,16 @@ qx.Bootstrap.define("qx.bom.Selector", {
             ? // Do a sibling check if the nodes have a common ancestor
               siblingCheck(ap[i], bp[i])
             : // Otherwise nodes in our document sort first
-            ap[i] === preferredDoc
+            // Support: IE 11+, Edge 17 - 18+
+            // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+            // two documents; shallow comparisons work.
+            /* eslint-disable eqeqeq */
+            ap[i] == preferredDoc
             ? -1
-            : bp[i] === preferredDoc
+            : bp[i] == preferredDoc
             ? 1
-            : 0;
+            : /* eslint-enable eqeqeq */
+              0;
         };
 
     return document;
@@ -1164,18 +1350,12 @@ qx.Bootstrap.define("qx.bom.Selector", {
   };
 
   Sizzle.matchesSelector = function (elem, expr) {
-    // Set document vars if needed
-    if ((elem.ownerDocument || elem) !== document) {
-      setDocument(elem);
-    }
-
-    // Make sure that attribute selectors are quoted
-    expr = expr.replace(rattributeQuotes, "='$1']");
+    setDocument(elem);
 
     if (
       support.matchesSelector &&
       documentIsHTML &&
-      !compilerCache[expr + " "] &&
+      !nonnativeSelectorCache[expr + " "] &&
       (!rbuggyMatches || !rbuggyMatches.test(expr)) &&
       (!rbuggyQSA || !rbuggyQSA.test(expr))
     ) {
@@ -1192,7 +1372,9 @@ qx.Bootstrap.define("qx.bom.Selector", {
         ) {
           return ret;
         }
-      } catch (e) {}
+      } catch (e) {
+        nonnativeSelectorCache(expr, true);
+      }
     }
 
     return Sizzle(expr, document, null, [elem]).length > 0;
@@ -1200,7 +1382,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   Sizzle.contains = function (context, elem) {
     // Set document vars if needed
-    if ((context.ownerDocument || context) !== document) {
+    // Support: IE 11+, Edge 17 - 18+
+    // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+    // two documents; shallow comparisons work.
+    // eslint-disable-next-line eqeqeq
+    if ((context.ownerDocument || context) != document) {
       setDocument(context);
     }
     return contains(context, elem);
@@ -1208,7 +1394,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   Sizzle.attr = function (elem, name) {
     // Set document vars if needed
-    if ((elem.ownerDocument || elem) !== document) {
+    // Support: IE 11+, Edge 17 - 18+
+    // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+    // two documents; shallow comparisons work.
+    // eslint-disable-next-line eqeqeq
+    if ((elem.ownerDocument || elem) != document) {
       setDocument(elem);
     }
 
@@ -1238,7 +1428,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Document sorting and removing duplicates
-   * @param results {ArrayLike}
+   * @param {ArrayLike} results
    */
   Sizzle.uniqueSort = function (results) {
     var elem,
@@ -1271,7 +1461,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
   /**
    * Utility function for retrieving the text value of an array of DOM nodes
-   * @param elem {Array|Element}
+   * @param {Array|Element} elem
    */
   getText = Sizzle.getText = function (elem) {
     var node,
@@ -1299,6 +1489,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
     } else if (nodeType === 3 || nodeType === 4) {
       return elem.nodeValue;
     }
+
     // Do not include comment or processing instruction nodes
 
     return ret;
@@ -1342,14 +1533,14 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
       CHILD(match) {
         /* matches from matchExpr["CHILD"]
-        	1 type (only|nth|...)
-        	2 what (child|of-type)
-        	3 argument (even|odd|\d*|\d*n([+-]\d+)?|...)
-        	4 xn-component of xn+y argument ([+-]?\d*n|)
-        	5 sign of xn-component
-        	6 x of xn-component
-        	7 sign of y-component
-        	8 y of y-component
+        1 type (only|nth|...)
+        2 what (child|of-type)
+        3 argument (even|odd|\d*|\d*n([+-]\d+)?|...)
+        4 xn-component of xn+y argument ([+-]?\d*n|)
+        5 sign of xn-component
+        6 x of xn-component
+        7 sign of y-component
+        8 y of y-component
         */
         match[1] = match[1].toLowerCase();
 
@@ -1452,6 +1643,8 @@ qx.Bootstrap.define("qx.bom.Selector", {
 
           result += "";
 
+          /* eslint-disable max-len */
+
           return operator === "="
             ? result === check
             : operator === "!="
@@ -1468,10 +1661,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
             ? result === check ||
               result.slice(0, check.length + 1) === check + "-"
             : false;
+          /* eslint-enable max-len */
         };
       },
 
-      CHILD(type, what, argument, first, last) {
+      CHILD(type, what, _argument, first, last) {
         var simple = type.slice(0, 3) !== "nth",
           forward = type.slice(-4) !== "last",
           ofType = what === "of-type";
@@ -1481,7 +1675,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
             function (elem) {
               return !!elem.parentNode;
             }
-          : function (elem, context, xml) {
+          : function (elem, _context, xml) {
               var cache,
                 uniqueCache,
                 outerCache,
@@ -1508,6 +1702,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
                         return false;
                       }
                     }
+
                     // Reverse direction for :only-* (if we haven't yet done so)
                     start = dir = type === "only" && !start && "nextSibling";
                   }
@@ -1663,7 +1858,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
           matcher = compile(selector.replace(rtrim, "$1"));
 
         return matcher[expando]
-          ? markFunction(function (seed, matches, context, xml) {
+          ? markFunction(function (seed, matches, _context, xml) {
               var elem,
                 unmatched = matcher(seed, null, xml, []),
                 i = seed.length;
@@ -1675,9 +1870,10 @@ qx.Bootstrap.define("qx.bom.Selector", {
                 }
               }
             })
-          : function (elem, context, xml) {
+          : function (elem, _context, xml) {
               input[0] = elem;
               matcher(input, null, xml, results);
+
               // Don't keep the element (issue #299)
               input[0] = null;
               return !results.pop();
@@ -1693,11 +1889,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
       contains: markFunction(function (text) {
         text = text.replace(runescape, funescape);
         return function (elem) {
-          return (
-            (elem.textContent || elem.innerText || getText(elem)).indexOf(
-              text
-            ) > -1
-          );
+          return (elem.textContent || getText(elem)).indexOf(text) > -1;
         };
       }),
 
@@ -1766,6 +1958,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
         // Accessing this property makes selected-by-default
         // options in Safari work properly
         if (elem.parentNode) {
+          // eslint-disable-next-line no-unused-expressions
           elem.parentNode.selectedIndex;
         }
 
@@ -1811,7 +2004,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
         return (
           elem.nodeName.toLowerCase() === "input" &&
           elem.type === "text" &&
-          // Support: IE<8
+          // Support: IE <10 only
           // New HTML5 attribute values (e.g., "search") appear with elem.type === "text"
           ((attr = elem.getAttribute("type")) == null ||
             attr.toLowerCase() === "text")
@@ -1823,11 +2016,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
         return [0];
       }),
 
-      last: createPositionalPseudo(function (matchIndexes, length) {
+      last: createPositionalPseudo(function (_matchIndexes, length) {
         return [length - 1];
       }),
 
-      eq: createPositionalPseudo(function (matchIndexes, length, argument) {
+      eq: createPositionalPseudo(function (_matchIndexes, length, argument) {
         return [argument < 0 ? argument + length : argument];
       }),
 
@@ -1848,7 +2041,12 @@ qx.Bootstrap.define("qx.bom.Selector", {
       }),
 
       lt: createPositionalPseudo(function (matchIndexes, length, argument) {
-        var i = argument < 0 ? argument + length : argument;
+        var i =
+          argument < 0
+            ? argument + length
+            : argument > length
+            ? length
+            : argument;
         for (; --i >= 0; ) {
           matchIndexes.push(i);
         }
@@ -1917,10 +2115,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
       matched = false;
 
       // Combinators
-      if ((match = rcombinators.exec(soFar))) {
+      if ((match = rleadingCombinator.exec(soFar))) {
         matched = match.shift();
         tokens.push({
           value: matched,
+
           // Cast descendant combinators to space
           type: match[0].replace(rtrim, " ")
         });
@@ -1986,6 +2185,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
               return matcher(elem, context, xml);
             }
           }
+          return false;
         }
       : // Check against all ancestor/preceding elements
         function (elem, context, xml) {
@@ -2034,6 +2234,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
               }
             }
           }
+          return false;
         };
   }
 
@@ -2217,6 +2418,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
             ((checkContext = context).nodeType
               ? matchContext(elem, context, xml)
               : matchAnyContext(elem, context, xml));
+
           // Avoid hanging onto element (issue #299)
           checkContext = null;
           return ret;
@@ -2280,7 +2482,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
           len = elems.length;
 
         if (outermost) {
-          outermostContext = context === document || context || outermost;
+          // Support: IE 11+, Edge 17 - 18+
+          // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+          // two documents; shallow comparisons work.
+          // eslint-disable-next-line eqeqeq
+          outermostContext = context == document || context || outermost;
         }
 
         // Add elements passing elementMatchers directly to results
@@ -2289,7 +2495,12 @@ qx.Bootstrap.define("qx.bom.Selector", {
         for (; i !== len && (elem = elems[i]) != null; i++) {
           if (byElement && elem) {
             j = 0;
-            if (!context && elem.ownerDocument !== document) {
+
+            // Support: IE 11+, Edge 17 - 18+
+            // IE/Edge sometimes throw a "Permission denied" error when strict-comparing
+            // two documents; shallow comparisons work.
+            // eslint-disable-next-line eqeqeq
+            if (!context && elem.ownerDocument != document) {
               setDocument(elem);
               xml = !documentIsHTML;
             }
@@ -2414,11 +2625,11 @@ qx.Bootstrap.define("qx.bom.Selector", {
   /**
    * A low-level selection function that works with Sizzle's compiled
    *  selector functions
-   * @param selector {String|Function} A selector or a pre-compiled
+   * @param {String|Function} selector A selector or a pre-compiled
    *  selector function built with Sizzle.compile
-   * @param context {Element}
-   * @param results {Array}
-   * @param seed {Array} A set of elements to match against
+   * @param {Element} context
+   * @param {Array} [results]
+   * @param {Array} [seed] A set of elements to match against
    */
   select = Sizzle.select = function (selector, context, results, seed) {
     var i,
@@ -2439,7 +2650,6 @@ qx.Bootstrap.define("qx.bom.Selector", {
       if (
         tokens.length > 2 &&
         (token = tokens[0]).type === "ID" &&
-        support.getById &&
         context.nodeType === 9 &&
         documentIsHTML &&
         Expr.relative[tokens[1].type]
@@ -2552,7 +2762,7 @@ qx.Bootstrap.define("qx.bom.Selector", {
       return el.firstChild.getAttribute("value") === "";
     })
   ) {
-    addHandle("value", function (elem, name, isXML) {
+    addHandle("value", function (elem, _name, isXML) {
       if (!isXML && elem.nodeName.toLowerCase() === "input") {
         return elem.defaultValue;
       }

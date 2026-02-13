@@ -84,7 +84,11 @@ qx.Class.define("qx.ui.form.CheckBox", {
       focused: true,
       undetermined: true,
       checked: true,
-      hovered: true
+      hovered: true,
+      readonly: true,
+      disabled: true,
+      abandoned: true,
+      pressed: true
     },
 
     /**

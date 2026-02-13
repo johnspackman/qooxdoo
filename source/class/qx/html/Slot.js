@@ -56,13 +56,8 @@ qx.Class.define("qx.html.Slot", {
    * @see constructor for {Element}
    */
   construct(slotName) {
-    if (
-      typeof slotName === "string" &&
-      !slotName?.match(/^[a-zA-Z0-9\-\_]+$/)
-    ) {
-      throw new Error(
-        `Slot name "${slotName}" is invalid! Slot names may only contain alphanumeric characters, hyphens, and underscores.`
-      );
+    if (typeof slotName === "string" && !slotName?.match(/^[a-zA-Z0-9\-\_]+$/)) {
+      throw new Error(`Slot name "${slotName}" is invalid! Slot names may only contain alphanumeric characters, hyphens, and underscores.`);
     }
 
     super("slot", {}, { name: slotName ?? qx.html.Slot.DEFAULT });
@@ -76,14 +71,16 @@ qx.Class.define("qx.html.Slot", {
   */
 
   members: {
-    /**@override */
+    /**
+     * @Override
+     */
     inject() {
-      throw new Error(
-        "Cannot inject into <slot>! Injections only work for the top-most element of a JSX expression."
-      );
+      throw new Error("Cannot inject into <slot>! Injections only work for the top-most element of a JSX expression.");
     },
 
-    /**@override */
+    /**
+     * @Override
+     */
     _serializeImpl(serializer) {
       serializer.openTag(this._nodeName);
       serializer.pushQxObject(this);
@@ -126,9 +123,7 @@ qx.Class.define("qx.html.Slot", {
       try {
         this._defaultChildren.push(child);
       } catch (e) {
-        throw new Error(
-          "Cannot modify default children of <slot> outside of declaration!"
-        );
+        throw new Error("Cannot modify default children of <slot> outside of declaration!");
       }
     },
 

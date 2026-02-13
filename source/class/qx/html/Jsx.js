@@ -22,6 +22,7 @@
 ************************************************************************ */
 
 /**
+ * @ignore(Window)
  * This class includes work from on https://github.com/alecsgone/jsx-render; at the time of writing,
  * the https://github.com/alecsgone/jsx-render repo is available under an MIT license.
  */
@@ -83,9 +84,7 @@ qx.Class.define("qx.html.Jsx", {
       // CUSTOM ELEMENT
       if (typeof tagname === "function") {
         // handle constructors and plain functions
-        const element = qx.Class.isClass(tagname)
-          ? new tagname(attributes)
-          : tagname(attributes);
+        const element = qx.Class.isClass(tagname) ? new tagname(attributes) : tagname(attributes);
 
         if (qx.core.Environment.get("qx.debug")) {
           qx.core.Assert.assertTrue(element instanceof qx.html.Node);
@@ -99,10 +98,7 @@ qx.Class.define("qx.html.Jsx", {
         if (children) {
           const injectChildren = children => {
             for (const child of children) {
-              if (
-                child instanceof qx.data.Array ||
-                qx.lang.Type.isArray(child)
-              ) {
+              if (child instanceof qx.data.Array || qx.lang.Type.isArray(child)) {
                 injectChildren(child);
               } else if (typeof child == "string") {
                 element.inject(new qx.html.Text(child));
@@ -146,19 +142,13 @@ qx.Class.define("qx.html.Jsx", {
             prop = alt[prop];
           }
           if (prop === "ref") {
-            if (
-              attributes.ref instanceof qx.html.JsxRef ||
-              typeof attributes.ref === "function"
-            ) {
+            if (attributes.ref instanceof qx.html.JsxRef || typeof attributes.ref === "function") {
               refs.push(attributes.ref);
             } else {
-              qx.log.Logger.warn(
-                `Unsupported type of "ref" argument: ${typeof attributes.ref}`
-              );
+              qx.log.Logger.warn(`Unsupported type of "ref" argument: ${typeof attributes.ref}`);
             }
           } else if (prop === "dangerouslySetInnerHTML") {
-            // eslint-disable-next-line no-underscore-dangle
-            innerHtml = attributes[prop].__html;
+            innerHtml = attributes[prop];
           } else if (qx.html.Jsx.SYNTHETIC_EVENTS[prop]) {
             const eventName = prop.replace(/^on/, "").toLowerCase();
             eventHandlers[eventName] = attributes[prop];
@@ -190,10 +180,10 @@ qx.Class.define("qx.html.Jsx", {
       }
       // MAYBE: add a custom registry like the above qx:*, but for user-defined behaviors
       else {
-        element = qx.html.Factory.getInstance().createElement(
-          tagname,
-          newAttrs
-        );
+        element = qx.html.Factory.getInstance().createElement(tagname, newAttrs);
+        if (innerHtml) {
+          element.dangerouslySetInnerHtml(innerHtml);
+        }
       }
 
       // SLOT
@@ -201,10 +191,7 @@ qx.Class.define("qx.html.Jsx", {
         if (children) {
           const addDefaultChildren = children => {
             for (const child of children) {
-              if (
-                child instanceof qx.data.Array ||
-                qx.lang.Type.isArray(child)
-              ) {
+              if (child instanceof qx.data.Array || qx.lang.Type.isArray(child)) {
                 addDefaultChildren(child);
               } else if (typeof child == "string") {
                 element.addDefaultChild(new qx.html.Text(child));
@@ -289,12 +276,7 @@ qx.Class.define("qx.html.Jsx", {
       "onMouseUp"
     ];
 
-    const TOUCH_EVENTS = [
-      "onTouchCancel",
-      "onTouchEnd",
-      "onTouchMove",
-      "onTouchStart"
-    ];
+    const TOUCH_EVENTS = ["onTouchCancel", "onTouchEnd", "onTouchMove", "onTouchStart"];
 
     const KEYBOARD_EVENTS = ["onKeyDown", "onKeyPress", "onKeyUp"];
 
@@ -306,15 +288,7 @@ qx.Class.define("qx.html.Jsx", {
 
     const IMAGE_EVENTS = ["onLoad", "onError"];
 
-    const syntheticEvents = [
-      MOUSE_EVENTS,
-      TOUCH_EVENTS,
-      KEYBOARD_EVENTS,
-      FOCUS_EVENTS,
-      FORM_EVENTS,
-      UI_EVENTS,
-      IMAGE_EVENTS
-    ];
+    const syntheticEvents = [MOUSE_EVENTS, TOUCH_EVENTS, KEYBOARD_EVENTS, FOCUS_EVENTS, FORM_EVENTS, UI_EVENTS, IMAGE_EVENTS];
 
     const SYNTHETIC_EVENTS = {};
     for (const arr of syntheticEvents) {

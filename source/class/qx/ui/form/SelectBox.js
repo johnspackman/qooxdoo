@@ -44,11 +44,7 @@
  */
 qx.Class.define("qx.ui.form.SelectBox", {
   extend: qx.ui.form.AbstractSelectBox,
-  implement: [
-    qx.ui.core.ISingleSelection,
-    qx.ui.form.IModelSelection,
-    qx.ui.form.IField
-  ],
+  implement: [qx.ui.core.ISingleSelection, qx.ui.form.IModelSelection, qx.ui.form.IField],
 
   include: [qx.ui.core.MSingleSelectionHandling, qx.ui.form.MModelSelection],
 
@@ -112,6 +108,14 @@ qx.Class.define("qx.ui.form.SelectBox", {
 
     _applyRich(value, oldValue) {
       this.getChildControl("atom").setRich(value);
+    },
+
+    /**
+     * @Override
+     */
+    _applyReadOnly(value) {
+      this.getChildControl("atom").setEnabled(!value);
+      super._applyReadOnly(value);
     },
 
     /**@override*/
@@ -402,13 +406,9 @@ qx.Class.define("qx.ui.form.SelectBox", {
       if (!contentEl) {
         return;
       }
-      const currentContentEl =
-        current && current[0] ? current[0].getContentElement() : null;
+      const currentContentEl = current && current[0] ? current[0].getContentElement() : null;
       if (currentContentEl) {
-        contentEl.setAttribute(
-          "aria-activedescendant",
-          currentContentEl.getAttribute("id")
-        );
+        contentEl.setAttribute("aria-activedescendant", currentContentEl.getAttribute("id"));
       } else {
         contentEl.removeAttribute("aria-activedescendant");
       }

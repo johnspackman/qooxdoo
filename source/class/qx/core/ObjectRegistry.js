@@ -155,6 +155,9 @@ qx.Bootstrap.define("qx.core.ObjectRegistry", {
 
       var hash = obj.$$hash;
       if (hash != null) {
+        if (qx.core.Environment.get("qx.debug.dispose")) {
+          delete this.__stackTraces[hash];
+        }
         // Delete the hash code
         try {
           obj.$$discardedHashCode = hash;
@@ -240,11 +243,7 @@ qx.Bootstrap.define("qx.core.ObjectRegistry", {
             }
           }
         } catch (ex) {
-          qx.Bootstrap.error(
-            this,
-            "Could not dispose object " + obj.toString() + ": " + ex,
-            ex
-          );
+          qx.Bootstrap.error(this, "Could not dispose object " + obj.toString() + ": " + ex, ex);
 
           if (i !== l) {
             i++;
