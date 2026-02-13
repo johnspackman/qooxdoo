@@ -755,6 +755,12 @@ qx.Class.define("qx.html.Node", {
      *     of this element
      */
     _addChildImpl(child) {
+      if (!(typeof child === "object" && child instanceof qx.html.Node)) {
+        throw new Error(
+          "Could not add child of type " + typeof child + ": " + child
+        );
+      }
+
       if (child._parent === this) {
         throw new Error("Child is already in: " + child);
       }

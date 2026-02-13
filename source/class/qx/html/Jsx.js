@@ -234,7 +234,24 @@ qx.Class.define("qx.html.Jsx", {
             }
           }
         };
-        addChildren(children);
+
+        //If there are any reactive variables in the children,
+        //we need to listen to them so that we can update the children when they change.
+        const isReactive = c => typeof c === "object" && c instanceof qx.data.reactivevar.ReactiveVar;
+        let hasReactiveChild = children.find(isReactive);
+        let initialChildren;
+        if (hasReactiveChild) {
+          let childrenReactive = new qx.data.reactivevar.Derived(() => children.map(c => isReactive(c) ? c.get() : c));
+          childrenReactive.addListener("changeValue", evt => {
+            let newChildren = evt.getData();
+            element.removeAll();
+            addChildren(newChildren);
+          });
+          initialChildren = childrenReactive.get();
+        } else {
+          initialChildren = children;
+        }
+        addChildren(initialChildren);
       }
 
       if (innerHtml) {
