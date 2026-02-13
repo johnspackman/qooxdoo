@@ -217,7 +217,6 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         packages: this.__packages,
         environmentChecks: this.__database.environmentChecks || {}
       };
-
       let encoded = new TextEncoder().encode(JSON.stringify(pojo));
       let sab = new SharedArrayBuffer(encoded.byteLength);
       new Uint8Array(sab).set(encoded);

@@ -59,7 +59,9 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
               if (!references[moduleName]) {
                 references[moduleName] = new Set();
               }
-              references[moduleName].add([...classInfo.commonjsModules[moduleName]]);
+              references[moduleName].add([
+                ...classInfo.commonjsModules[moduleName]
+              ]);
             });
           }
         }
@@ -82,7 +84,9 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
 
       let modules = [];
       let modulesInfo = {};
-      let doIt = !!!(await qx.tool.utils.files.Utils.safeStat(this.getFilename()));
+      let doIt = !!!(await qx.tool.utils.files.Utils.safeStat(
+        this.getFilename()
+      ));
 
       // Include any dynamically determined `require()`d modules
       if (commonjsModules.length > 0) {
@@ -94,10 +98,14 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
         modulesInfo.localModules = {};
         for (let requireName in localModules) {
           modules.push(requireName);
-          let stat = await qx.tool.utils.files.Utils.safeStat(localModules[requireName]);
+          let stat = await qx.tool.utils.files.Utils.safeStat(
+            localModules[requireName]
+          );
 
           modulesInfo.localModules[requireName] = stat.mtime.getTime();
-          doIt ||= modulesInfo.localModules[requireName] > (db?.modulesInfo?.localModules[requireName] || 0);
+          doIt ||=
+            modulesInfo.localModules[requireName] >
+            (db?.modulesInfo?.localModules[requireName] || 0);
         }
       }
       modulesInfo.modulesHash = hash(modules);
@@ -117,11 +125,21 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
       // If there are any CommonJS modules required to be bundled, or
       // any local modules specified for the application in
       // compile.json, browserify them
-      if (this.getAppMeta().getEnvironmentValue("qx.compiler.applicationType") == "browser") {
-        const localModules = this.getAppMeta().getApplication().getLocalModules();
+      if (
+        this.getAppMeta().getEnvironmentValue("qx.compiler.applicationType") ==
+        "browser"
+      ) {
+        const localModules = this.getAppMeta()
+          .getApplication()
+          .getLocalModules();
         const { commonjsModules, references } = this.__getCommonjsModules();
         if (commonjsModules.length > 0 || localModules) {
-          await this.__browserify(commonjsModules, references, localModules, ws);
+          await this.__browserify(
+            commonjsModules,
+            references,
+            localModules,
+            ws
+          );
         }
       }
       await new Promise(resolve => {
@@ -134,28 +152,10 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
       const preset = require("@babel/preset-env");
       const browserify = require("browserify");
       const builtins = require("browserify/lib/builtins.js");
-      let application = this.getAppMeta().getApplication();
 
       // For some reason, `process` is not require()able, but `_process` is.
       // Make them equivalent.
       builtins.process = builtins._process;
-
-      const dumpReferences = () => {
-        let str = "";
-        for (let reference in references) {
-          let deps = {};
-          for (let arr of references[reference]) {
-            for (let entry of arr) {
-              deps[entry.replace(/:.*/, "")] = true;
-            }
-          }
-          deps = Object.keys(deps);
-          deps = deps.sort();
-          str += `${reference}: ${deps.join(", ")}\n`;
-        }
-        return str;
-      };
-      let dumpReferencesNeeded = false;
 
       return new Promise((resolve, reject) => {
         const options = {
@@ -164,24 +164,25 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
           insertGlobals: true,
           detectGlobals: true
         };
-        qx.lang.Object.mergeWith(options, this.getAppMeta().getAnalyzer().getBrowserifyConfig()?.options || {}, false);
+        qx.lang.Object.mergeWith(
+          options,
+          this.getAppMeta().getAnalyzer().getBrowserifyConfig()?.options || {},
+          false
+        );
         let b = browserify([], options);
 
         b._mdeps.on("missing", (id, parent) => {
-          dumpReferencesNeeded = true;
           let message = [];
-          message.push(`ERROR: could not locate require()d module: "${id}" in ${application.getName()}`);
-          if (references[id]) {
-            message.push("  required from:");
+          message.push(`ERROR: could not locate require()d module: "${id}"`);
+          message.push("  required from:");
+          try {
             [...references[id]].forEach(refs => {
               refs.forEach(ref => {
                 message.push(`    ${ref}`);
               });
             });
-          } else if (parent) {
-            message.push(`  required indirectly; parent module is in ${parent.basedir}}`);
-          } else {
-            message.push(`  required indirectly`);
+          } catch (e) {
+            message.push(`    <compile.json:application.localModules'>`);
           }
           qx.tool.compiler.Console.error(message.join("\n"));
         });
@@ -206,9 +207,6 @@ qx.Class.define("qx.tool.compiler.targets.meta.Browserify", {
         });
 
         b.bundle(function (e, output) {
-          if (dumpReferencesNeeded) {
-            qx.tool.compiler.Console.error(dumpReferences());
-          }
           if (e) {
             // THIS IS A HACK!
             // In case of error dependency walker never returns from
