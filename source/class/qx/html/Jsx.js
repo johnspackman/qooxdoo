@@ -98,21 +98,19 @@ qx.Class.define("qx.html.Jsx", {
         if (children) {
           const injectChildren = children => {
             for (const child of children) {
-              if (
-                child instanceof qx.data.Array ||
-                qx.lang.Type.isArray(child)
-              ) {
+              if (qx.lang.Type.isArray(child)) {
                 injectChildren(child);
-              } else if (typeof child == "string") {
-                element.inject(new qx.html.Text(child));
-              } else if (typeof child == "number") {
-                element.inject(new qx.html.Text("" + child));
               } else {
-                element.inject(child);
+                element.inject(qx.html.Jsx._toHtmlNode(child));
               }
             }
           };
-          injectChildren(children);
+
+          let reactiveChildren = this._childrenToReactiveVar(children);
+          reactiveChildren.trackValue(children => {
+            element.clearSlots();
+            injectChildren(children);
+          });
         }
         if (attributes?.slot) {
           element.setAttributes({ slot: attributes.slot });
@@ -200,17 +198,10 @@ qx.Class.define("qx.html.Jsx", {
         if (children) {
           const addDefaultChildren = children => {
             for (const child of children) {
-              if (
-                child instanceof qx.data.Array ||
-                qx.lang.Type.isArray(child)
-              ) {
+              if (qx.lang.Type.isArray(child)) {
                 addDefaultChildren(child);
-              } else if (typeof child == "string") {
-                element.addDefaultChild(new qx.html.Text(child));
-              } else if (typeof child == "number") {
-                element.addDefaultChild(new qx.html.Text("" + child));
               } else {
-                element.addDefaultChild(child);
+                element.addDefaultChild(qx.html.Jsx._toHtmlNode(child));
               }
             }
           };
@@ -225,33 +216,16 @@ qx.Class.define("qx.html.Jsx", {
           for (const child of children) {
             if (child instanceof qx.data.Array || qx.lang.Type.isArray(child)) {
               addChildren(child);
-            } else if (typeof child == "string") {
-              element.add(new qx.html.Text(child));
-            } else if (typeof child == "number") {
-              element.add(new qx.html.Text("" + child));
             } else {
-              element.add(child);
-            }
+              element.add(this._toHtmlNode(child));
+            }            
           }
         };
-
-        //If there are any reactive variables in the children,
-        //we need to listen to them so that we can update the children when they change.
-        const isReactive = c => typeof c === "object" && c instanceof qx.data.reactivevar.ReactiveVar;
-        let hasReactiveChild = children.find(isReactive);
-        let initialChildren;
-        if (hasReactiveChild) {
-          let childrenReactive = new qx.data.reactivevar.Derived(() => children.map(c => isReactive(c) ? c.get() : c));
-          childrenReactive.addListener("changeValue", evt => {
-            let newChildren = evt.getData();
-            element.removeAll();
-            addChildren(newChildren);
-          });
-          initialChildren = childrenReactive.get();
-        } else {
-          initialChildren = children;
-        }
-        addChildren(initialChildren);
+        let reactiveChildren = this._childrenToReactiveVar(children);
+        reactiveChildren.trackValue(children => {
+          element.removeAll();
+          addChildren(children);
+        });
       }
 
       if (innerHtml) {
@@ -271,6 +245,37 @@ qx.Class.define("qx.html.Jsx", {
       }
 
       return element;
+    },
+
+    /**
+     * Converts an array which is a mixture of ReactiveVars and normal values into a single ReactiveVar which tracks the whole array.
+     * Note: the contents of the array MUST NOT CHANGE, only the values of the ReactiveVars themselves!
+     * @param {Array} children the children to convert
+     * @returns {qx.data.reactivevar.ReactiveVar} a reactive var which tracks the whole array
+     */
+    _childrenToReactiveVar(children) {    
+      const isReactive = c => typeof c === "object" && c instanceof qx.data.reactivevar.ReactiveVar;
+      let childrenReactive = new qx.data.reactivevar.Derived(() => children.map(c => isReactive(c) ? c.get() : c));
+      return childrenReactive;
+    },
+
+    /**
+     * Wraps an arbitrary value as a qx.html.Node if it's not one.
+     * @param {*} data the data to wrap
+     * @returns {qx.html.Node}
+     */
+    _toHtmlNode(data) {
+      if (typeof data == "string") {
+        return new qx.html.Text(data);
+      } else if (typeof data == "number") {
+        return new qx.html.Text("" + data);
+      } else if (data instanceof qx.html.Node) {
+        return data;
+      }
+
+      if (qx.core.Environment.get("qx.debug")) {
+        throw new Error("Unsupported child type: " + typeof data);
+      }
     },
 
     /** @deprecated Use {@link qx.html.Jsx.SYNTHETIC_EVENTS} instead */

@@ -10,8 +10,14 @@
 qx.Class.define("qx.data.reactivevar.ReactiveVar", {
   type: "abstract",
   extend: qx.core.Object,
+  construct() {
+    super();
+    this.__trackers = [];
+    this.addListener("changeValue", this.__updateTrackers, this);
+  },
   destruct() {
-    if (this.getValue() instanceof qx.data.Array) {
+    this.removeListener("changeValue", this.__updateTrackers, this);
+    if (this.trackArrayChange && this.getValue() && this.getValue() instanceof qx.data.Array) {
       this.getValue().removeListener("change", this.__onArrayChange, this);
     }
   },
@@ -24,19 +30,65 @@ qx.Class.define("qx.data.reactivevar.ReactiveVar", {
       nullable: true,
       event: "changeValue",
       apply: "_applyValue"
+    },
+    /**
+     * Whether to track changes of the array if the value is a qx.data.Array.
+     * This can be set at most once.
+     */
+    trackArrayChange: {
+      init: true,
+      check: "Boolean"
     }
   },
   members: {
     _applyValue(value, oldValue) {
       if (value) {
-        if (value instanceof qx.data.Array) {
+        if (this.trackArrayChange && value && (value instanceof qx.data.Array)) {
           value.addListener("change", this.__onArrayChange, this);
         }
       }
       if (oldValue) {
-        if (oldValue instanceof qx.data.Array) {
+        if (this.trackArrayChange && oldValue && (oldValue instanceof qx.data.Array)) {
           oldValue.removeListener("change", this.__onArrayChange, this);
         }
+      }
+    },
+    /**
+     * Makes callback be called immediately with the current value, and then whenever the value changes.
+     * @param {Tracker} callback 
+     * 
+     * @callback Tracker
+     * @param {ValueType} value The current value of the ReactiveVar  
+     * @param {ValueType} oldValue The old value of the ReactiveVar.
+     */
+    trackValue(callback) {
+      callback(this.getValue());
+      this.__trackers.push(callback);
+    },
+
+    /**
+     * Removes a tracker added by `this.trackValue()`.
+     * @param {Tracker} callback 
+     */
+    removeTracker(callback) {
+      qx.lang.Array.remove(this.__trackers, callback);
+    },
+
+    /**
+     * Event handler for "changeValue" event, calls all trackers with the new and old value.
+     * @param {qx.event.type.Event} evt 
+     * @returns {=Promise} If any of the trackers returned a Promise, returns a Promise that resolves when all of them resolve.
+     */
+    __updateTrackers(evt) {
+      let promises = [];
+      for (const tracker of this.__trackers) {
+        let out = tracker(evt.getData(), evt.getOldData());
+        if (qx.lang.Type.isPromise(out)) {
+          promises.push(out);
+        }
+      }
+      if (promises.length) {
+        return Promise.all(promises);
       }
     },
     get() {

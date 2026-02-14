@@ -421,6 +421,28 @@ qx.Class.define("qx.html.Element", {
      */
     getDefaultRoot() {
       return this._defaultRoot;
+    },
+
+    /**
+     * Returns all slot elements which are descendants of the given element, but are not descendants of other custom elements.
+     * If the element itself is a slot, it is included in the result.
+     * @param {qx.html.Element} element 
+     * @returns {qx.html.Slot[]} 
+     */
+    _getDescendantSlots(element) {
+      
+      if (element.getIsCustomElement?.()) {
+        return [];
+      }
+      
+      const slots = [];
+      if (element instanceof qx.html.Slot) {
+        slots.push(element);
+      }
+
+      element.getChildren()?.forEach(child => slots.push(...this._getDescendantSlots(child)));
+
+      return slots;
     }
   },
 
@@ -726,32 +748,12 @@ qx.Class.define("qx.html.Element", {
       return this;
     },
 
-    __slotScan(element) {
-      // recursively iterate children. if any are instanceof qx.html.Slot, append to local slots, if any are `.getIscustomElement() === true`, do not look at their children
-      const slots = [];
-
-      if (element.getIsCustomElement?.()) {
-        return slots;
-      }
-
-      if (element instanceof qx.html.Slot) {
-        slots.push(element);
-      }
-
-      element.getChildren()?.forEach(child => slots.push(...this.__slotScan(child)));
-
-      return slots;
-    },
-
-    _slotScanAdd(element) {
-      for (const slot of this.__slotScan(element)) {
-        this.__slots.set(slot.getName(), slot);
-      }
-    },
-
-    _slotScanRemove(child) {
-      for (const slot of this.__slotScan(child)) {
-        this.__slots.delete(slot.getName());
+    /**
+     * Removes all content from all slots.
+     */
+    clearSlots() {
+      for (const slot of this.__slots.values()) {
+        slot.removeAll();
       }
     },
 
@@ -1812,9 +1814,14 @@ qx.Class.define("qx.html.Element", {
       if (value === oldValue) {
         return;
       }
+      // therefore currently `false` and trying to set `true`;
 
-      // therefore currently `false` and trying to set `true`; re-grab all slots
-      this.getChildren()?.forEach(child => this._slotScanAdd(child));
+      //discover all slots belonging to this element and add them to the `this.__slots` map:
+      this.getChildren()?.forEach(child => {
+        for (const slot of qx.html.Element._getDescendantSlots(child)) {
+          this.__slots.set(slot.getName(), slot);
+        }
+      });
     },
 
     /*
