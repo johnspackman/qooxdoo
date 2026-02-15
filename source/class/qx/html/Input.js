@@ -59,7 +59,17 @@ qx.Class.define("qx.html.Input", {
       this._setValueProperty
     );
 
+    this.addListener("change", evt => this.fireDataEvent("changeValue", evt.getData()));
+
     this.registerProperty("wrap", null, this._setWrapProperty);
+  },
+
+  events: {
+    /**
+     * Fired when the value of the input field changes.
+     * @type {qx.event.type.Data<string, undefined>}
+     */
+    changeValue: "qx.event.type.Data"
   },
 
   /*
@@ -221,6 +231,10 @@ qx.Class.define("qx.html.Input", {
       }
 
       return this._getProperty("value") || "";
+    },
+
+    resetValue() {
+      this.setValue("");
     },
 
     /**

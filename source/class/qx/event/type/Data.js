@@ -19,6 +19,8 @@
 
 /**
  * Event object for data holding event or data changes.
+ * @template Data
+ * @template OldData
  */
 qx.Class.define("qx.event.type.Data", {
   extend: qx.event.type.Event,
@@ -30,14 +32,20 @@ qx.Class.define("qx.event.type.Data", {
   */
 
   members: {
+    /**
+     * @type {Data}
+     */
     __data: null,
+    /**
+     * @type {OldData}
+     */
     __old: null,
 
     /**
      * Initializes an event object.
      *
-     * @param data {var} The event's new data
-     * @param old {var?null} The event's old data (optional)
+     * @param data {Data} The event's new data
+     * @param old {OldData?null} The event's old data (optional)
      * @param cancelable {Boolean?false} Whether or not an event can have its default
      *     action prevented. The default action can either be the browser's
      *     default action of a native event (e.g. open the context menu on a
@@ -77,7 +85,7 @@ qx.Class.define("qx.event.type.Data", {
      * The new data of the event sending this data event.
      * The return data type is the same as the event data type.
      *
-     * @return {var} The new data of the event
+     * @return {Data} The new data of the event
      */
     getData() {
       return this.__data;
@@ -87,7 +95,7 @@ qx.Class.define("qx.event.type.Data", {
      * The old data of the event sending this data event.
      * The return data type is the same as the event data type.
      *
-     * @return {var} The old data of the event
+     * @return {OldData} The old data of the event
      */
     getOldData() {
       return this.__old;
