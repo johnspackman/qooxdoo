@@ -430,8 +430,8 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
       console.log(">>> Starting compilation of project...");
       compiler.start(data);
       await new Promise(resolve => {
-        compiler.addListenerOnce("made", () => {
-          let makers = compiler.getMakers();
+        compiler.addListenerOnce("made", async () => {
+          let makers = await compiler.getMakers();
           this.__makers = makers;
           this.fireEvent("made");
           if (!this.argv.watch) {
