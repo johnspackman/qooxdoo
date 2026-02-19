@@ -534,7 +534,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       }
 
       // Assets
-      var assets = this.getAssets();
+      var assets = this.__requiredAssets;
       if (assets.length) {
         dbClassInfo.assets = assets;
       }
@@ -2675,12 +2675,6 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       if (!qx.lang.Array.contains(this.__requiredAssets, path)) {
         this.__requiredAssets.push(path);
       }
-    },
-    /**
-     * Returns the assets required by the class
-     * @returns
-     */ getAssets() {
-      return this.__requiredAssets;
     },
 
     /**

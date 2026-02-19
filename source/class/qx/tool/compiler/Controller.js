@@ -513,11 +513,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
       if (!dbClassInfo) {
         if (fs.existsSync(jsonFilename)) {
           dbClassInfo = await qx.tool.utils.Json.loadJsonAsync(jsonFilename);
-        } else {
-          dbClassInfo = {};
         }
-        this.__dbClassInfoCache[hashKey] = dbClassInfo;
       }
+
+      if (!dbClassInfo) {
+        dbClassInfo = {};
+      }
+      
+      this.__dbClassInfoCache[hashKey] = dbClassInfo;
 
       if (!force) {
         let outputStat = await qx.tool.utils.files.Utils.safeStat(outputFilename);
