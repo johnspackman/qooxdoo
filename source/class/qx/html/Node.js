@@ -1506,10 +1506,8 @@ qx.Class.define("qx.html.Node", {
         return id;
       };
 
-      if (qx.Class.supportsEvent(this, type)) {
-        let id = super.addListener(type, listener, self, capture);
-        id.domEventId = registerDomEvent();
-        return id;
+      if (qx.Class.supportsEvent(this.constructor, type)) {
+        return super.addListener(type, listener, self, capture);
       }
 
       return registerDomEvent();
@@ -1550,8 +1548,8 @@ qx.Class.define("qx.html.Node", {
         }
       }
 
-      if (qx.Class.supportsEvent(this, type)) {
-        super.removeListener(type, listener, self, capture);
+      if (qx.Class.supportsEvent(this.constructor, type)) {
+        return super.removeListener(type, listener, self, capture);
       }
 
       if (this._domNode) {
@@ -1642,11 +1640,8 @@ qx.Class.define("qx.html.Node", {
         return false;
       }
 
-      if (qx.Class.supportsEvent(this, type)) {
-        let has = super.hasListener(type, capture);
-        if (has) {
-          return true;
-        }
+      if (qx.Class.supportsEvent(this.constructor, type)) {
+        return super.hasListener(type, capture);
       }
 
       if (this._domNode) {
