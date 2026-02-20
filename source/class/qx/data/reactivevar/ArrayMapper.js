@@ -108,7 +108,13 @@ qx.Class.define("qx.data.reactivevar.ArrayMapper", {
         }
       }
       for (let key of remainingKeys) {
-        this.__outputForKey.get(key)?.dispose();
+        let {value, dispose} = this.__outputForKey.get(key);
+        if (dispose) {
+          dispose();
+        }
+        if (value instanceof qx.core.Object) {
+          value.dispose();//TODO add property for dispose
+        }
         this.__outputForKey.delete(key);
       }
       this.getValue().replace(Array.from(this.__outputForKey.values()).map(info => info.value));

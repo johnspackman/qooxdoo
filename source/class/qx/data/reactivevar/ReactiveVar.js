@@ -41,6 +41,7 @@ qx.Class.define("qx.data.reactivevar.ReactiveVar", {
     }
   },
   members: {
+    _isInDerived: false, // Whether this ReactiveVar is being used in a Derived ReactiveVar. This is used to prevent a ReactiveVar from being used in multiple Derived ReactiveVars.
     _applyValue(value, oldValue) {
       if (value) {
         if (this.trackArrayChange && value && (value instanceof qx.data.Array)) {

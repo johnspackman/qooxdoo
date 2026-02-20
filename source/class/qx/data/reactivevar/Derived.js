@@ -1,5 +1,6 @@
 /**
  * A ReactiveVar which derives its value from other ReactiveVars using a generator function.
+ * Note: Currently, only at most one Derived ReactiveVar can listen to another ReactiveVar
  */
 qx.Class.define("qx.data.reactivevar.Derived", {
   extend: qx.data.reactivevar.ReactiveVar,
@@ -17,10 +18,18 @@ qx.Class.define("qx.data.reactivevar.Derived", {
     let initialValue = generator();
     ReactiveVar.setOnGetCallback(null);
     this.setValue(initialValue);
-    sources.forEach(source => source.addListener("changeValue", this.__update, this));  
+    sources.forEach(source => {
+      if (qx.core.Environment.get("qx.debug")) {
+        if (source._isInDerived) {
+          throw new Error("A ReactiveVar cannot be used in multiple Derived ReactiveVars");
+        }
+      }
+      source._isInDerived = true;
+      source.addListener("changeValue", this.__update, this)
+    });  
   },
   destruct() {
-    this.__sources.forEach(source => source.removeListener("changeValue", this.__update));
+    this.__sources.forEach(source => source.dispose());
   },
   members: {
     /**
