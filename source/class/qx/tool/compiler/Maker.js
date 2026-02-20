@@ -28,6 +28,7 @@ var path = require("upath");
  */
 qx.Class.define("qx.tool.compiler.Maker", {
   extend: qx.core.Object,
+  include: [qx.tool.compiler.MTransformerProperty],
 
   /**
    * Constructor
@@ -103,19 +104,6 @@ qx.Class.define("qx.tool.compiler.Maker", {
       nullable: false,
       check: "Boolean",
       apply: "__applyWriteAllTranslations"
-    },
-
-    /**
-     * This class must implement the interface qx.tool.compiler.ISourceTransformer.
-     * 
-     * If specified, the class name of the source transformer to use,
-     * which will transform source code before transpilation.
-     * Could be used to implement custom language features.
-     */
-    transformerClass: {
-      check: "String",
-      init: null,
-      nullable: true
     }
   },
 
@@ -151,27 +139,6 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @type {qx.tool.compiler.app.Application[]}
      */
     __applications: null,
-
-    /**
-     * Gets the source transformer, creating if necessary
-     * @returns {qx.tool.compiler.ISourceTransformer?} instance of the source transformer
-     */
-    getTransformer() {
-      if (this.__transformer === undefined) {
-        let transformerClassname = this.getTransformerClass();
-        if (!transformerClassname) {
-          return (this.__transformer = null);
-        }
-        let TransformerClass = qx.Class.getByName(transformerClassname);
-        if (qx.core.Environment.get("qx.debug")) {
-          if (!TransformerClass) {
-            throw new Error("Could not find transformer class: " + transformerClassname);
-          }
-        }
-        this.__transformer = new TransformerClass();        
-      }
-      return this.__transformer;
-    },
 
     /**
      * Adds an Application to be made

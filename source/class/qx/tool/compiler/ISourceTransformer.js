@@ -16,7 +16,9 @@ qx.Interface.define("qx.tool.compiler.ISourceTransformer", {
      * @param {qx.tool.compiler.Controller.SourceInfo} sourceInfo
      * @returns {boolean}
      */
-    shouldTransform(sourceInfo) {},
+    shouldTransform(sourceInfo) {
+      //TODO we are getting rid of this
+    },
 
     /**
      * Transforms the given source.

@@ -82,7 +82,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
      * @param {String} classFilename the .js file to parse
      * @return {Promise<MetaData>} the parsed metadata
      */
-    async parse(metaRootDir, libraryPath, classFilename) {
+    async parse(metaRootDir, libraryPath, classFilename, source) {
       classFilename = await qx.tool.utils.files.Utils.correctCase(classFilename);
 
       let stat = await fs.promises.stat(classFilename);
@@ -96,7 +96,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
       this.__expectedClassname = path.relative(libraryPath, classFilename).replace(/\.js$/, "").split(path.sep).join(".");
 
       const babelCore = require("@babel/core");
-      let src = await fs.promises.readFile(classFilename, "utf8");
+      let src = source ?? await fs.promises.readFile(classFilename, "utf8");
 
       let plugins = [require("@babel/plugin-syntax-jsx"), this.__plugin()];
 

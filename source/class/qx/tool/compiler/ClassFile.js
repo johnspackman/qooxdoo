@@ -1679,6 +1679,43 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
               }
             }
 
+            //converts an property path into a reactive var
+            const propertyPathReactiveVar = path => {
+              let watchPath = path.toString();
+              let firstDot = watchPath.indexOf(".");
+              let propertyPath = watchPath.substring(firstDot + 1, watchPath.length);
+              return types.newExpression(                    
+                babylon.parse("qx.data.reactivevar.PropertyPath").program.body[0].expression, //constructor expression
+                [//args
+                  path.node.object, // the object we are listening to
+                  types.stringLiteral(propertyPath)
+                ]
+              );
+            }
+
+            if (path.node.callee.type == "Identifier") {
+              if (path.node?.callee?.name == "$watch" ) {      
+                //syntax: $watch(objectPath)         
+                path.replaceWith(
+                  propertyPathReactiveVar(path.get("arguments.0"))
+                );
+              } else if (path.node?.callee?.name == "$foreach") {
+                //syntax: $foreach(arrayPath, itemName, keyExpr, body)
+                let pathWatcher = propertyPathReactiveVar(path.get("arguments.0"));
+                let itemName = path.get("arguments.1").node;
+                path.replaceWith(
+                  types.newExpression(
+                    babylon.parse("qx.data.reactivevar.ArrayMapper").program.body[0].expression, //constructor expression
+                    [
+                      pathWatcher, //Array reactive var
+                      types.arrowFunctionExpression([itemName], path.get("arguments.2").node), //getKey function
+                      types.arrowFunctionExpression([itemName], path.get("arguments.3").node)// mapper
+                    ]
+                  )
+                )
+              }
+            }
+
             if (
               types.isMemberExpression(path.node.callee) ||
               (es6ClassDeclarations == 0 && (path.node.callee.object?.type == "Super" || path.node.callee.type == "Super"))

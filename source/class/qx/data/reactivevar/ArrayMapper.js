@@ -20,7 +20,7 @@ qx.Class.define("qx.data.reactivevar.ArrayMapper", {
    * @param {(x: InputType) => [OutputType, Function]} mapFunc A function which maps the input item to the output item. It also returns a dispose function which is called when the item is removed from the array.
    * @param {(x: InputType) => KeyType} [getKey] A function which returns the key for an item. The key must be unique for each item in the input array.
    */
-  construct(input, mapFunc, getKey) {
+  construct(input, getKey, mapFunc) {
     super();
     this.__input = input;
     this.__mapFunc = mapFunc;
@@ -41,7 +41,7 @@ qx.Class.define("qx.data.reactivevar.ArrayMapper", {
     }
   },
   destruct() {
-    this.__input.removeListener("changeValue", this.__onInputChange);
+    this.__input.dispose();
     this.__outputForKey.forEach(({dispose}) => dispose());
   },
   members: {

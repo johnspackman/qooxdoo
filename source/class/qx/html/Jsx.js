@@ -259,7 +259,7 @@ qx.Class.define("qx.html.Jsx", {
     _childrenToReactiveVar(element, children) {    
       const isReactive = c => typeof c === "object" && c instanceof qx.data.reactivevar.ReactiveVar;
       let childrenReactive = new qx.data.reactivevar.Derived(() => children.map(c => isReactive(c) ? c.get() : c));
-      element.addReactiveDep(childrenReactive);//TODO maybe make this a single ReactiveChildren property?
+      element.setReactiveChildren(childrenReactive);
       return childrenReactive;
     },
 

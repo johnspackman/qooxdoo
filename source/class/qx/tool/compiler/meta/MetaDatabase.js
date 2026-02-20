@@ -33,6 +33,7 @@ const path = require("upath");
  */
 qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   extend: qx.core.Object,
+  include: [qx.tool.compiler.MTransformerProperty],
 
   construct() {
     super();
@@ -43,6 +44,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     this.__database = {};
     this.__lastSerialized = 0;
     this.__startupDetectedOutOfDate = {};
+    this.setTransformerClass("qx.tool.compiler.qxx.Preprocessor");//TODO support mutiple transformers
   },
 
   properties: {
@@ -175,7 +177,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
           let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
           if (fs.existsSync(filename)) {
             await qx.tool.utils.Utils.makeParentDir(filename);
-            let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
+            let metaReader = new qx.tool.compiler.meta.ClassMeta(this);
             await metaReader.loadMeta(filename);
             if (await metaReader.isOutOfDate()) {
               this.__startupDetectedOutOfDate[filename] = true;
@@ -303,7 +305,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       let libraries = Object.values(this.getDatabase().libraries || {}).map(l => l.sourceDir);
       let libraryPath = libraries.find(l => filename.startsWith(l));
 
-      meta = new qx.tool.compiler.meta.ClassMeta(this.getRootDir(), libraryPath);
+      meta = new qx.tool.compiler.meta.ClassMeta(this);
 
       try {
         var metaData = await meta.parse(filename);
@@ -723,6 +725,27 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       };
       this.__readOnly = true;
       return this;
+    },
+
+    /**
+     * Gets the source transformer, creating if necessary
+     * @returns {qx.tool.compiler.ISourceTransformer?} instance of the source transformer
+     */
+    getTransformer() {
+      if (this.__transformer === undefined) {
+        let transformerClassname = this.getTransformerClass();
+        if (!transformerClassname) {
+          return (this.__transformer = null);
+        }
+        let TransformerClass = qx.Class.getByName(transformerClassname);
+        if (qx.core.Environment.get("qx.debug")) {
+          if (!TransformerClass) {
+            throw new Error("Could not find transformer class: " + transformerClassname);
+          }
+        }
+        this.__transformer = new TransformerClass();        
+      }
+      return this.__transformer;
     },
 
     /**

@@ -88,8 +88,6 @@ qx.Class.define("qx.html.Element", {
         serializer.rawTextInBody(property.value);
       }
     );
-
-    this._reactiveDeps = [];
   },
 
   /*
@@ -516,17 +514,15 @@ qx.Class.define("qx.html.Element", {
     __attribValues: null,
 
     /**
-     * @type {Array<qx.data.reactivevar.ReactiveVar>} list of reactive vars which this node listens to.
-     * When this node is disposed, these will be disposed as well.
+     * @type {qx.data.reactivevar.ReactiveVar} Reactive var for the children of the node
      */
-    _reactiveDeps: null,
+    _reactiveChildren: null,
 
-    /**
-     * 
-     * @param {qx.data.reactivevar.ReactiveVar} dep 
-     */
-    addReactiveDep(dep) {
-      this._reactiveDeps.push(dep);
+    setReactiveChildren(reactive) {
+      if (this.__reactiveChildren) {
+        throw new Error("This element already has reactive children. Cannot set reactive children twice.");
+      }
+      this.__reactiveChildren = reactive;
     },
 
     /**
@@ -2031,7 +2027,6 @@ qx.Class.define("qx.html.Element", {
       this.__lazyScrollIntoViewY =
         null;
 
-    this._reactiveDeps.forEach(dep => dep.dispose());
-    this._reactiveDeps = null;
+    this._reactiveChildren?.dispose();
   }
 });

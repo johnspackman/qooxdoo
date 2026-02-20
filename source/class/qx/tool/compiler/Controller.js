@@ -28,6 +28,7 @@ const path = require("upath");
  * compiling them for targets, and relaying information about modifications to the
  * makers
  * 
+ * @use(qx.tool.compiler.qxx.Preprocessor)
  * 
  * @typedef {Object} SourceInfo Information regarding the source file to be compiled
  * @property {string} classname
@@ -667,11 +668,17 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {qx.tool.compiler.meta.MetaDatabase} metaDb
      * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>}
      */
-    async transpile(sourceInfo, makerInfo, metaDb) {
+    async transpile(sourceInfo, makerInfo, metaDb) {//!TODO I think is class is becoming a God class
       let { classFileConfig, transformer } = makerInfo;
       let { classname, outputFilename, sourceFilename } = sourceInfo;
       outputFilename = path.resolve(outputFilename);
       let source = await fs.promises.readFile(sourceFilename, "utf8");
+
+      let transformed = false;
+      if (metaDb.getTransformer() && metaDb.getTransformer().shouldTransform(sourceInfo)) {
+        source = metaDb.getTransformer().transform({classname, filename: sourceFilename, source});
+        transformed = true;
+      }
 
       if (transformer && transformer.shouldTransform(sourceInfo)) {
         source = transformer.transform(sourceInfo);

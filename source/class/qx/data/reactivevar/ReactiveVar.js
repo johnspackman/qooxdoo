@@ -2,7 +2,6 @@
  * A ReactiveVar is an object which stores/keeps track of a value and fires an event when the value changes.
  * This is similar to the TC39 Signals proposal but much simpler.
  * This can be used for things like composing multiple ReactiveVars in order to create a derived ReactiveVar,
- * used for when one expression is dependent on multiple inputs which may change, which cannot be done by SingleValueBinding's.
  * You can also map a ReactiveVar array to another array which automatically updates when the input array changes.
  * 
  * @template ValueType Type of the value of this ReactiveVar

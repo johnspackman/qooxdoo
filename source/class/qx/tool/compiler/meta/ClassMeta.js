@@ -31,27 +31,19 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
 
   /**
    * 
-   * @param {string} metaRootDir Root directory of meta database
-   * @param {string} libraryPath Path of the source files of the library that this file is found in
+   * @param {qx.tool.compiler.meta.MetaDatabase} metaDb the meta database that this class meta belongs to
    */
-  construct(metaRootDir, libraryPath) {
+  construct(metaDb) {
     super();
-    this.setMetaRootDir(metaRootDir || null);
-    this.__libraryPath = libraryPath || null;
-  },
-
-  properties: {
-    /** Root directory for meta data; if provided then paths are stored relative, not absolute, which helps make
-     * meta directories relocatable
-     */
-    metaRootDir: {
-      init: null,
-      nullable: true,
-      check: "String"
-    }
+    this.__libraries = Object.values(metaDb.getDatabase().libraries || {}).map(l => l.sourceDir);
+    this.__metaDb = metaDb;
   },
 
   members: {
+    /**
+     * @type {qx.tool.compiler.meta.MetaDatabase} the meta database that this class meta belongs to
+     */
+    __metaDb: null,
     /**
      * @type {qx.tool.compiler.meta.StdClassParser.MetaData} 
      * the parsed data
@@ -107,8 +99,8 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
      */
     async isOutOfDate() {
       let classFilename = this.__metaData.classFilename;
-      if (this.getMetaRootDir()) {
-        classFilename = path.join(this.getMetaRootDir(), classFilename);
+      if (this.__getMetaRootDir()) {
+        classFilename = path.join(this.__getMetaRootDir(), classFilename);
       }
       if (!fs.existsSync(classFilename)) {
         return true;
@@ -131,13 +123,36 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
       classFilename = await qx.tool.utils.files.Utils.correctCase(
         classFilename
       );
+
+      let transformer = this.__metaDb.getTransformer();
+      let source;
+      if (transformer && transformer.shouldTransform(classFilename)) {
+        source = await fs.promises.readFile(classFilename, "utf8");
+        let sourceInfo = {
+          filename: classFilename,
+          source
+          //TODO no classname yet
+        };
+        source = transformer.transform(sourceInfo);        
+      };
+
+      let libraryPath = this.__libraries.find(l => classFilename.startsWith(l));
       let parser = new qx.tool.compiler.meta.StdClassParser();
       this.__metaData = await parser.parse(
-        this.getMetaRootDir() || ".",
-        this.__libraryPath,
-        classFilename
+        this.__getMetaRootDir() || ".",
+        libraryPath,
+        classFilename,
+        source
       );
       return this.__metaData;
+    },
+
+    /**
+     * 
+     * @returns {string}
+     */
+    __getMetaRootDir() {
+      return this.__metaDb.getRootDir();
     },
 
     /**
@@ -218,7 +233,7 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
      * @returns {qx.tool.compiler.meta.ClassMeta}
      */
     fromNativeObject(obj) {
-      let classMeta = new qx.tool.compiler.meta.ClassMeta();
+      let classMeta = new qx.tool.compiler.meta.ClassMeta();//TODO wrong constructor args
       classMeta.__metaData = obj;
       classMeta.__readOnly = true;
       return classMeta;
