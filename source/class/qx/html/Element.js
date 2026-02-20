@@ -88,6 +88,8 @@ qx.Class.define("qx.html.Element", {
         serializer.rawTextInBody(property.value);
       }
     );
+
+    this._reactiveDeps = [];
   },
 
   /*
@@ -512,6 +514,20 @@ qx.Class.define("qx.html.Element", {
 
     __styleValues: null,
     __attribValues: null,
+
+    /**
+     * @type {Array<qx.data.reactivevar.ReactiveVar>} list of reactive vars which this node listens to.
+     * When this node is disposed, these will be disposed as well.
+     */
+    _reactiveDeps: null,
+
+    /**
+     * 
+     * @param {qx.data.reactivevar.ReactiveVar} dep 
+     */
+    addReactiveDep(dep) {
+      this._reactiveDeps.push(dep);
+    },
 
     /**
      * This is a {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map | Map},
@@ -2014,5 +2030,8 @@ qx.Class.define("qx.html.Element", {
       this.__lazyScrollIntoViewX =
       this.__lazyScrollIntoViewY =
         null;
+
+    this._reactiveDeps.forEach(dep => dep.dispose());
+    this._reactiveDeps = null;
   }
 });

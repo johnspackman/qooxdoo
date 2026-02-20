@@ -26,7 +26,7 @@
  * the https://github.com/alecsgone/jsx-render repo is available under an MIT license.
  */
 qx.Class.define("qx.html.Jsx", {
-  extend: qx.core.Object,
+  type: "static",
 
   statics: {
     /**
@@ -106,7 +106,7 @@ qx.Class.define("qx.html.Jsx", {
             }
           };
 
-          let reactiveChildren = this._childrenToReactiveVar(children);
+          let reactiveChildren = this._childrenToReactiveVar(element, children);
           reactiveChildren.trackValue(children => {
             element.clearSlots();
             injectChildren(children);
@@ -221,7 +221,7 @@ qx.Class.define("qx.html.Jsx", {
             }            
           }
         };
-        let reactiveChildren = this._childrenToReactiveVar(children);
+        let reactiveChildren = this._childrenToReactiveVar(element, children);
         reactiveChildren.trackValue(children => {
           element.removeAll();
           addChildren(children);
@@ -250,12 +250,16 @@ qx.Class.define("qx.html.Jsx", {
     /**
      * Converts an array which is a mixture of ReactiveVars and normal values into a single ReactiveVar which tracks the whole array.
      * Note: the contents of the array MUST NOT CHANGE, only the values of the ReactiveVars themselves!
+     * 
+     * Also adds all the ReactiveVars in the array as reactive dependencies of the element,
+     * so that they can be disposed later.
      * @param {Array} children the children to convert
      * @returns {qx.data.reactivevar.ReactiveVar} a reactive var which tracks the whole array
      */
-    _childrenToReactiveVar(children) {    
+    _childrenToReactiveVar(element, children) {    
       const isReactive = c => typeof c === "object" && c instanceof qx.data.reactivevar.ReactiveVar;
       let childrenReactive = new qx.data.reactivevar.Derived(() => children.map(c => isReactive(c) ? c.get() : c));
+      element.addReactiveDep(childrenReactive);//TODO maybe make this a single ReactiveChildren property?
       return childrenReactive;
     },
 
