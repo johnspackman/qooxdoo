@@ -32,7 +32,10 @@ qx.Class.define("qx.ui.table.cellrenderer.Html", {
   members: {
     // overridden
     _getContentHtml(cellInfo) {
-      return cellInfo.value || "";
+      if (cellInfo.value === null || cellInfo.value === undefined) {
+        return "";
+      }
+      return String(cellInfo.value);
     },
 
     // overridden
