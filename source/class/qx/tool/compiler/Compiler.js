@@ -62,13 +62,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         data["feedback"] = configDb.db("qx.default.feedback", true);
       }
       
-      if (data.verbose) {
-        console.log(`
-          Compiler:  v${qx.tool.config.Utils.getCompilerVersion()}
-          Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}
-        `);
-      }
-
       if (data["machineReadable"]) {
         qx.tool.compiler.Console.getInstance().setMachineReadable(true);
       }
