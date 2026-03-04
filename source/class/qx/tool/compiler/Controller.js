@@ -409,6 +409,15 @@ qx.Class.define("qx.tool.compiler.Controller", {
                 this.__transpilerPool = null;
               }
               this.fireEvent("allMakersMade");
+            } else {
+              let makerByHashCode = Object.fromEntries(this.__makers.map(m => [m.toHashCode(), m]));
+              const printMaker = hash => {
+                let maker = makerByHashCode[hash];
+                return maker.getTarget();
+              };
+              qx.tool.compiler.Console.logVerbose("debug: making makers: " + Object.keys(this.__makingMakers).map(printMaker).join(", "));
+              qx.tool.compiler.Console.logVerbose("debug: dirty makers: " + Object.keys(this.__dirtyMakers).map(printMaker).join(", "));
+              qx.tool.compiler.Console.logVerbose("debug: compiling classes: " + Object.keys(this.__compilingClasses).join(", "));
             }
             return true;
           } else {
@@ -459,7 +468,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         })
         .catch(err => {
           delete this.__compilingClasses[hashKey];
-          console.error("Error compiling class " + classname + ": " + err.stack);
+          qx.tool.compiler.Console.error("Error compiling class " + classname + ": " + err.message);
           return null;
         });
       this.__compilingClasses[hashKey] = promise;
@@ -496,6 +505,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
      */
     async __compileClassImpl(analyzer, classname, force) {
       let meta = this.__metaDb.getMetaData(classname);
+      if (!meta) {
+        throw new Error(`Cannot find class ${classname} in project/libraries.`);
+      }
 
       let sourceFilename = path.resolve(path.join(this.__metaDb.getRootDir(), meta.classFilename));
       let outputDir = analyzer.getMaker().getTarget().getOutputDir();
