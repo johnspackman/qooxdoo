@@ -106,7 +106,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
         watcher.on("add", filename => this.__onFileChange("add", filename, confirmedName));
         watcher.on("unlink", filename => this.__onFileChange("unlink", filename, confirmedName));
         watcher.on("ready", () => {
-          qx.tool.compiler.Console.log(`Start watching ${confirmedName}...`);
+          qx.tool.compiler.Console.logVerbose(`Start watching ${confirmedName}...`);
           watchedPath.ready = true;
         });
         watcher.on("error", err => {

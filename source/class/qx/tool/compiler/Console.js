@@ -155,6 +155,16 @@ qx.Class.define("qx.tool.compiler.Console", {
     },
 
     /**
+     * Prints a message using console.log, but only if `verbose` is true.
+     * @param  {...any} args 
+     */
+    logVerbose(...args) {
+      if (this.isVerbose()) {
+        this.log(...args);
+      }
+    },
+
+    /**
      * console.warn equivalent, with colorization
      */
     warn(...args) {
@@ -333,6 +343,10 @@ qx.Class.define("qx.tool.compiler.Console", {
      */
     debug(...args) {
       return this.getInstance().debug(...args);
+    },
+
+    logVerbose(...args) {
+      return this.getInstance().logVerbose(...args);
     },
 
     /**

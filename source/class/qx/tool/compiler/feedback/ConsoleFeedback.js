@@ -1,6 +1,9 @@
 qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
   extend: qx.core.Object,
 
+  /**
+   * @param {qx.tool.compiler.Controller} controller
+   */
   construct(controller) {
     super();
     this.__classStartTimes = {};
@@ -16,7 +19,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
       let endTime = now();
       let time = endTime - startTimes[type];
       startTimes[type] = endTime;
-      qx.tool.compiler.Console.log(`Startup for ${name} in ${time}ms`);
+      qx.tool.compiler.Console.logVerbose(`Startup for ${name} in ${time}ms`);
     };
 
     start("overall");
@@ -42,7 +45,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
 
     controller.addListener("allMakersMade", () => {
       qx.tool.compiler.Console.log("All applications ready.");
-    })
+    });
 
     controller.addListener("classNeedsToBeCompiled", this.__onClassNeedsToBeCompiled, this);
     controller.addListener("compilingClass", this.__onCompilingClass, this);
@@ -51,14 +54,6 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
     controller.getDiscovery().addListener("classRemoved", this.__onClassRemoved, this);
     controller.getDiscovery().addListener("classChanged", this.__onClassChanged, this);
     controller.addListener("addMaker", this.__onAddMaker, this);
-  },
-
-  properties: {
-    verbose: {
-      check: "Boolean",
-      init: false,
-      event: "changeVerbose"
-    }
   },
 
   members: {
@@ -72,9 +67,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      */
     __onClassAdded(e) {
       let classname = e.getData();
-      if (this.isVerbose()) {
-        qx.tool.compiler.Console.log(`Added class ${classname} to discovery.`);
-      }
+      qx.tool.compiler.Console.logVerbose(`Added class ${classname} to discovery.`);
     },
 
     /**
@@ -84,9 +77,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      */
     __onClassRemoved(e) {
       let classname = e.getData();
-      if (this.isVerbose()) {
-        qx.tool.compiler.Console.log(`Removed class ${classname} from discovery.`);
-      }
+      qx.tool.compiler.Console.logVerbose(`Removed class ${classname} from discovery.`);
     },
 
     /**
@@ -96,9 +87,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      */
     __onClassChanged(e) {
       let classname = e.getData();
-      if (this.isVerbose()) {
-        qx.tool.compiler.Console.log(`Detected change to class ${classname} in discovery.`);
-      }
+      qx.tool.compiler.Console.logVerbose(`Detected change to class ${classname} in discovery.`);
     },
 
     /**
@@ -107,10 +96,8 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      * @param {qx.event.type.Data} e
      */
     __onClassNeedsToBeCompiled(e) {
-      let { classname, maker}  = e.getData();
-      if (this.isVerbose()) {
-        qx.tool.compiler.Console.log(`Class ${classname} needs to be compiled for ${maker.getTarget().getOutputDir()}.`);
-      }
+      let { classname, maker } = e.getData();
+      qx.tool.compiler.Console.logVerbose(`Class ${classname} needs to be compiled for ${maker.getTarget().getOutputDir()}.`);
     },
 
     /**
@@ -119,13 +106,11 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      * @param {qx.event.type.Data} e
      */
     __onCompilingClass(e) {
-      let {classname, analyzer} = e.getData();
+      let { classname, analyzer } = e.getData();
       let key = `${analyzer.toHashCode()}:${classname}`;
       this.__classStartTimes[key] = new Date().getTime();
-      if (this.isVerbose()) {
-        let target = analyzer.getMaker().getTarget();
-        qx.tool.compiler.Console.log(`${target.toString()}: Compiling class ${classname}...`);
-      }
+      let target = analyzer.getMaker().getTarget();
+      qx.tool.compiler.Console.logVerbose(`${target.toString()}: Compiling class ${classname}...`);
     },
 
     /**
@@ -134,18 +119,15 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      * @param {qx.event.type.Data} e
      */
     __onCompiledClass(e) {
-      let {classname, analyzer} = e.getData();
+      let { classname, analyzer } = e.getData();
       let endTime = new Date().getTime();
       let key = `${analyzer.toHashCode()}:${classname}`;
       let startTime = this.__classStartTimes[key];
       delete this.__classStartTimes[key];
 
-      
-      if (this.isVerbose()) {
-        let diff = endTime - startTime;//starttime is null
-        let target = analyzer.getMaker().getTarget();
-        qx.tool.compiler.Console.log(`${target.toString()}: Compiled class ${classname} in ${diff}ms.`);
-      }
+      let diff = endTime - startTime;
+      let target = analyzer.getMaker().getTarget();
+      qx.tool.compiler.Console.logVerbose(`${target.toString()}: Compiled class ${classname} in ${diff}ms.`);
     },
 
     /**
@@ -157,7 +139,7 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
       let maker = e.getData();
       let id = maker.getTarget().getOutputDir();
       qx.tool.compiler.Console.log(`Maker added for: ${id}`);
-      maker.addListener("writingApplications", () => qx.tool.compiler.Console.log(`${id}: Writing applications...`));      
+      maker.addListener("writingApplications", () => qx.tool.compiler.Console.log(`${id}: Writing applications...`));
       maker.addListener("writtenApplication", evt =>
         qx.tool.compiler.Console.log(`${id}: Written application ${evt.getData().application.getName()}...`)
       );
