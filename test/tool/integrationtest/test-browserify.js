@@ -1,10 +1,12 @@
-const test = require("tape");
+const { test } = require("node:test");
+const assert = require("node:assert");
 const testUtils = require("../../../bin/tools/utils");
 const path = require("path");
 const fs = require("fs").promises;
 const { execSync } = require("child_process");
 
 const testDir = path.join(__dirname, "test-browserify");
+const testDirMissing = path.join(__dirname, "test-browserify-missing");
 const qxCmdPath = testUtils.getCompiler();
 
 /**
@@ -33,17 +35,16 @@ async function fileExists(filePath) {
   }
 }
 
-test("Setup: Install dependencies", async assert => {
+test("Setup: Install dependencies", async () => {
   try {
     await installDependencies();
     assert.ok(true, "npm install successful");
-    assert.end();
   } catch (ex) {
-    assert.end(ex);
+    throw ex;
   }
 });
 
-test("Browserify bundles npm modules correctly", async assert => {
+test("Browserify bundles npm modules correctly", async () => {
   try {
     // 1. Compile the app
     let result = await testUtils.runCompiler(testDir);
@@ -53,15 +54,15 @@ test("Browserify bundles npm modules correctly", async assert => {
     const browserifyFile = path.join(testDir, "compiled/source/testbrowserify/commonjs-browserify.js");
     assert.ok(await fileExists(browserifyFile), "commonjs-browserify.js should exist");
 
-    // 3. Check file size (should be substantial with uuid + crypto deps)
+    // 3. Check file size (esbuild produces a lean bundle; browser build with bundle uuid is ~15KB)
     const stats = await fs.stat(browserifyFile);
-    assert.ok(stats.size > 100000, `Bundle should be > 100KB, got ${stats.size} bytes`);
+    assert.ok(stats.size > 1000, `Bundle should be > 1KB, got ${stats.size} bytes`);
     assert.ok(stats.size < 5000000, `Bundle should be < 5MB, got ${stats.size} bytes`);
 
     // 4. Check that it contains uuid code
     const content = await fs.readFile(browserifyFile, 'utf-8');
     assert.ok(content.includes('uuid'), "Bundle should contain 'uuid' string");
-    assert.ok(content.includes('require='), "Bundle should contain browserify require wrapper");
+    assert.ok(content.includes('globalThis.require'), "Bundle should set up global require");
 
     // 5. Check that index.js references it
     const indexFile = path.join(testDir, "compiled/source/testbrowserify/index.js");
@@ -85,13 +86,12 @@ test("Browserify bundles npm modules correctly", async assert => {
     console.log(`✓ Browserify bundle created: ${(stats.size / 1024).toFixed(1)} KB`);
     console.log(`✓ Detected require('uuid') at: ${appInfo.commonjsModules.uuid[0]}`);
 
-    assert.end();
   } catch (ex) {
-    assert.end(ex);
+    throw ex;
   }
 });
 
-test("Compiled app structure is correct", async assert => {
+test("Compiled app structure is correct", async () => {
   try {
     const compiledDir = path.join(testDir, "compiled/source/testbrowserify");
 
@@ -114,47 +114,29 @@ test("Compiled app structure is correct", async assert => {
 
     console.log("✓ All required files present");
 
-    assert.end();
   } catch (ex) {
-    assert.end(ex);
+    throw ex;
   }
 });
 
-test("Bundle contains expected npm modules", async assert => {
+test("Bundle contains expected npm modules", async () => {
   try {
     const browserifyFile = path.join(testDir, "compiled/source/testbrowserify/commonjs-browserify.js");
     const content = await fs.readFile(browserifyFile, 'utf-8');
 
-    // uuid has crypto dependencies, check they're bundled
-    const expectedModules = [
-      'uuid',           // Main module
-      'crypto',         // Crypto operations
-      'buffer',         // Buffer polyfill
-      '_process',       // Process polyfill
-    ];
-
-    for (const moduleName of expectedModules) {
-      assert.ok(
-        content.includes(moduleName),
-        `Bundle should contain '${moduleName}' module or reference`
-      );
-    }
-
-    // Check browserify wrapper is present
-    assert.ok(
-      content.startsWith('require=(function(){function r(e,n,t)'),
-      "Bundle should start with browserify require wrapper"
-    );
+    // uuid is bundled, check for key identifiers
+    assert.ok(content.includes('uuid'), "Bundle should contain 'uuid' module code");
+    assert.ok(content.includes('globalThis.require'), "Bundle should set up global require");
+    assert.ok(content.includes('__qx_mods'), "Bundle should contain module registry");
 
     console.log("✓ All expected modules bundled");
 
-    assert.end();
   } catch (ex) {
-    assert.end(ex);
+    throw ex;
   }
 });
 
-test("Recompile is incremental (doesn't rebuild bundle if not needed)", async assert => {
+test("Recompile is incremental (doesn't rebuild bundle if not needed)", async () => {
   try {
     // First compile already done, get browserify file mtime
     const browserifyFile = path.join(testDir, "compiled/source/testbrowserify/commonjs-browserify.js");
@@ -179,8 +161,41 @@ test("Recompile is incremental (doesn't rebuild bundle if not needed)", async as
     }
 
     assert.ok(true, "Recompile completed");
-    assert.end();
   } catch (ex) {
-    assert.end(ex);
+    throw ex;
+  }
+});
+
+test("Missing npm module is handled gracefully (ignoreMissing equivalent)", async () => {
+  try {
+    // Compile app that require()s a package that is intentionally not installed
+    const result = await testUtils.runCompiler(testDirMissing);
+
+    // 1. Compiler must exit successfully — bundle is produced despite missing module
+    assert.ok(result.exitCode === 0, `Compile should succeed even with missing module: ${result.error || result.output}`);
+
+    // 2. Bundle file must exist and have content (not empty)
+    const bundleFile = path.join(testDirMissing, "compiled/source/testmissing/commonjs-browserify.js");
+    assert.ok(await fileExists(bundleFile), "commonjs-browserify.js should exist");
+    const stats = await fs.stat(bundleFile);
+    assert.ok(stats.size > 0, `Bundle should not be empty, got ${stats.size} bytes`);
+
+    // 3. Bundle must contain the empty stub for the missing module
+    const content = await fs.readFile(bundleFile, 'utf-8');
+    assert.ok(
+      content.includes('nonexistent-qx-test-pkg'),
+      "Bundle should reference the missing module (stub comment)"
+    );
+
+    // 4. A warning about the missing module must appear in compiler output
+    const allOutput = result.output + (result.error || "");
+    assert.ok(
+      allOutput.includes('nonexistent-qx-test-pkg'),
+      "Compiler should warn about the missing module"
+    );
+
+    console.log(`✓ Missing module handled: bundle created (${stats.size} bytes), warning emitted`);
+  } catch (ex) {
+    throw ex;
   }
 });

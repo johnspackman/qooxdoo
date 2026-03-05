@@ -37,7 +37,7 @@ qx.Bootstrap.define("qx.core.property.SimplePropertyStorage", {
      * @Override
      */
     async getAsync(thisObj, property) {
-      return this.get(thisObj, property);
+      // nothing
     },
 
     /**
@@ -55,15 +55,6 @@ qx.Bootstrap.define("qx.core.property.SimplePropertyStorage", {
     /**
      * @Override
      */
-    async setAsync(thisObj, property, value) {
-      return qx.Promise.resolve(value).then(value => {
-        this.set(thisObj, property, value);
-      });
-    },
-
-    /**
-     * @Override
-     */
     dereference(thisObj, property) {
       delete thisObj["$$propertyValues"][property.getPropertyName()];
     },
@@ -71,7 +62,7 @@ qx.Bootstrap.define("qx.core.property.SimplePropertyStorage", {
     /**
      * @Override
      */
-    isAsyncStorage() {
+    supportsGetAsync() {
       return false;
     },
 

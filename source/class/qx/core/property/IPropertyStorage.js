@@ -49,15 +49,6 @@ qx.Interface.define("qx.core.property.IPropertyStorage", {
     set(thisObj, property, value) {},
 
     /**
-     * Sets a value asynchronously
-     *
-     * @param {qx.core.Object} thisObj
-     * @param {qx.core.propety.IProperty} property the property to set the value of
-     * @param {*} value
-     */
-    async setAsync(thisObj, property, value) {},
-
-    /**
      * Deletes the value
      *
      * @param {qx.core.Object} thisObj
@@ -66,8 +57,8 @@ qx.Interface.define("qx.core.property.IPropertyStorage", {
     dereference(thisObj, property) {},
 
     /**
-     * Returns whether the storage supports asynchronous backing, ie the getter could be async
+     * Returns whether the storage supports asynchronous getting.
      */
-    isAsyncStorage() {}
+    supportsGetAsync() {}
   }
 });

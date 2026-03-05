@@ -36,7 +36,7 @@ qx.Class.define("qx.test.core.Property", {
         extend: qx.core.Object
       });
 
-      qx.Class.define("qx.test.cpnfv8.Superclass", {//cbh
+      qx.Class.define("qx.test.cpnfv8.Superclass", {
         extend: qx.test.cpnfv8.Object,
 
         construct(bRunning = true) {
@@ -171,11 +171,6 @@ qx.Class.define("qx.test.core.Property", {
           },
 
           /**@override */
-          isAsyncStorage() {
-            return false;
-          },
-
-          /**@override */
           get(thisObj, prop) {
             console.log("in externallyStored getter");
             return qx.test.cpnfv8.ExternalStorage._subclassStorage[prop.getPropertyName()];
@@ -185,6 +180,11 @@ qx.Class.define("qx.test.core.Property", {
           set(thisObj, property, value) {
             console.log("in externallyStored setter");
             qx.test.cpnfv8.ExternalStorage._subclassStorage[property.getPropertyName()] = value;
+          },
+
+          /**@override */
+          supportsGetAsync() {
+            return false;
           },
 
           /**@override */
@@ -235,7 +235,6 @@ qx.Class.define("qx.test.core.Property", {
           },
           delay: {
             init: 0,
-            async: true,
             getAsync: async (prop, self) => {
               let p;
               p = new qx.Promise((resolve, reject) => {
@@ -1700,7 +1699,6 @@ qx.Class.define("qx.test.core.Property", {
           propTwo: {
             init: null,
             nullable: true,
-            async: true,
             apply: "_applyPropTwo",
             event: "changePropTwo"
           }
@@ -2323,7 +2321,6 @@ qx.Class.define("qx.test.core.Property", {
         extend: qx.core.Object,
         properties: {
           foo: {
-            async: true,
             init: 7,
             apply: function (value, old) {
               return new qx.Promise((resolve, reject) => {
@@ -2353,27 +2350,36 @@ qx.Class.define("qx.test.core.Property", {
 
     /**
      * Ensures that an error is thrown when trying to get an async property synchronously
-     * when the property is not ready yet, even if it has an init value.
+     * when the property is not ready yet.
      */
     testGetSyncWhenNotReady() {
       qx.Class.undefine("qx.test.cpnfv8.GetSyncTest");
+
+      let fooCached = undefined;
       var Clazz = qx.Class.define("qx.test.cpnfv8.GetSyncTest", {
         extend: qx.core.Object,
         properties: {
           foo: {
-            async: true,
-            init: 7
+            get() {
+              return fooCached;
+            },
+            getAsync() {
+              if (fooCached === undefined) {
+                fooCached = 7;
+              }
+              return fooCached;
+            },
+            set(value) {
+              fooCached = value;
+            }
           }
         }
       });
 
       const doit = async () => {
         let instance = new Clazz();
-        //The property storage will be set to the init value during construction,
-        //so we must reset it manually.
-        delete instance.$$propertyValues.foo;
         let prop = qx.Class.getByProperty(Clazz, "foo");
-        this.assertFalse(prop.isInitialized(instance), "Property foo should not be initialized");
+        this.assertFalse(prop.hasLocalValue(instance), "Property foo should not be locally defined");
         this.assertUndefined(instance.getSafe("foo"));
         try {
           instance.getFoo();

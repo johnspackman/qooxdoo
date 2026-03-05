@@ -342,7 +342,19 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
      */
     __makers: null,
 
-    /*
+    /** @type{String} the path to the root of the meta files by classname */
+    __metaDir: null,
+
+    /** @type{Boolean} whether the typescript output is enabled */
+    __typescriptEnabled: false,
+
+    /** @type{String} the name of the typescript file to generate, null = use default */
+    __typescriptFile: null,
+
+    /** @type{Boolean} whether the typescript watcher has already been attached (watch mode) */
+    __typescriptWatcherAttached: false,
+
+    /**
      * @Override
      */
     async process() {

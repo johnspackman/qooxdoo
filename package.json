@@ -1,6 +1,6 @@
 {
   "name": "@qooxdoo/framework",
-  "version": "8.0.0-beta.1",
+  "version": "8.0.0-beta.3",
   "description": "The JS Framework for Coders",
   "author": "The qooxdoo project",
   "keywords": [
@@ -78,9 +78,7 @@
     "ajv": "^8.12.0",
     "app-module-path": "^2.2.0",
     "async": "^2.6.3",
-    "babelify": "^10.0.0",
     "better-ajv-errors": "^1.2.0",
-    "browserify": "^17.0.1",
     "chokidar": "^3.5.3",
     "cli-progress": "^3.12.0",
     "columnify": "^1.6.0",
@@ -88,6 +86,8 @@
     "core-js-bundle": "^3.33.1",
     "dot": "^1.1.3",
     "es6-promise-pool": "^2.5.0",
+    "esbuild": "^0.27.3",
+    "esbuild-plugin-polyfill-node": "^0.3.0",
     "eslint": "^9.15.0",
     "eslint-formatter-codeframe": "^7.32.1",
     "eslint-plugin-jsdoc": "^50.5.0",
@@ -112,7 +112,6 @@
     "set-value": "^4.1.0",
     "showdown": "^1.9.1",
     "source-map-js": "^1.0.2",
-    "tap-colorize": "^1.2.0",
     "terser": "^5.22.0",
     "tmp": "^0.2.5",
     "unset-value": "^1.0.0",
@@ -122,9 +121,9 @@
     "yauzl-promise": "^4.0.0"
   },
   "devDependencies": {
+    "baseline-browser-mapping": "^2.10.0",
     "dirsum": "^0.1.1",
     "source-map-support": "^0.5.21",
-    "tape": "^5.9.0",
     "tree-kill": "^1.2.2"
   },
   "engine": "node >= 20",

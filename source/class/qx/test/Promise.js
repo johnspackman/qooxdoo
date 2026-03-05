@@ -566,7 +566,7 @@ qx.Class.define("qx.test.Promise", {
 
     /**
      * Tests that a property apply method can return a promise; in this case, the
-     * property *is* marked as async, and we use the setAlphaAsync to test chaining
+     * and we use the setAlphaAsync to test chaining
      */
     testPropertySetValueAsyncApply2() {
       var t = this;
@@ -576,7 +576,6 @@ qx.Class.define("qx.test.Promise", {
           alpha: {
             init: null,
             nullable: true,
-            async: true,
             apply: "_applyAlpha",
 
             event: "changeAlpha"
@@ -632,9 +631,8 @@ qx.Class.define("qx.test.Promise", {
           alpha: {
             init: null,
             nullable: true,
-            async: true,
             event: "changeAlpha",
-            apply: () => { }
+            apply: () => {}
           }
         }
       });
@@ -685,8 +683,9 @@ qx.Class.define("qx.test.Promise", {
         });
 
         asyncObj.getAlphaAsync();
-        asyncObj.bind("alpha", syncObj, "bravo");
-        asyncObj.setAlphaAsync("zyx");
+        asyncObj.bindAsync("alpha", syncObj, "bravo").then(() => {
+          asyncObj.setAlphaAsync("zyx");
+        });
         qx.Promise.all([p1, p2]).then(function () {
           var p3 = new qx.Promise();
           syncObj.addListenerOnce("changeBravo", evt => {
@@ -707,10 +706,11 @@ qx.Class.define("qx.test.Promise", {
       /*
        * Test binding a "normal" sync property to an async property
        */
-      if (!qx.core.Environment.get("qx.core.property.Property.applyDuringConstruct")) {
-        console.warn("Not working with applyDuringConstruct = false, skipping testBinding async-to-sync part");
-        return;  // Test wird übersprungen, zählt als "ok"
-      }
+      //2026-FEB-25  - Commented this out because it causes this unit test to fail.
+      // if (!qx.core.Environment.get("qx.core.property.Property.applyDuringConstruct")) {
+      //   console.warn("Not working with applyDuringConstruct = false, skipping testBinding async-to-sync part");
+      //   return;
+      // }
       asyncToSync.then(function () {
         var asyncObj = new AsyncClazz();
         var syncObj = new SyncClazz();
@@ -755,7 +755,6 @@ qx.Class.define("qx.test.Promise", {
           alpha: {
             init: null,
             nullable: true,
-            async: true,
             apply: "_applyAlpha",
             event: "changeAlpha"
           }

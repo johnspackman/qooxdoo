@@ -97,6 +97,12 @@ qx.Class.define("qx.data.SingleValueBinding", {
    *       be called if the set of the value fails.
    * @property {string} ignoreConverter A string which will be matched using the current
    *       property chain. If it matches, the converter will not be called.
+   * @property {boolean} async If true, the following will happen:
+   * - The binding's init promise (returned by `getInitPromise`) will resolve only after the initial value has been set on the target. 
+   * If any properties in the source and target chains have async getters,
+   * the initial set may happen on a later tick.
+   * - The binding will call setAsync on the target value instead of the synchronous `set` and the init promise will resolve after the initial setAsync call has resolved.
+   * 
    * 
    *
    * @callback converter
@@ -126,6 +132,7 @@ qx.Class.define("qx.data.SingleValueBinding", {
       throw new Error("SourcePath and targetPath must be specified");
     }
     this.__options = options ?? {};
+    this.__async = !!this.__options.async;
     let tracker = {};
 
     const Utils = qx.event.Utils;
@@ -170,6 +177,10 @@ qx.Class.define("qx.data.SingleValueBinding", {
 
   members: {
     /**
+     * Whether this binding is asynchronous
+     */
+    __async: false,
+    /**
      * @type {*}
      */
     __value: undefined,
@@ -201,6 +212,14 @@ qx.Class.define("qx.data.SingleValueBinding", {
      * @type {BindingOptions}
      */
     __options: null,
+
+    /**
+     * 
+     * @returns {boolean}
+     */
+    isAsync() {
+      return this.__async;
+    },
 
     /**
      * Promises/A+ thenable compliance, this means that you can await the binding for initialisation
@@ -320,7 +339,7 @@ qx.Class.define("qx.data.SingleValueBinding", {
       }
       this.__record = null; // invalidate record representation cache
       this.__targetSegments = qx.data.SingleValueBinding.__parseSegments(this, value);
-      this.__targetSegments.at(-1).addListener("changeInput", this.__updateTarget, this);
+      this.__targetSegments.at(-1).setChangeInputCallback(() => this.__updateTarget());
     },
 
     /**
@@ -578,27 +597,6 @@ qx.Class.define("qx.data.SingleValueBinding", {
     },
 
     /**
-     * Splits a property path into segments.
-     * @param {string} path
-     * @returns {string[]} an array of segments, split by dot and square brackets.
-     * For example, splitSegments(`a.b[0].c`) will return `["a", "b", "[0]", "c"]`
-     */
-    splitSegments(path) {
-      let out = [];
-      for (let dotSplit of path.split(".")) {
-        let bracketSplits = dotSplit.split("[");
-        for (let i = 0; i < bracketSplits.length; i++) {
-          let bracketSplit = bracketSplits[i];
-          if (i > 0) {
-            bracketSplit = "[" + bracketSplit;
-          }
-          out.push(bracketSplit);
-        }
-      }
-      return out.filter(s => s.length > 0);
-    },
-
-    /**
      * Finds all bindings for an object, as either a source or target
      *
      * @param {qx.core.Object} object
@@ -674,72 +672,6 @@ qx.Class.define("qx.data.SingleValueBinding", {
     },
 
     /**
-     * Helper method that sets a value for a named property
-     *
-     * @param {qx.core.Object} target object to have a property set
-     * @param {String} propertyName the name of the property
-     * @param {Object?} value the value to set
-     */
-    set(target, propertyName, value) {
-      let prop = qx.util.PropertyUtil.getProperty(target.constructor, propertyName);
-      if (!prop) {
-        let setFuncName = "set" + qx.lang.String.firstUp(propertyName);
-        if (typeof target[setFuncName] == "function") {
-          return target[setFuncName](value);
-        } else {
-          throw new Error(`Property ${propertyName} not found on ${target.classname}`);
-        }
-      }
-
-      if (prop.isAsync()) {
-        return prop.setAsync(target, value);
-      } else {
-        return prop.set(target, value);
-      }
-    },
-
-    /**
-     * Helper method to get a value of a named property
-     *
-     * @param {qx.core.Object} target object to have a property get
-     * @param {String} propertyName the name of the property
-     * @returns {Object?} the property value
-     */
-    get(target, propertyName) {
-      let prop = qx.util.PropertyUtil.getProperty(target.constructor, propertyName);
-      if (prop.isAsync()) {
-        return prop.getAsync(target);
-      } else {
-        return prop.get(target);
-      }
-    },
-
-    /**
-     * Helper method that resets a named property
-     *
-     * @param {qx.core.Object} target object to have a property set
-     * @param {String} propertyName the name of the property
-     
-     */
-    reset(target, propertyName) {
-      let prop = qx.util.PropertyUtil.getProperty(target.constructor, propertyName);
-      if (!prop) {
-        let setFuncName = "reset" + qx.lang.String.firstUp(propertyName);
-        if (typeof target[setFuncName] == "function") {
-          return target[setFuncName]();
-        } else {
-          throw new Error(`Property ${propertyName} not found on ${target.classname}`);
-        }
-      }
-
-      if (prop.isAsync()) {
-        return prop.resetAsync(target);
-      } else {
-        return prop.reset(target);
-      }
-    },
-
-    /**
      *
      * Internal helper for getting the current set value at the property chain.
      *
@@ -783,26 +715,52 @@ qx.Class.define("qx.data.SingleValueBinding", {
      * @return {qx.data.binding.AbstractSegment[]?} the new array of segments
      */
     __parseSegments(binding, path) {
-      let segsStrings = qx.data.SingleValueBinding.splitSegments(path);
+      let segsStrings = this.__splitSegments(path);
+      //should be let segsStrings = path.split(/\.|(?=\[)|(?<=\])/g);// split by dot or square brackets, but keep the brackets as part of the segments
+      //but this breaks our Rhino because it's really old
+      //TODO update Rhino
+
       let segments = [];
 
-      for (let seg of segsStrings) {
+      let previous;
+      for (let segStr of segsStrings) {
+        let seg;
         //if it's an array index:
-        if (seg.startsWith("[")) {
-          segments.push(new qx.data.binding.ArrayIndexSegment(binding, seg));
+        if (segStr.startsWith("[")) {
+          seg = new qx.data.binding.ArrayIndexSegment(binding, segStr);
         } else {
           //otherwise, it's a normal path
-          segments.push(new qx.data.binding.PropNameSegment(binding, seg));
+          seg = new qx.data.binding.PropNameSegment(binding, segStr);
         }
-      }
-
-      segments.forEach((seg, index) => {
-        if (index < segments.length - 1) {
-          seg.setOutputReceiver(segments[index + 1]);
+        if (previous) {
+          previous.setOutputReceiver(seg);
         }
-      });
+        previous = seg;
+        segments.push(seg);
+      }      
 
       return segments;
-    }
+    },
+
+    /**
+     * Splits a property path into segments.
+     * @param {string} path
+     * @returns {string[]} an array of segments, split by dot and square brackets.
+     * For example, splitSegments(`a.b[0].c`) will return `["a", "b", "[0]", "c"]`
+     */
+    __splitSegments(path) {
+      let out = [];
+      for (let dotSplit of path.split(".")) {
+        let bracketSplits = dotSplit.split("[");
+        for (let i = 0; i < bracketSplits.length; i++) {
+          let bracketSplit = bracketSplits[i];
+          if (i > 0) {
+            bracketSplit = "[" + bracketSplit;
+          }
+          out.push(bracketSplit);
+        }
+      }
+      return out.filter(s => s.length > 0);
+    },
   }
 });
