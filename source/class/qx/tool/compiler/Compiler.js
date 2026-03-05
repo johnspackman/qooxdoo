@@ -20,6 +20,8 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     making: "qx.event.type.Event",
   },
   members: {
+    /** @type{cliProgress.SingleBar|null} progress bar instance */
+    __progressBar: null,
     /**
      * @type {qx.tool.compiler.ICompilerInterface.CompilerData} the data passed to the compiler
      */
@@ -30,15 +32,24 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      * @type {qx.tool.compiler.Controller} the controller instance
      */
     __controller: null,
+    /** @type{qx.tool.compiler.makers.Maker[]|null} list of makers created from config */
     __makers: null,
+    /** @type{Object} map of namespace to Library instance */
     __libraries: null,
+    /** @type{Boolean} true if the output directory was created during this run */
     __outputDirWasCreated: false,
 
-    /** @type {Boolean} whether the typescript output is enabled */
+    /** @type {Boolean} Whether libraries have had their `.load()` method called yet */
+    __librariesNotified: false,
+
+    /** @type{Boolean} whether the typescript output is enabled */
     __typescriptEnabled: false,
 
-    /** @type {String} the name of the typescript file to generate */
+    /** @type{String} the name of the typescript file to generate, null = use default */
     __typescriptFile: null,
+
+    /** @type{Boolean} whether the typescript watcher has already been attached (watch mode) */
+    __typescriptWatcherAttached: false,
 
     /**
      * @override
@@ -176,8 +187,24 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           }
 
           controller.addMaker(maker);
+          if (this.__typescriptEnabled && target instanceof qx.tool.compiler.targets.SourceTarget && !this.__typescriptWatcherAttached) {
+            this.__typescriptWatcherAttached = true;
+            try {
+              await this.__attachTypescriptWatcher(watch);
+            } catch (ex) {
+              qx.tool.compiler.Console.error(ex);
+            }
+          }
         })
       );
+
+      if (!this.__data.watch && this.__typescriptEnabled) {
+        try {
+          await this.__attachTypescriptWatcher(null);
+        } catch (ex) {
+          qx.tool.compiler.Console.error(ex);
+        }
+      }
 
       return controller;
     },
@@ -438,9 +465,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           maker.setNoErase(true);
         }
 
-        var TargetClass = targetConfig.targetClass ? this.resolveTargetClass(targetConfig.targetClass) : null;
+        var TargetClass = targetConfig.targetClass ? this.__resolveTargetClass(targetConfig.targetClass) : null;
         if (!TargetClass && targetConfig.type) {
-          TargetClass = this.resolveTargetClass(targetConfig.type);
+          TargetClass = this.__resolveTargetClass(targetConfig.type);
         }
         if (!TargetClass) {
           throw new qx.tool.utils.Utils.UserError("Cannot find target class: " + (targetConfig.targetClass || targetConfig.type));
@@ -761,13 +788,88 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
       return makers;
     },
+
     /**
-     * Resolves the target class instance from the type name; accepts "source" or "build" or
+     * Loads class metadata, generates TypeScript definitions, and (in watch mode) sets up a
+     * debounced file watcher that re-runs metadata parsing and TypeScript generation whenever
+     * a source file changes.  When `watch` is null the method performs a single one-shot run
+     * and returns immediately after writing the output.
+     *
+     * @param watch {qx.tool.compiler.cli.Watch|null} watcher instance in watch mode, or null for a one-shot compile
+     */
+    async __attachTypescriptWatcher(watch) {
+      qx.tool.compiler.Console.info(`Loading meta data ...`);
+      let metaDb = new qx.tool.compiler.MetaDatabase().set({ rootDir: this.__metaDir });
+      await metaDb.load(); // hydrates existing class metadata from disk; library map is rebuilt fresh below
+
+      metaDb.getDatabase().libraries = {};
+      const dirs = [];
+      for (let lib of Object.values(this.__libraries)) {
+        let dir = path.join(lib.getRootDir(), lib.getSourcePath());
+        metaDb.getDatabase().libraries[lib.getNamespace()] = { sourceDir: dir };
+        dirs.push(dir);
+      }
+      await metaDb.loadFromDirectories(dirs, { force: !!this.argv.clean });
+      await metaDb.save();
+
+      let tsWriter = null;
+      if (this.__typescriptEnabled) {
+        qx.tool.compiler.Console.info(`Generating typescript output ...`);
+        tsWriter = new qx.tool.compiler.targets.TypeScriptWriter(metaDb);
+        if (this.__typescriptFile) {
+          tsWriter.setOutputTo(this.__typescriptFile);
+        } else {
+          tsWriter.setOutputTo(path.join(this.__metaDir, "..", "qooxdoo.d.ts"));
+        }
+        await tsWriter.process();
+      }
+
+      if (!watch) {
+        return;
+      }
+
+      // Watch mode: re-run metadata and typescript on file changes
+      let classFiles = {};
+      let debounce = new qx.tool.utils.Debounce(async () => {
+        let filesParsed = false;
+        qx.tool.compiler.Console.info(`Loading meta data ...`);
+        let addFilePromises = [];
+        let arr = Object.keys(classFiles);
+        if (arr.length > 0) {
+          filesParsed = true;
+          classFiles = {};
+          arr.forEach(filename => {
+            addFilePromises.push(metaDb.addFile(filename));
+          });
+        }
+        if (filesParsed) {
+          qx.tool.compiler.Console.info(`Generating typescript output ...`);
+          await Promise.all(addFilePromises);
+          await metaDb.reparseAll();
+          await metaDb.save();
+          if (this.__typescriptEnabled) {
+            await tsWriter.process();
+          }
+        }
+      });
+
+      watch.addListener("fileChanged", evt => {
+        let data = evt.getData();
+        if (data.fileType == "source") {
+          let filename = data.library.getFilename(data.filename);
+          classFiles[filename] = true;
+          debounce.run();
+        }
+      });
+    },
+    
+    /**
+     * Resolves the target class from the type name; accepts "source", "build", or a class
      * a class name
      * @param type {String}
-     * @returns {qx.tool.compiler.Maker}
+     * @returns {new () => qx.core.Object}
      */
-    resolveTargetClass(type) {
+    __resolveTargetClass(type) {
       if (!type) {
         return null;
       }
@@ -779,6 +881,11 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
       if (type == "source") {
         return qx.tool.compiler.targets.SourceTarget;
+      }
+      if (type == "typescript") {
+        throw new qx.tool.utils.Utils.UserError(
+          "Typescript targets are no longer supported - please use `typescript: true` in source target instead"
+        );
       }
       if (type) {
         var TargetClass;
