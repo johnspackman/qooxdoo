@@ -1,6 +1,6 @@
 # Upcoming
 
-## v8 compiler update (version yet unknown)
+## v8 compiler update
 
 ### Changes
 The compiler has received an overhaul, which includes the following changes:
@@ -9,6 +9,9 @@ The compiler has received an overhaul, which includes the following changes:
 - **Custom compiler:** It is now possible for the user to extend the default Qooxdoo compiler and implement custom behavior. This allows them to do things like add in a pre-compilation or source transformation stage for their source code before the code is passed down to the compiler, which adds the possiblity of supporting custom languages. The default Qooxdoo compiler would then compile the user-defined compiler, and then it would launch that compiler as a child process and then that would take over the compilation.
 
 - **Proxy classes removed** - In the compiler API, it was possible to add a `proxies` path to a target, which told the compiler to prefer classes from that directory over of the main source tree. This was useful for cases where we have a class that is supposed to run on the server but we also wanted to 'mimic' objects of that class on the client. The client class definition would be slightly different from the server definition, for example the method bodies would simply be replaced by calls to the server which invoke the methods on the server. This was removed because it meant that the proxy generation had to be handled independently of the compiler, which meant the user had to write their own proxy generator app, with its own watcher etc. The introduction of the custom compiler means that the compiler takes care of most of these problems.
+
+- **Meta data** - Meta data, which is stored in `compiled/meta` by default is now always generated,
+whereas previously it was only generated if TypeScript was enabled in the `qx compile` command.
 
 
 # 8.0.0-beta.2

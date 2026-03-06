@@ -661,21 +661,12 @@ application directory by setting `privateArtifacts: true` in the top level of `c
 You will have to configure your web server to serve `transpiled` and `resource` as virtual
 folders from within the URL that you use for `myAppName`.
 
-## TypeScript and Meta Data
+## TypeScript
 
-To output Typescript definitions, use the `qx compile --typescript` command; this
-will generate meta data for every class in every library, and then use the meta
-data to create a `qxoodoo.d.ts` file. Meta data is used by applications such as
-the API Viewer
+To output Typescript definitions, use the `qx compile --typescript` or `-T` command; this
+will generate a `qxoodoo.d.ts` file.
 
-You can control the directory that meta data is output to and the name of the qooxdoo.d.ts 
-file by using the `meta` and `typescript` properties in `compile.json`; these are the
-defaults:
-
-```
-  "meta": "compiled/meta",
-  "typescript": "compiled/qooxdoo.d.ts",
-```
+You can control the directory `typescript` property in `compile.json`; the default is `compiled/qooxdoo.d.ts`.
 
 A file called `global.d.ts` is also created and placed under your application's
 `source` directory. This file may be useful for tooling and text editors when
@@ -685,6 +676,9 @@ file in your project root.
 
 ** Note that this has changed: you no longer add a new target, nor do you need to add 
 `typescript: true` to one of your existing targets. **
+
+Note: prior to Qooxdoo version 8, the class meta data stored in `compiled/meta` by default was only generated when TypeScript was enabled.
+Now however, it is always generated because it's now essential for the compiler.
 
 ## Eslint
 
