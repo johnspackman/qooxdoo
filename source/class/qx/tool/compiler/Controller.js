@@ -55,21 +55,40 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
   /**
    *
-   * @param {number} nTranspilerThreads Number of threads to use for compilation
+   * @param {Object} options Options for the controller
+   * 
+   * @typedef {Object} Options
+   * @property {string} metaDir The directory where the meta database is stored
+   * @property {number} [nTranspilerThreads] The number of threads to use for transpilation.  If not specified, will default to the number of CPU cores.  If set to 0 or a negative number, transpilation will be done in the main thread.
+   * @property {boolean} [typescriptEnabled] Whether to enable TypeScript generation
+   * @property {string} [typeScriptFile] The output file for the generated TypeScript definitions (only applicable if typescriptEnabled is true).  Defaults to "qooxdoo.d.ts" in the parent directory of metaDir.
    */
-  construct(nTranspilerThreads) {
+  construct(options) {
     super();
     this.__libraries = {};
     this.__makers = [];
     this.__discovery = new qx.tool.compiler.meta.Discovery();
     this.__dbClassInfoCache = {};
-    this.__toCompile = [];
+    this.__changedClasses = {};
     this.__compilingClasses = {};
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
     this.__makingMakers = {};
-    if (nTranspilerThreads == null || nTranspilerThreads > 0) {
-      this.__transpilerPool = new qx.tool.compiler.TranspilerPool(nTranspilerThreads);
+
+    this.__metaDb = new qx.tool.compiler.meta.MetaDatabase().set({
+      rootDir: options.metaDir
+    });
+
+    if (options.nTranspilerThreads == null || options.nTranspilerThreads > 0) {
+      this.__transpilerPool = new qx.tool.compiler.TranspilerPool(options.nTranspilerThreads);
+    }
+
+    if (options.typescriptEnabled) {
+      this.__typescriptEnabled = true;
+      this.__typescriptWriter = new qx.tool.compiler.targets.TypeScriptWriter(
+        this.__metaDb, //meta
+        options.typeScriptFile ?? path.join(options.metaDir, "..", "qooxdoo.d.ts") //the output file
+      );
     }
   },
 
@@ -117,19 +136,23 @@ qx.Class.define("qx.tool.compiler.Controller", {
     addedDiscoveredClasses: "qx.event.type.Event"
   },
 
-  properties: {
-    metaDir: {
-      check: "String",
-      apply: "_applyMetaDir"
-    }
-  },
-
   members: {
     /**
-     * @type {string[]}
+     * Whether TypeScript generation has been enabled
+     */
+    __typescriptEnabled: false,
+
+    /**
+     * @type {qx.tool.compiler.targets.TypeScriptWriter|null}
+     * The TypeScript writer instance, responsible for generating TypeScript definitions
+     */
+    __typescriptWriter: null,
+    /**
+     * @type {Object.<string, '+' | '-'>} List of changed classes, indexed by classname,
+     * with value "+" for added/changed files and "-" for removed files
      * The classes that have been queued up for compilation but are not yet being compiled
      */
-    __toCompile: null,
+    __changedClasses: null,
     /**
      * @type {qx.tool.compiler.TranspilerPool}
      * The pool of transpiler workers which invoke Babel to do the transpilation
@@ -159,19 +182,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
     /** @type {Object<String,Promise>} list of makers currently making, indexed by hash code */
     __makingMakers: null,
-
-    /**
-     * Apply for `metaDir`
-     */
-    _applyMetaDir(value, old) {
-      if (value) {
-        this.__metaDb = new qx.tool.compiler.meta.MetaDatabase().set({
-          rootDir: value
-        });
-      } else {
-        this.__metaDb = null;
-      }
-    },
 
     /**
      * Adds a maker to the discovery process, which will then
@@ -251,30 +261,25 @@ qx.Class.define("qx.tool.compiler.Controller", {
        * Updates the meta database and compiles the classes that have been queued up
        */
 
-      let debounce = new qx.tool.utils.Debounce(() => this.__recompile(), 100);
+      let debounceProcessChangedFiles = new qx.tool.utils.Debounce(() => this.__processChangedFiles(), 100);
 
       /**
        * Adds a class to the compilation queue
        * @param {qx.event.type.Data} evt
        */
-      const onAdded = async evt => {
+      const onFileChange = async evt => {
         let classname = evt.getData();
-        let classmeta = this.__discovery.getDiscoveredClass(classname);
-        let added = await metaDb.addFile(classmeta.filenames.at(-1), true);
-        if (added && !this.__toCompile.includes(classname)) {
-          this.__toCompile.push(classname);
-          debounce.trigger();
-        }
+        this.__changedClasses[classname] = '+';
+        debounceProcessChangedFiles.trigger();
       };
 
-      this.__discovery.addListener("classAdded", onAdded);
-      this.__discovery.addListener("classChanged", onAdded);
+      this.__discovery.addListener("classAdded", onFileChange);
+      this.__discovery.addListener("classChanged", onFileChange);
 
       this.__discovery.addListener("classRemoved", async evt => {
         let classname = evt.getData();
-        let classmeta = this.__discovery.getDiscoveredClass(classname);
-        await metaDb.removeFile(classmeta.filenames.at(-1));
-        debounce.trigger();
+        this.__changedClasses[classname] = "-";
+        debounceProcessChangedFiles.trigger();
       });
       // Process the meta data and save to disk
       await metaDb.reparseAll();
@@ -283,8 +288,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       if (this.__transpilerPool) {
         await this.__transpilerPool.waitForAllReady();
+        await this.__transpilerPool.callAll("updateClassMeta", [this.__metaDb.getSerialized()]);
       }
-      await this.__onMetaDbChanged();
 
       let makers = this.__makers;
 
@@ -325,20 +330,45 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
     },
 
-    async __recompile() {
+    /**
+     * Regenerates the meta database with the file changes,
+     * generates the TypeScript file if TypeScript is enabled,
+     * and triggers recompilation
+     * @returns 
+     */
+    async __processChangedFiles() {
       let metaDb = this.__metaDb;
       this.fireEvent("changesDetected");
+      let changedClasses = this.__changedClasses;
+      let added = [];
+      this.__changedClasses = {};
+
+
+      await Promise.all(Object.entries(changedClasses).map(async ([classname, changeType]) => {        
+        let classmeta = this.__discovery.getDiscoveredClass(classname);
+        let filename = classmeta.filenames.at(-1);
+        if (changeType === "+") {
+          added.push(classname);
+          await metaDb.addFile(filename, true);
+        } else {
+          await metaDb.removeFile(filename);
+        }
+      }));      
+
       await metaDb.reparseAll();
       await metaDb.save();
 
-      let toCompile = this.__toCompile;
-      this.__toCompile = [];
+      if (this.__typescriptEnabled) {
+        qx.tool.compiler.Console.info(`Generating typescript output ...`);
+        await this.__typescriptWriter.process();
+      }
+
 
       let compilationRequired = false;
       for (let maker of this.__makers) {
         for (let app of maker.getApplications()) {
           let dependencies = app.getDependencies() || [];
-          for (let classname of toCompile) {
+          for (let classname of added) {
             if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
               compilationRequired = true;
               this.compileClass(maker.getAnalyzer(), classname, true);
@@ -604,15 +634,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
 
       return { dbClassInfo, cached: false };
-    },
-
-    async __onMetaDbChanged() {
-      if (qx.core.Environment.get("qx.debug")) {
-        this.assertEquals(0, Object.keys(this.__compilingClasses).length, "No classes should be compiling when calling onMetaDbChanged");
-      }
-      if (this.__transpilerPool) {
-        await this.__transpilerPool.callAll("updateClassMeta", [this.__metaDb.getSerialized()]);
-      }
     },
 
     /**

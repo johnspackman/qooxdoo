@@ -722,7 +722,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       return this;
     },
 
-        /**
+    /**
      * Scans directories recursively for .js files and populates the database.
      * Calls addFile() for each discovered file, then reparseAll().
      *
@@ -732,7 +732,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @param {Object}  [options.ignore] an `ignore` instance for exclude patterns
      * @param {Boolean} [options.verbose] log each processed file
      */
-    async loadFromDirectories(dirs, options = {}) {//!!check
+    async loadFromDirectories(dirs, options = {}) {
       const classFiles = [];
 
       const scanImpl = async filename => {

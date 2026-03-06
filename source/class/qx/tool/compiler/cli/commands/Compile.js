@@ -451,9 +451,8 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           this.__makers = makers;
           this.fireEvent("made");
           if (!this.argv.watch) {
+            await compiler.stop();
             this.__exit();
-            compiler.stop();
-            resolve();
           }
           //If we are watching, we never exit so this promise never resolves!
         })
@@ -472,7 +471,12 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
     /**
      * Exits the process with the correct exit code
      */
-    __exit(success) {
+    __exit() {
+      let success = this.__makers.every(maker => maker.success);
+      let hasWarnings = this.__makers.every(maker => maker.hasWarnings);
+      if (success && hasWarnings && this.argv.warnAsError) {
+        success = false;
+      }
       if (
         !this.argv.deploying &&
         !this.argv["machine-readable"] &&
@@ -492,7 +496,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
             "   *******************************************************************************************"
         );
       }
-      process.exitCode = success ? 0 : 1;
+      process.exit(success ? 0 : 1);
     }
   },
 

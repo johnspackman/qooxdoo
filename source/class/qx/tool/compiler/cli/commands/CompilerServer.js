@@ -40,7 +40,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.CompilerServer", {
       let CompilerClass = qx.Class.getByName(compilerClassName);
 
       if (!CompilerClass) {
-        throw new Error("Could not find compiler class: " + compilerClassName + " Make sure you required the class in your project.");
+        throw new Error("Could not find compiler class: " + compilerClassName + " Make sure you have included the class in your project.");
       }
 
       if (!qx.Class.hasInterface(CompilerClass, qx.tool.compiler.ICompilerInterface)) {

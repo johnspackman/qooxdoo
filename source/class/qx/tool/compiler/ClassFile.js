@@ -2862,7 +2862,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       "setTimeout",
       "undefined",
       "unescape",
-      "window"
+      "window",
+      "TextEncoder",
+      "TextDecoder"
     ],
 
     BROWSER_GLOBALS: [
@@ -2890,7 +2892,17 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       "localStorage"
     ],
 
-    NODE_GLOBALS: ["Module", "Buffer", "require", "module", "process", "setImmediate", "__dirname", "__filename"],
+    NODE_GLOBALS: [
+      "Module", //br
+      "Buffer",
+      "SharedArrayBuffer",
+      "require",
+      "module",
+      "process",
+      "setImmediate",
+      "__dirname",
+      "__filename"
+    ],
 
     RHINO_GLOBALS: ["Packages", "java"],
 
