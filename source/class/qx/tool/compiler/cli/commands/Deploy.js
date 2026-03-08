@@ -159,10 +159,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
               if (app.deploy === false) {
                 return;
               }
-              let deployDir =
-                argv.out ||
-                (typeof target.getDeployDir == "function" &&
-                  target.deployDir);
+              let deployDir = argv.out || target.deployDir;
               if (!deployDir) {
                 qx.tool.compiler.Console.print(
                   "qx.tool.compiler.cli.deploy.deployDirNotSpecified",

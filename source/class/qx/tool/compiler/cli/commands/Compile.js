@@ -453,6 +453,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
           if (!this.argv.watch) {
             await compiler.stop();
             this.__exit();
+            resolve();
           }
           //If we are watching, we never exit so this promise never resolves!
         })
@@ -496,7 +497,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
             "   *******************************************************************************************"
         );
       }
-      process.exit(success ? 0 : 1);
+      process.exitCode = success ? 0 : 1;      
     }
   },
 
