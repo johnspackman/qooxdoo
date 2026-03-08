@@ -39,6 +39,11 @@ qx.Class.define("qx.tool.compiler.resources.ScssConverter", {
 
   members: {
     matches(filename) {
+      // Template skeleton files are static resources to be copied verbatim by `qx create`,
+      // not SCSS to compile as part of the framework build
+      if (filename.includes("/templates/")) {
+        return false;
+      }
       filename = path.basename(filename);
       return filename[0] != "_" && filename.endsWith(".scss");
     },

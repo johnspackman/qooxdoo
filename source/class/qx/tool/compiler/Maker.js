@@ -275,6 +275,21 @@ qx.Class.define("qx.tool.compiler.Maker", {
       let analyzer = this.getAnalyzer();
       await analyzer.open();
       analyzer.setEnvironment(compileEnv);
+
+      // Fonts must be loaded here, before Controller.start() serialises ClassFileConfig
+      // and sends it to transpiler workers via callAll("setMakerInfo").
+      // Loading them in make() is too late: workers receive the config before make() runs,
+      // and setMakerInfo can only be called once per worker.
+      for (let library of analyzer.getLibraries()) {
+        let fontsData = library.getFontsData();
+        for (let fontName in fontsData) {
+          let fontData = fontsData[fontName];
+          if (!analyzer.getFont(fontName)) {
+            let font = analyzer.getFont(fontName, true);
+            await font.updateFromManifest(fontData, library);
+          }
+        }
+      }
     },
 
     /**
@@ -321,7 +336,6 @@ qx.Class.define("qx.tool.compiler.Maker", {
           }
         }
       }
-
       this.__applications.forEach(function (app) {
         app.getRequiredClasses().forEach(function (className) {
           analyzer.addClass(className);
