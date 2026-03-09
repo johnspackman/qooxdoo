@@ -863,7 +863,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             if (data.verbose) {
               Console.info(`>>> Installing latest compatible version of libraries ${urisToInstall.join(", ")}...`);
             }
-            const installer = new qx.tool.cli.commands.package.Install({
+            const installer = new qx.tool.compiler.cli.commands.package.Install({
               verbose: data.verbose,
               save: false // save to lockfile only, not to manifest
             });
