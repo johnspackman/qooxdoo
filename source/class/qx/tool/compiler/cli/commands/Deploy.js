@@ -124,18 +124,21 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
         await qx.tool.utils.Promisify.eachOfSeries(
           this.getMakers(),
           async maker => {
-            let target = maker.target;
+            let target = maker.getTarget();
 
             await qx.tool.utils.Promisify.eachOfSeries(
-              maker.applications,
+              maker.getApplications(),
               async app => {
-                if (appNames && !appNames[app.name]) {
+                if (appNames && !appNames[app.getName()]) {
                   return;
                 }
-                if (app.deploy === false) {
+                if (app.getDeploy() === false) {
                   return;
                 }
-                let deployDir = argv.out || target.deployDir;
+                let deployDir =
+                  argv.out ||
+                  (typeof target.getDeployDir == "function" &&
+                    target.getDeployDir());
                 if (deployDir) {
                   await qx.tool.utils.files.Utils.deleteRecursive(deployDir);
                 }
@@ -148,22 +151,23 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
       await qx.tool.utils.Promisify.eachOfSeries(
         this.getMakers(),
         async (maker, makerIndex) => {
-          let target = maker.target;
+          let target = maker.getTarget();
 
           await qx.tool.utils.Promisify.eachOfSeries(
-            maker.applications,
+            maker.getApplications(),
             async app => {
-              if (appNames && !appNames[app.name]) {
+              if (appNames && !appNames[app.getName()]) {
                 return;
               }
-              if (app.deploy === false) {
+              if (app.getDeploy() === false) {
                 return;
               }
-              let deployDir = argv.out || target.deployDir;
+              let deployDir = argv.out || target.getDeployDir();
+
               if (!deployDir) {
                 qx.tool.compiler.Console.print(
                   "qx.tool.compiler.cli.deploy.deployDirNotSpecified",
-                  target.type
+                  target.getType()
                 );
 
                 return;
@@ -172,15 +176,15 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
               let sourceMaps =
                 argv.sourceMaps ||
                 (typeof target.getDeployMap == "function" &&
-                  target.deployMap) ||
+                  target.getDeployMap()) ||
                 (typeof target.getSaveSourceInMap == "function" &&
-                  target.saveSourceInMap);
-              let appRoot = path.join(target.outputDir, app.projectDir) + "/"
-              let destRoot = path.join(deployDir, app.name);
+                  target.getSaveSourceInMap());
+              let appRoot = target.getApplicationRoot(app);
+              let destRoot = path.join(deployDir, app.getName());
               await this.__copyFiles(appRoot, destRoot, sourceMaps);
 
               {
-                let from = path.join(target.outputDir, "resource");
+                let from = path.join(target.getOutputDir(), "resource");
                 if (fs.existsSync(from)) {
                   let to = path.join(deployDir, "resource");
                   if (makerIndex == 0 && argv.clean) {
@@ -190,14 +194,14 @@ qx.Class.define("qx.tool.compiler.cli.commands.Deploy", {
                 }
               }
               {
-                let from = path.join(target.outputDir, "index.html");
+                let from = path.join(target.getOutputDir(), "index.html");
                 let to = path.join(deployDir, "index.html");
                 if (fs.existsSync(from)) {
                   fs.copyFileSync(from, to);
                 }
               }
               let data = {
-                targetDir: target.outputDir,
+                targetDir: target.getOutputDir(),
                 deployDir: deployDir,
                 argv: argv,
                 application: app

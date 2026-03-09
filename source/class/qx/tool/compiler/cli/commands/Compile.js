@@ -17,12 +17,9 @@
 
 ************************************************************************ */
 
-const semver = require("semver");
 const process = require("process");
 const child_process = require("child_process");
-const consoleControl = require("console-control-strings");
 const path = require("path");
-const fs = require("fs");
 
 require("app-module-path").addPath(process.cwd() + "/node_modules");
 
@@ -324,6 +321,14 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
         })
       );
 
+      //FOR INTERNAL USE ONLY
+      cmd.addFlag(
+        new qx.tool.cli.Flag("is-custom").set({
+          description: "Whether this compiler is a custom compiler. DO NOT set this flag manually; it is reserved for internal use.",
+          type: "string"
+        })
+      );
+
       return cmd;
     }
   },
@@ -331,150 +336,232 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
   properties: {},
   events: {
     /**
-     * Fired when all applications have made
+     * Fired when application writing starts
      */
-    "made": "qx.event.type.Event"
+    writingApplications: "qx.event.type.Event",
+
+    /**
+     * Fired when writing of single application starts; data is an object containing:
+     *   maker {qx.tool.compiler.makers.Maker}
+     *   target {qx.tool.compiler.targets.Target}
+     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
+     */
+    writingApplication: "qx.event.type.Data",
+
+    /**
+     * Fired when writing of single application is complete; data is an object containing:
+     *   maker {qx.tool.compiler.makers.Maker}
+     *   target {qx.tool.compiler.targets.Target}
+     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
+     *
+     * Note that target.getAppMeta() will return null after this event has been fired
+     */
+    writtenApplication: "qx.event.type.Data",
+
+    /**
+     * Fired after writing of all applications; data is an object containing an array,
+     * each of which has previously been passed with `writeApplication`:
+     *   maker {qx.tool.compiler.makers.Maker}
+     *   target {qx.tool.compiler.targets.Target}
+     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
+     *
+     * Note that target.getAppMeta() will return null after this event has been fired
+     */
+
+    writtenApplications: "qx.event.type.Data",
+
+    /**
+     * Fired when a class is about to be compiled.
+     *
+     * The event data is an object with the following properties:
+     *
+     * dbClassInfo: {Object} the newly populated class info
+     * oldDbClassInfo: {Object} the previous populated class info
+     * classFile - {ClassFile} the qx.tool.compiler.ClassFile instance
+     */
+    compilingClass: "qx.event.type.Data",
+
+    /**
+     * Fired when a class is compiled.
+     *
+     * The event data is an object with the following properties:
+     * dbClassInfo: {Object} the newly populated class info
+     * oldDbClassInfo: {Object} the previous populated class info
+     * classFile - {ClassFile} the qx.tool.compiler.ClassFile instance
+     */
+    compiledClass: "qx.event.type.Data",
+
+    /**
+     * Fired when the database is been saved
+     *
+     *  data:
+     * database: {Object} the database to save
+     */
+    saveDatabase: "qx.event.type.Data",
+
+    /**
+     * Fired after all enviroment data is collected
+     *
+     * The event data is an object with the following properties:
+     *  application {qx.tool.compiler.app.Application} the app
+     *  enviroment: {Object} enviroment data
+     */
+    checkEnvironment: "qx.event.type.Data",
+
+    /**
+     * Fired when making of apps begins
+     */
+    making: "qx.event.type.Event",
+
+    /**
+     * Fired when making of apps is done.
+     */
+    made: "qx.event.type.Event",
+
+    /**
+     * Fired when minification begins.
+     *
+     * The event data is an object with the following properties:
+     *  application {qx.tool.compiler.app.Application} the app being minified
+     *  part: {String} the part being minified
+     *  filename: {String} the part filename
+     */
+    minifyingApplication: "qx.event.type.Data",
+
+    /**
+     * Fired when minification is done.
+     *
+     * The event data is an object with the following properties:
+     *  application {qx.tool.compiler.app.Application} the app being minified
+     *  part: {String} the part being minified
+     *  filename: {String} the part filename
+     */
+    minifiedApplication: "qx.event.type.Data"
   },
 
-  members: {    
+  members: {
     /**
-     * @type {Object[]}  The makers created during compilation
+     * @type {qx.tool.compiler.Compiler}
      */
-    __makers: null,
-
-    /** @type{String} the path to the root of the meta files by classname */
-    __metaDir: null,
-
-    /** @type{Boolean} whether the typescript output is enabled */
-    __typescriptEnabled: false,
-
-    /** @type{String} the name of the typescript file to generate, null = use default */
-    __typescriptFile: null,
-
-    /** @type{Boolean} whether the typescript watcher has already been attached (watch mode) */
-    __typescriptWatcherAttached: false,
-
+    __compiler: null,
     /**
      * @Override
      */
     async process() {
-
-      let compileConfig = this.getCompilerApi().getConfiguration();
-      let data = {
-        ...this.argv,
-        config: compileConfig,
-        targetType: this.getTargetType(),
-        qxVersion: await this.getQxVersion()
-      };
-
-      let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
-      if (this.argv.set) {
-        this.argv.set.forEach(function (kv) {
-          var m = kv.match(/^([^=\s]+)(=(.+))?$/);
-          if (m) {
-            var key = m[1];
-            var value = m[3];
-            configDb.setOverride(key, value);
-          } else {
-            throw new qx.tool.utils.Utils.UserError(
-              `Failed to parse environment setting commandline option '--set ${kv}'`
-            );
-          }
-        });
-      }
-
-      if (this.argv["feedback"] === null) {
-        this.argv["feedback"] = configDb.db("qx.default.feedback", true);
-      }
-
       if (this.argv.jobs != null && this.argv.jobs < 0) {
         qx.tool.compiler.Console.error("Number of jobs (-j) must be >= 0");
         process.exitCode = 1;
         return;
       }
 
+      let qxVersion = await this.getQxVersion();
       if (this.argv.verbose) {
         console.log(`
 Compiler:  v${this.getCompilerVersion()} in ${require.main.filename}
-Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
+Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
 
-      if (this.argv["machine-readable"]) {
-        data.machineReadable = true;
-      } else {
-        let color = configDb.db("qx.default.color", null);
-        if (color) {
-          let colorOn = consoleControl.color(color.split(" "));
-          process.stdout.write(colorOn + consoleControl.eraseLine());
-          let colorReset = consoleControl.color("reset");
-          process.on("exit", () => process.stdout.write(colorReset + consoleControl.eraseLine()));
+      let compileConfig = this.getCompilerApi().getConfiguration();
+      let data = {
+        ...this.argv,
+        config: compileConfig,
+        targetType: this.getTargetType(),
+        qxVersion: qxVersion
+      };
 
-          let Console = qx.tool.compiler.Console.getInstance();
-          Console.setColorOn(colorOn);
-        }
-      }
 
-      let libPaths = this.getCompilerApi()
-        .getLibraryApis()
-        .map(lib => lib.getRootDir());
-      data.libs = libPaths;
+      let hasCustomCompiler = compileConfig.applications.find(app => app.compiler);
+      if (hasCustomCompiler && !this.argv.isCustom) {
+        qx.tool.compiler.Console.log(">>>Custom compiler detected - compiling custom compiler first...");
+        //we will compile our custom compiler first, then run it in a child process and let that take over.
+        let compilerCompiler = new qx.tool.compiler.Compiler({ ...data, compilerOnly: true, watch: false });
+        await compilerCompiler.compileOnce();
 
-      let compiler;
-
-      let customCompiler = compileConfig.applications.find(app => app.compiler);
-      if (customCompiler) {
-        //we will compile our custom compiler first, then run it in a child process and communicate with it via IPC.
-        let compilerCompiler = new qx.tool.compiler.Compiler();
-        //make a backup of the config because it will be modified during compilation!
-        let configBak = qx.lang.Object.clone(data.config, true) ;
-        await compilerCompiler.compileOnce({...data, config: configBak, compilerOnly: true, watch: false});    
-
-        let makers = await compilerCompiler.getMakers();
+        let makers = compilerCompiler.getMakers();
         let target = makers[0].target;
-        let app = makers[0].applications[0];
-        
-        let compilerPath = path.join(target.outputDir, app.projectDir, "index.js");
+        let app = makers[0].getApplications()[0];
+
+        let compilerPath = path.join(target.getOutputDir(), app.getProjectDir(), "index.js");
         await compilerCompiler.stop();
         compilerCompiler.dispose();
-        let cp = child_process.fork(compilerPath, ["compiler-server"]);
 
-        compiler = new qx.tool.compiler.IpcCompilerInterface(cp);
-      } else {
-        compiler = new qx.tool.compiler.Compiler();
+        let cp = child_process.fork(compilerPath, process.argv.concat(["--is-custom=true"]), {
+          env: {
+            ...process.env,
+            QOOXDOO_PARENT_COMPILER_PATH: require.main.filename
+          }
+        });
+        
+        return new Promise((resolve, reject) => {
+          cp.on("exit", (code, signal) => {
+            process.exitCode = code;
+            resolve();
+          });
+        });
       }
 
-      console.log(">>> Starting compilation of project...");
+      let compiler;
+      //if we are running as a custom compiler,
+      //we need to get and load the custom compiler class
+      if (this.argv.isCustom) {
+        let compilerClassName = qx.core.Environment.get("qx.tool.compiler.Compiler.compilerClass");
+        if (!compilerClassName) {
+          throw new Error("Your project is set to use a custom compiler but the environment setting qx.tool.compiler.Compiler.compilerClass is not set. \
+             Please set it to your compiler class.");
+        }
+        let CompilerClass = qx.Class.getByName(compilerClassName);
+
+        if (!CompilerClass) {
+          throw new Error("Could not find compiler class: " + compilerClassName + ". Please make sure you have included the class in your custom compiler application configuration.");
+        }
+
+        if (!qx.Class.hasInterface(CompilerClass, qx.tool.compiler.ICompilerInterface)) {
+          throw new Error("Compiler class " + compilerClassName + " does not implement qx.tool.compiler.ICompilerInterface");
+        }
+
+        compiler = new CompilerClass(data);
+      } else {
+        compiler = new qx.tool.compiler.Compiler(data);
+      }
+
+      this.__compiler = compiler;
+
+      //relay the events
+      let events = Object.keys(qx.tool.compiler.ICompilerInterface.$$events);      
+      for (let event of events) {
+        compiler.addListener(event, evt => this.dispatchEvent(evt.clone()));
+      }
+
+      qx.tool.compiler.Console.log(">>> Starting compilation of project...");
       compiler.start(data);
       await new Promise(resolve => {
         compiler.addListenerOnce("made", async () => {
-          let makers = await compiler.getMakers();
-          this.__makers = makers;
-          this.fireEvent("made");
           if (!this.argv.watch) {
             await compiler.stop();
             this.__exit();
             resolve();
           }
           //If we are watching, we never exit so this promise never resolves!
-        })
+        });
       });
     },
 
     /**
      * Returns the list of makers to make, as POJO objects
      *
-     * @return {Object[]}
+     * @return {qx.tool.compiler.Maker[]}
      */
     getMakers() {
-      return this.__makers;
+      return this.__compiler.getMakers();
     },
 
     /**
      * Exits the process with the correct exit code
      */
     __exit() {
-      let success = this.__makers.every(maker => maker.success);
-      let hasWarnings = this.__makers.every(maker => maker.hasWarnings);
+      let makers = this.getMakers();
+      let success = makers.every(maker => maker.success);
+      let hasWarnings = makers.every(maker => maker.hasWarnings);
       if (success && hasWarnings && this.argv.warnAsError) {
         success = false;
       }
@@ -497,7 +584,7 @@ Framework: v${await this.getQxVersion()} in ${await this.getQxPath()}`);
             "   *******************************************************************************************"
         );
       }
-      process.exitCode = success ? 0 : 1;      
+      process.exitCode = success ? 0 : 1;
     }
   },
 

@@ -90,6 +90,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
         options.typeScriptFile ?? path.join(options.metaDir, "..", "qooxdoo.d.ts") //the output file
       );
     }
+
+    this.__watch = !!options.watch;
   },
 
   events: {
@@ -137,6 +139,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
   },
 
   members: {
+    /**
+     * Whether to watch for file changes
+     */
+    __watch: false,
     /**
      * Whether TypeScript generation has been enabled
      */
@@ -273,14 +279,16 @@ qx.Class.define("qx.tool.compiler.Controller", {
         debounceProcessChangedFiles.trigger();
       };
 
-      this.__discovery.addListener("classAdded", onFileChange);
-      this.__discovery.addListener("classChanged", onFileChange);
+      if (this.__watch) {        
+        this.__discovery.addListener("classAdded", onFileChange);
+        this.__discovery.addListener("classChanged", onFileChange);
+        this.__discovery.addListener("classRemoved", async evt => {
+          let classname = evt.getData();
+          this.__changedClasses[classname] = "-";
+          debounceProcessChangedFiles.trigger();
+        });
+      }
 
-      this.__discovery.addListener("classRemoved", async evt => {
-        let classname = evt.getData();
-        this.__changedClasses[classname] = "-";
-        debounceProcessChangedFiles.trigger();
-      });
       // Process the meta data and save to disk
       await metaDb.reparseAll();
       await metaDb.save();

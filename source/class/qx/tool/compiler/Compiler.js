@@ -1,6 +1,7 @@
 const fs = qx.tool.utils.Promisify.fs;
 const semver = require("semver");
 const path = require("upath");
+const consoleControl = require("console-control-strings");
 
 /**
  * @use(qx.core.BaseInit)
@@ -11,13 +12,76 @@ const path = require("upath");
 qx.Class.define("qx.tool.compiler.Compiler", {
   implement: [qx.tool.compiler.ICompilerInterface],
   extend: qx.core.Object,
+  /**
+   * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data 
+   */
+  construct(data) {
+    super();
+    this.__data = data;
+  },
+
   events: {
-    /**@override */
-    made: "qx.event.type.Event",
-    /**@override */
+    /**
+     * @override
+     */
+    writingApplications: "qx.event.type.Event",
+
+    /**
+     * @override
+     */
+    writingApplication: "qx.event.type.Data",
+
+    /**
+     * @override
+     */
     writtenApplication: "qx.event.type.Data",
-    /**@override */
+
+    /**
+     * @override
+     */
+
+    writtenApplications: "qx.event.type.Data",
+
+    /**
+     * @override
+     */
+    compilingClass: "qx.event.type.Data",
+
+    /**
+     * @override
+     */
+    compiledClass: "qx.event.type.Data",
+
+    /**
+     * @override
+     */
+    saveDatabase: "qx.event.type.Data",
+
+    /**
+     * @override
+     */     
+    checkEnvironment: "qx.event.type.Data",
+
+    /**
+     * @override
+     */
     making: "qx.event.type.Event",
+
+    /**
+     * @override
+     */
+    made: "qx.event.type.Event",
+
+    /**
+     * @override
+     */
+    minifyingApplication: "qx.event.type.Data",
+
+    /**
+     * @override
+     */
+    minifiedApplication: "qx.event.type.Data"
+  
   },
   members: {
     /** @type {cliProgress.SingleBar|null} progress bar instance */
@@ -53,11 +117,49 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
     /**
      * @override
-     * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data 
      */
-    async start(data) {      
-      this.__data = data;
+    async start() {      
       let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
+      let data = this.__data;
+
+      if (data.set) {
+        data.set.forEach(function (kv) {
+          var m = kv.match(/^([^=\s]+)(=(.+))?$/);
+          if (m) {
+            var key = m[1];
+            var value = m[3];
+            configDb.setOverride(key, value);
+          } else {
+            throw new qx.tool.utils.Utils.UserError(
+              `Failed to parse environment setting commandline option '--set ${kv}'`
+            );
+          }
+        });
+      }
+
+      if (data["feedback"] === null) {
+        data["feedback"] = configDb.db("qx.default.feedback", true);
+      }
+
+      if (!data["machine-readable"]) {            
+        let color = configDb.db("qx.default.color", null);
+        if (color) {
+          let colorOn = consoleControl.color(color.split(" "));
+          process.stdout.write(colorOn + consoleControl.eraseLine());
+          let colorReset = consoleControl.color("reset");
+          process.on("exit", () => process.stdout.write(colorReset + consoleControl.eraseLine()));
+
+          let Console = qx.tool.compiler.Console.getInstance();
+          Console.setColorOn(colorOn);
+        }
+      }
+
+      let compilerApi = qx.tool.compiler.cli.ConfigLoader.getInstance().getCompilerApi();
+      let libPaths = compilerApi
+        .getLibraryApis()
+        .map(lib => lib.getRootDir());
+      data.libs = libPaths;
+      
       if (data["feedback"] === null) {
         data["feedback"] = configDb.db("qx.default.feedback", true);
       }
@@ -66,18 +168,11 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         qx.tool.compiler.Console.getInstance().setMachineReadable(true);
       }
 
-      let controller = await this._loadConfigAndCreateController();
-      controller.addListener("allMakersMade", () => this.fireEvent("made"));
-      this.__controller = controller;
-      controller.start();
+      await this._loadConfigAndCreateController();
     },
 
-    /**
-     * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data 
-     * @returns 
-     */
-    async compileOnce(data) {
-      await this.start(data);
+    async compileOnce() {
+      await this.start();
       return new Promise((resolve, reject) => {
         this.__controller.addListenerOnce("allMakersMade", resolve);
       });
@@ -91,32 +186,10 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
     /**
      * @override
-     * @returns {Object[]}
+     * @returns {qx.tool.compiler.Maker[]}
      */
     getMakers() {
-      const serializeTarget = target => ({
-        type: target.getType(),
-        outputDir: target.getOutputDir(),
-        deployDir: target.getDeployDir?.() ?? null
-      });
-
-      const serializeApp = app => {
-        let out = qx.util.Serializer.toNativeObject(app);
-        out.projectDir = app.getProjectDir();
-        out.browserApp = app.isBrowserApp();
-        out.className = app.getClassName();
-        return out;
-      }
-
-      const serializeMaker = maker => {
-        let out = {
-          ...qx.util.Serializer.toNativeObject(maker),
-          target: serializeTarget(maker.getTarget()),
-          applications: maker.getApplications().map(serializeApp)
-        };
-        return out;
-      };
-      return this.__makers.map(serializeMaker);
+      return this.__makers;
     },
 
     async _loadConfigAndCreateController() {
@@ -127,6 +200,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
 
       let controllerOptions = {
+        watch: this.__data.watch,
         metaDir: this.__metaDir,
         nTranspilerThreads: this.__data.nJobs,
         typescriptEnabled: this.__typescriptEnabled,
@@ -168,21 +242,60 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             qx.tool.compiler.Console.print("qx.tool.cli.compile.legacyFiles", "source/index.html");
           }
 
-          // Simple one of make
-          if (!this.__data.watch) {
-            maker.addListener("making", () => {
-              countMaking++;
-              if (countMaking == 1) {
-                this.fireEvent("making");
-              }
+          var target = maker.getTarget();
+          analyzer.addListener("compilingClass", e => this.dispatchEvent(e.clone()));
+          analyzer.addListener("compiledClass", e => this.dispatchEvent(e.clone()));
+          analyzer.addListener("saveDatabase", e => this.dispatchEvent(e.clone()));
+          target.addListener("checkEnvironment", e => this.dispatchEvent(e.clone()));
+
+          let appInfos = [];
+          target.addListener("writingApplication", async () => {
+            let appInfo = {
+              maker,
+              target,
+              appMeta: target.getAppMeta()
+            };
+
+            appInfos.push(appInfo);
+            await this.fireDataEventAsync("writingApplication", appInfo);
+          });
+          target.addListener("writtenApplication", async () => {
+            await this.fireDataEventAsync("writtenApplication", {
+              maker,
+              target,
+              appMeta: target.getAppMeta()
             });
-            maker.addListener("made", () => countMaking--);
+          });
+          maker.addListener("writtenApplications", async () => {
+            await this.fireDataEventAsync("writtenApplications", appInfos);
+            appInfos = [];
+          });
+
+          if (target instanceof qx.tool.compiler.targets.BuildTarget) {
+            target.addListener("minifyingApplication", e => this.dispatchEvent(e.clone()));
+            target.addListener("minifiedApplication", e => this.dispatchEvent(e.clone()));
           }
 
+          maker.addListener("making", () => {
+            countMaking++;
+            if (countMaking == 1) {
+              this.fireEvent("making");
+            }
+          });
+
+          maker.addListener("made", () => {
+            countMaking--;
+            if (countMaking == 0) {
+              this.fireEvent("made");
+            }
+          });
+          
           controller.addMaker(maker);
         })
       );      
 
+      this.__controller = controller;
+      controller.start();
       return controller;
     },
     /**
@@ -886,7 +999,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
               // ignore
               break;
             case "@qooxdoo/framework": {
-              let qxVersion = await data.qxVersion;
+              let qxVersion = data.qxVersion;
               if (!semver.satisfies(qxVersion, requiredRange, { loose: true })) {
                 errors.push(`${lib.getNamespace()}: Needs @qooxdoo/framework version ${requiredRange}, found ${qxVersion}`);
               }

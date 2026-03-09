@@ -302,6 +302,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
           throw new Error("Maker must be initialized by calling init() before make()");
         }
       }
+      await this.fireEventAsync("making");
       var analyzer = this.getAnalyzer();
       let target = this.getTarget();
 
