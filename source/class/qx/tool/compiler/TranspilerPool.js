@@ -17,12 +17,14 @@ const os = require("os");
 qx.Class.define("qx.tool.compiler.TranspilerPool", {
   extend: qx.core.Object,
   /**
-   * 
+   *
    * @param {?number} size Number of workers in the pool. Defaults to number of CPU cores minus one.
+   * @param {?Function} workerFactory Optional factory function that creates a worker. Defaults to creating a Worker from the current process.
    */
-  construct(size) {
+  construct(size, workerFactory) {
     super();
     this.__poolSize = size || os.cpus().length - 1;
+    this.__workerFactory = workerFactory || (() => new Worker(process.argv[1], { argv: ["transpiler-worker"] }));
     this.__workers = [];
     this.__queue = [];
 
@@ -120,9 +122,7 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
      * Creates a new worker and adds it to the pool
      */
     __createWorker() {
-      let worker = new Worker(process.argv[1], {
-        argv: ["transpiler-worker"]
-      });
+      let worker = this.__workerFactory();
 
       let tracker = {
         worker,
