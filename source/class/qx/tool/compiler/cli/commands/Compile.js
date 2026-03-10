@@ -236,8 +236,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
         new qx.tool.cli.Flag("typescript").set({
           shortCode: "T",
           description: "Outputs typescript definitions in qooxdoo.d.ts",
-          type: "boolean",
-          value: false
+          type: "boolean"
         })
       );
 

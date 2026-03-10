@@ -61,7 +61,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
    * @property {string} metaDir The directory where the meta database is stored
    * @property {number} [nTranspilerThreads] The number of threads to use for transpilation.  If not specified, will default to the number of CPU cores.  If set to 0 or a negative number, transpilation will be done in the main thread.
    * @property {boolean} [typescriptEnabled] Whether to enable TypeScript generation
-   * @property {string} [typeScriptFile] The output file for the generated TypeScript definitions (only applicable if typescriptEnabled is true).  Defaults to "qooxdoo.d.ts" in the parent directory of metaDir.
+   * @property {string} [typescriptFile] The output file for the generated TypeScript definitions (only applicable if typescriptEnabled is true).  Defaults to "qooxdoo.d.ts" in the parent directory of metaDir.
    */
   construct(options) {
     super();
@@ -87,7 +87,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       this.__typescriptEnabled = true;
       this.__typescriptWriter = new qx.tool.compiler.targets.TypeScriptWriter(
         this.__metaDb, //meta
-        options.typeScriptFile ?? path.join(options.metaDir, "..", "qooxdoo.d.ts") //the output file
+        options.typescriptFile ?? path.join(options.metaDir, "..", "qooxdoo.d.ts") //the output file
       );
     }
 
