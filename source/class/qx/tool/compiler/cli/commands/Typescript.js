@@ -141,7 +141,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Typescript", {
             }
           }
           let meta = new qx.tool.compiler.meta.ClassMeta();
-          await meta.parse(classFiles[0]);
+          await meta.parse(target);
           meta.fixupJsDoc({ resolveType: type => type });
           console.log(JSON.stringify(meta.getMetaData(), null, 2));
           process.exit(0);
