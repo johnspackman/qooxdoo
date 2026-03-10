@@ -176,7 +176,7 @@ qx.Class.define("qx.tool.compiler.cli.Command", {
           );
 
           if (!process.env.IGNORE_MIGRATION_WARNING) {
-            process.exit(1);
+            throw new qx.tool.utils.Utils.UserError("Pending migrations must be applied before continuing");
           }
           return;
         }
