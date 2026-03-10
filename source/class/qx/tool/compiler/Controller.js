@@ -294,6 +294,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
       await metaDb.save();
       await this.fireDataEventAsync("writtenMetaData", metaDb);
 
+      if (this.__typescriptEnabled) {
+        qx.tool.compiler.Console.info(`Generating typescript output ...`);
+        await this.__typescriptWriter.process();
+      }
+
       if (this.__transpilerPool) {
         await this.__transpilerPool.waitForAllReady();
         await this.__transpilerPool.callAll("updateClassMeta", [this.__metaDb.getSerialized()]);
