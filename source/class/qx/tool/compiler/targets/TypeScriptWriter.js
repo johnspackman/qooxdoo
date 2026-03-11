@@ -38,15 +38,14 @@ qx.Class.define("qx.tool.compiler.targets.TypeScriptWriter", {
    * @param {qx.tool.compiler.meta.MetaDatabase} metaDb loaded database
    * @param {String} outputTo file to write the .d.ts to
    */
-  construct(metaDb, outputTo) {
+  construct(metaDb) {
     super();
     this.__metaDb = metaDb;
-    this.setOutputTo(outputTo);
-    console.log("debug: setting outputto to " + outputTo);
   },
 
   properties: {
     outputTo: {
+      init: "qooxdoo.d.ts",
       check: "String"
     }
   },

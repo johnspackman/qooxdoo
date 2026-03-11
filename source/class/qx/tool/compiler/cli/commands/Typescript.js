@@ -148,6 +148,17 @@ qx.Class.define("qx.tool.compiler.cli.commands.Typescript", {
 
       let metaDb = new qx.tool.compiler.meta.MetaDatabase();
       await metaDb.load();
+
+      // Register scanned dirs as libraries if not already present (needed when no db.json exists yet)
+      const db = metaDb.getDatabase();
+      if (!db.libraries) db.libraries = {};
+      for (let dir of files) {
+        const resolved = path.resolve(dir);
+        if (!Object.values(db.libraries).some(l => path.resolve(l.sourceDir) === resolved)) {
+          db.libraries[resolved] = { sourceDir: resolved };
+        }
+      }
+
       await metaDb.loadFromDirectories(files, { ignore: ig, verbose: this.argv.verbose });
 
       let tsWriter = new qx.tool.compiler.targets.TypeScriptWriter(metaDb);
