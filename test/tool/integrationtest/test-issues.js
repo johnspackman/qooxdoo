@@ -4,7 +4,7 @@ const fs = require("fs");
 const kill = require("tree-kill");
 const child_process = require("child_process");
 const testUtils = require("../../../bin/tools/utils");
-const fsPromises = testUtils.fsPromises;
+const fsPromises = require("fs").promises;
 process.chdir(__dirname);
 
 

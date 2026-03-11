@@ -151,7 +151,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.Typescript", {
 
       // Register scanned dirs as libraries if not already present (needed when no db.json exists yet)
       const db = metaDb.getDatabase();
-      if (!db.libraries) db.libraries = {};
+      if (!db.libraries) {
+        db.libraries = {};
       for (let dir of files) {
         const resolved = path.resolve(dir);
         if (!Object.values(db.libraries).some(l => path.resolve(l.sourceDir) === resolved)) {
