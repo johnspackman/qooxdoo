@@ -2,6 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const child_process = require("child_process");
 
+const fsPromises = fs.promises;
+
 
 /**
  * Return the path to the compiler executable, unless the "QX_JS" OS environment
@@ -222,5 +224,6 @@ module.exports = {
   safeUnlink,
   safeRename,
   correctCase,
-  reportError
+  reportError,
+  fsPromises
 };
