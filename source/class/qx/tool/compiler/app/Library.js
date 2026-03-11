@@ -122,6 +122,10 @@ qx.Class.define("qx.tool.compiler.app.Library", {
     __environmentChecks: null,
     __fontsData: null,
 
+    isClass(classname) {
+      return classname.startsWith(this.getNamespace() + ".");
+    },
+
     /**
      * Transform for rootDir; converts it to an absolute path
      * @param value

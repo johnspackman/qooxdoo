@@ -588,10 +588,10 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
           let metaDb = this.getController().getMetaDb();
 
           for (let classname of this.__classes) {
-            let isAppClass = metaDb.getSymbolType(classname) === "class";
+            let isAppClass = appLibrary.isClass(classname);
             let classLibrary = (!isAppClass && libraries.find(lib => lib.isClass(classname))) || null;
             if (!isAppClass && !classLibrary) {
-              return;
+              continue;
             }
 
             let dbClassInfo = this.__cachedClassInfo[classname];
@@ -600,7 +600,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
             }
 
             if (!dbClassInfo.translations) {
-              return;
+              continue;
             }
 
             function isEmpty(entry) {
