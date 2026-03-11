@@ -269,7 +269,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
        * Updates the meta database and compiles the classes that have been queued up
        */
 
-      let debounceProcessChangedFiles = new qx.tool.utils.Debounce(() => this.__processChangedFiles(), 100);
+      let debounceProcessChangedFiles = new qx.util.Debounce(() => this.__processChangedFiles(), 100);
 
       /**
        * Adds a class to the compilation queue

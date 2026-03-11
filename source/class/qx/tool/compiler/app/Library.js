@@ -122,6 +122,11 @@ qx.Class.define("qx.tool.compiler.app.Library", {
     __environmentChecks: null,
     __fontsData: null,
 
+    /**
+     * 
+     * @param {string} classname 
+     * @returns {boolean} Whether the classname belongs to this library
+     */
     isClass(classname) {
       return classname.startsWith(this.getNamespace() + ".");
     },
