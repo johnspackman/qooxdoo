@@ -153,6 +153,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Typescript", {
       const db = metaDb.getDatabase();
       if (!db.libraries) {
         db.libraries = {};
+      }  
       for (let dir of files) {
         const resolved = path.resolve(dir);
         if (!Object.values(db.libraries).some(l => path.resolve(l.sourceDir) === resolved)) {
