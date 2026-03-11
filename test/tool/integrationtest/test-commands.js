@@ -3,7 +3,6 @@ const assert = require("node:assert");
 const testUtils = require("../../../bin/tools/utils");
 const path = require("path");
 const fs = require("fs").promises;
-const rimraf = require("rimraf").sync;
 const qxCmdPath = testUtils.getCompiler();
 
 const testDir = __dirname;
