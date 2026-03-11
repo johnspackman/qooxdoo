@@ -200,6 +200,11 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
      * @param {NodePath} path
      */
     __scanClassDef(path) {
+      if (!path || !path.node || path.node.type !== "ObjectExpression") {
+        // The class definition is not a plain object literal (e.g. wrapped in
+        // qx.core.Environment.select(...)).  Static analysis is not possible.
+        return;
+      }
       let metaData = this.__metaData;
 
       const getFunctionParams = node => {
