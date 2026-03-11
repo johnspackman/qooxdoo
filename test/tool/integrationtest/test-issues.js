@@ -87,7 +87,7 @@ test("Issue440", async () => {
     result = await testUtils.runCompiler("test-issues/issue440");
     assert.ok(result.exitCode === 1);
 
-    code[errorLine] = "new abc.ClassNoDef(); //This is an error";
+    code[errorLine] = "new abc.ClassNoDef(); //This is an error";    
     await fsPromises.writeFile("test-issues/issue440/source/class/issue440/Application.js", code.join("\n"), "utf8");
     result = await testUtils.runCompiler("test-issues/issue440", "--warnAsError");
     assert.ok(result.exitCode === 1);
@@ -216,7 +216,7 @@ test("Issue10407 - Watch mode should detect new unresolved classes in new files"
       if (data.includes("Start watching")) {
         watchStarted = true;
       }
-      if (fileModified && data.includes("Applications are made")) {
+      if (fileModified && data.includes("All applications ready.")) {
         recompiled = true;
       }
     });
@@ -364,7 +364,7 @@ test("Issue10407 - Watch mode should detect unresolved classes in modified files
       if (data.includes("Start watching")) {
         watchStarted = true;
       }
-      if (fileModified && data.includes("Applications are made")) {
+      if (fileModified && data.includes("All applications ready.")) {
         recompiled = true;
       }
     });

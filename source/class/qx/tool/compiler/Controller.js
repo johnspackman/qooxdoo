@@ -143,6 +143,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * Whether to watch for file changes
      */
     __watch: false,
+
+    isWatch() {
+      return this.__watch;
+    },
     /**
      * Whether TypeScript generation has been enabled
      */
@@ -512,7 +516,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         .catch(err => {
           delete this.__compilingClasses[hashKey];
           qx.tool.compiler.Console.error("Error compiling class " + classname + ": " + err.message);
-          return null;
+          return { fatalCompileError: true };
         });
       this.__compilingClasses[hashKey] = promise;
       return promise;
@@ -527,6 +531,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
     findLibraryForClassname(classname) {
       let metaDb = this.getMetaDb();
       let classmeta = metaDb.getMetaData(classname);
+      if (!classmeta) {
+        return null;
+      }
       let filename = classmeta.classFilename;
       filename = path.resolve(path.join(metaDb.getRootDir(), filename));
       for (let library of Object.values(this.__libraries)) {

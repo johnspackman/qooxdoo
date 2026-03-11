@@ -461,6 +461,16 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
 
       let compileConfig = this.getCompilerApi().getConfiguration();
+
+      if (compileConfig.sass && compileConfig.sass.compiler !== undefined) {
+        qx.tool.compiler.resources.ScssConverter.USE_V6_COMPILER = compileConfig.sass.compiler == "latest";
+      } else {
+        qx.tool.compiler.resources.ScssConverter.USE_V6_COMPILER = null;
+      }
+      if (compileConfig.sass && compileConfig.sass.copyOriginal) {
+        qx.tool.compiler.resources.ScssConverter.COPY_ORIGINAL_FILES = true;
+      }
+
       let data = {
         ...this.argv,
         config: compileConfig,
@@ -532,7 +542,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
 
       qx.tool.compiler.Console.log(">>> Starting compilation of project...");
-      compiler.start(data);
+      await compiler.start(data);
       await new Promise(resolve => {
         compiler.addListenerOnce("made", async () => {
           if (!this.argv.watch) {
@@ -543,6 +553,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
           //If we are watching, we never exit so this promise never resolves!
         });
       });
+      return process.exitCode;
     },
 
     /**
@@ -560,7 +571,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
     __exit() {
       let makers = this.getMakers();
       let success = makers.every(maker => maker.success);
-      let hasWarnings = makers.every(maker => maker.hasWarnings);
+      let hasWarnings = makers.some(maker => maker.hasWarnings);
       if (success && hasWarnings && this.argv.warnAsError) {
         success = false;
       }

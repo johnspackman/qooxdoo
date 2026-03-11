@@ -43,8 +43,13 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
       qx.tool.compiler.Console.log("Changes detected, recompiling...");
     });
 
+    let watchStartMsgSent = false;
     controller.addListener("allMakersMade", () => {
       qx.tool.compiler.Console.log("All applications ready.");
+      if (!watchStartMsgSent && controller.isWatch()) {
+        watchStartMsgSent = true;
+        qx.tool.compiler.Console.log("Start watching for changes...");
+      }
     });
 
     controller.addListener("classNeedsToBeCompiled", this.__onClassNeedsToBeCompiled, this);

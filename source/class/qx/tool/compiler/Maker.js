@@ -419,9 +419,9 @@ qx.Class.define("qx.tool.compiler.Maker", {
       await this.fireEventAsync("writtenApplications");
 
       await analyzer.saveDatabase();
-      await this.fireEventAsync("made");
       this.setSuccess(success);
       this.setHasWarnings(hasWarnings);
+      await this.fireEventAsync("made");
     },
 
     /**

@@ -331,14 +331,14 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
 
       var argvAppNames = null;
-      if (config["app-name"]) {
+      if (data["app-name"]) {
         argvAppNames = {};
-        config["app-name"].split(",").forEach(name => (argvAppNames[name] = true));
+        String(data["app-name"]).split(",").forEach(name => (argvAppNames[name] = true));
       }
       var argvAppGroups = null;
-      if (config["app-group"]) {
+      if (data["app-group"]) {
         argvAppGroups = {};
-        config["app-group"].split(",").forEach(name => (argvAppGroups[name] = true));
+        String(data["app-group"]).split(",").forEach(name => (argvAppGroups[name] = true));
       }
 
       /*

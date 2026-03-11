@@ -375,7 +375,10 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
      * @returns {String[]} a list of all classnames
      */
     getCompiledClassnames() {
-      return Object.keys(this.__cachedClassInfo).filter(classname => this.__cachedClassInfo[classname] !== null);
+      return Object.keys(this.__cachedClassInfo).filter(classname => {
+        let info = this.__cachedClassInfo[classname];
+        return info !== null && !info?.fatalCompileError;
+      });
     },
 
     /**
