@@ -119,7 +119,7 @@ qx.Class.define("qx.tool.compiler.jsdoc.Parser", {
           }
         } else {
           // If the body is surrounded by parameters, remove them
-          let m = cmd.body.match(/^\s*\(([\s\S]*)\)\s*$/);
+          let m = cmd.body.match(/^\s*\(([\s\S]*)\)\s*$/m);
           if (m) {
             cmd.body = m[1];
           }

@@ -85,10 +85,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
     if (options.typescriptEnabled) {
       this.__typescriptEnabled = true;
-      this.__typescriptWriter = new qx.tool.compiler.targets.TypeScriptWriter(
-        this.__metaDb, //meta
-        options.typescriptFile ?? path.join(options.metaDir, "..", "qooxdoo.d.ts") //the output file
-      );
+      this.__typescriptWriter = new qx.tool.compiler.targets.TypeScriptWriter(this.__metaDb);
+      this.__typescriptWriter.setOutputTo(options.typescriptFile ?? path.join(options.metaDir, "..", "qooxdoo.d.ts"));
     }
 
     this.__watch = !!options.watch;
