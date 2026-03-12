@@ -52,7 +52,7 @@ test("test commands - create app and test rename", async () => {
     
     // Clean up any existing app
     if (await pathExists(appDir)) {
-      rimraf(appDir);
+      await fs.rm(appDir, { recursive: true, force: true });
     }
     
     // Create a test app
@@ -103,12 +103,12 @@ test("test commands - create app and test rename", async () => {
     }
     
     // Cleanup
-    rimraf(appDir);
+    await fs.rm(appDir, { recursive: true, force: true });
     
   } catch (ex) {
     // Cleanup on error
     if (await pathExists(appDir)) {
-      rimraf(appDir);
+      await fs.rm(appDir, { recursive: true, force: true });
     }
     throw ex;
   }
