@@ -22,12 +22,9 @@
 
 const fs = require("fs");
 const path = require("path");
+const { rimraf } = require("rimraf");
 
-const { promisify } = require("util");
-const stat = promisify(fs.stat);
-const mkdir = promisify(fs.mkdir);
-const readdir = promisify(fs.readdir);
-const rename = promisify(fs.rename);
+const { stat, mkdir, readdir, rename, unlink, copyFile: fsCopyFile } = fs.promises;
 
 qx.Class.define("qx.tool.utils.files.Utils", {
   extend: qx.core.Object,
@@ -64,64 +61,34 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @param filter {Function?} optional filter method to validate filenames before sync
      * @async
      */
-    sync(from, to, filter) {
-      var t = this;
+    async sync(from, to, filter) {
+      const t = this;
 
-      function copy(statFrom, statTo) {
+      async function copy(statFrom, statTo) {
         if (statFrom.isDirectory()) {
-          var p;
-          if (statTo === null) {
-            p = mkdir(to);
-          } else {
-            p = Promise.resolve();
-          }
-          return p.then(() =>
-            readdir(from).then(files =>
-              Promise.all(
-                files.map(file =>
-                  t.sync(path.join(from, file), path.join(to, file), filter)
-                )
-              )
-            )
-          );
+          if (statTo === null) await mkdir(to);
+          const files = await readdir(from);
+          await Promise.all(files.map(file => t.sync(path.join(from, file), path.join(to, file), filter)));
         } else if (statFrom.isFile()) {
-          return qx.Promise.resolve(filter ? filter(from, to) : true).then(
-            result => result && t.copyFile(from, to)
-          );
+          const result = filter ? await filter(from, to) : true;
+          if (result) await t.copyFile(from, to);
         }
-        return undefined;
       }
 
-      return new Promise((resolve, reject) => {
-        var statFrom = null;
-        var statTo = null;
+      const statFrom = await stat(from);
+      let statTo = null;
+      try {
+        statTo = await stat(to);
+      } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+      }
 
-        stat(from)
-          .then(tmp => {
-            statFrom = tmp;
-            return stat(to)
-              .then(tmp => (statTo = tmp))
-              .catch(err => {
-                if (err.code !== "ENOENT") {
-                  throw err;
-                }
-              });
-          })
-          .then(() => {
-            if (!statTo || statFrom.isDirectory() != statTo.isDirectory()) {
-              return t.deleteRecursive(to).then(() => copy(statFrom, statTo));
-            } else if (
-              statFrom.isDirectory() ||
-              statFrom.mtime.getTime() > statTo.mtime.getTime() ||
-              statFrom.size != statTo.size
-            ) {
-              return copy(statFrom, statTo);
-            }
-            return undefined;
-          })
-          .then(resolve)
-          .catch(reject);
-      });
+      if (!statTo || statFrom.isDirectory() != statTo.isDirectory()) {
+        await t.deleteRecursive(to);
+        await copy(statFrom, statTo);
+      } else if (statFrom.isDirectory() || statFrom.mtime.getTime() > statTo.mtime.getTime() || statFrom.size != statTo.size) {
+        await copy(statFrom, statTo);
+      }
     },
 
     /**
@@ -130,23 +97,9 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @param to {String} path to copy to
      * @async
      */
-    copyFile(from, to) {
-      return new Promise((resolve, reject) => {
-        qx.tool.utils.Utils.mkParentPath(to, function () {
-          var rs = fs.createReadStream(from, {
-            flags: "r",
-            encoding: "binary"
-          });
-
-          var ws = fs.createWriteStream(to, { flags: "w", encoding: "binary" });
-          rs.on("end", function () {
-            resolve(from, to);
-          });
-          rs.on("error", reject);
-          ws.on("error", reject);
-          rs.pipe(ws);
-        });
-      });
+    async copyFile(from, to) {
+      await qx.tool.utils.Utils.makeParentDir(to);
+      await fsCopyFile(from, to);
     },
 
     /**
@@ -156,16 +109,13 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @returns {import("node:fs").Stats}
      * @async
      */
-    safeStat(filename) {
-      return new Promise((resolve, reject) => {
-        fs.stat(filename, function (err, stats) {
-          if (err && err.code != "ENOENT") {
-            reject(err);
-          } else {
-            resolve(err ? null : stats);
-          }
-        });
-      });
+    async safeStat(filename) {
+      try {
+        return await stat(filename);
+      } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+        return null;
+      }
     },
 
     /**
@@ -174,16 +124,12 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @param filename {String} file to delete
      * @async
      */
-    safeUnlink(filename) {
-      return new Promise((resolve, reject) => {
-        fs.unlink(filename, function (err) {
-          if (err && err.code != "ENOENT") {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
+    async safeUnlink(filename) {
+      try {
+        await unlink(filename);
+      } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+      }
     },
 
     /**
@@ -193,16 +139,12 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @param to {String} new filename
      * @async
      */
-    safeRename(from, to) {
-      return new Promise((resolve, reject) => {
-        fs.rename(from, to, function (err) {
-          if (err && err.code != "ENOENT") {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
+    async safeRename(from, to) {
+      try {
+        await rename(from, to);
+      } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+      }
     },
 
     /**
@@ -235,7 +177,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @async
      */
     async deleteRecursive(name) {
-      return fs.promises.rm(name, { recursive: true, force: true });
+      return rimraf(name);
     },
 
     /**
@@ -245,7 +187,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @returns {String} the new path
      * @async
      */
-    correctCase(dir) {
+    async correctCase(dir) {
       var drivePrefix = "";
       if (process.platform === "win32" && dir.match(/^[a-zA-Z]:/)) {
         drivePrefix = dir.substring(0, 2);
@@ -267,7 +209,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
         index = 1;
       }
 
-      function bumpToNext(nextSeg) {
+      async function bumpToNext(nextSeg) {
         index++;
         if (currentDir.length && currentDir !== "/") {
           currentDir += "/";
@@ -276,12 +218,12 @@ qx.Class.define("qx.tool.utils.files.Utils", {
         return next();
       }
 
-      function next() {
+      async function next() {
         if (index == segs.length) {
           if (process.platform === "win32") {
             currentDir = currentDir.replace(/\//g, "\\");
           }
-          return Promise.resolve(drivePrefix + currentDir);
+          return drivePrefix + currentDir;
         }
 
         let nextSeg = segs[index];
@@ -289,51 +231,32 @@ qx.Class.define("qx.tool.utils.files.Utils", {
           return bumpToNext(nextSeg);
         }
 
-        return new Promise((resolve, reject) => {
-          fs.readdir(
-            currentDir.length == 0 ? "." : drivePrefix + currentDir,
-            { encoding: "utf8" },
-            (err, files) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-
-              let nextLowerCase = nextSeg.toLowerCase();
-              let exact = false;
-              let insensitive = null;
-              for (let i = 0; i < files.length; i++) {
-                if (files[i] === nextSeg) {
-                  exact = true;
-                  break;
-                }
-                if (files[i].toLowerCase() === nextLowerCase) {
-                  insensitive = files[i];
-                }
-              }
-              if (!exact && insensitive) {
-                nextSeg = insensitive;
-              }
-
-              bumpToNext(nextSeg).then(resolve);
-            }
-          );
-        });
+        const files = await readdir(currentDir.length == 0 ? "." : drivePrefix + currentDir, { encoding: "utf8" });
+        let nextLowerCase = nextSeg.toLowerCase();
+        let exact = false;
+        let insensitive = null;
+        for (let i = 0; i < files.length; i++) {
+          if (files[i] === nextSeg) {
+            exact = true;
+            break;
+          }
+          if (files[i].toLowerCase() === nextLowerCase) {
+            insensitive = files[i];
+          }
+        }
+        if (!exact && insensitive) {
+          nextSeg = insensitive;
+        }
+        return bumpToNext(nextSeg);
       }
 
-      return new Promise((resolve, reject) => {
-        fs.stat(drivePrefix + dir, err => {
-          if (err) {
-            if (err.code == "ENOENT") {
-              resolve(drivePrefix + dir);
-            } else {
-              reject(err);
-            }
-          } else {
-            next().then(resolve);
-          }
-        });
-      });
+      try {
+        await stat(drivePrefix + dir);
+        return next();
+      } catch (err) {
+        if (err.code === "ENOENT") return drivePrefix + dir;
+        throw err;
+      }
     }
   }
 });
