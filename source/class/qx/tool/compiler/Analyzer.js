@@ -25,7 +25,6 @@
 
 var fs = require("fs");
 const path = require("path");
-var async = require("async");
 
 var hash = require("object-hash");
 
@@ -275,35 +274,16 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
      *
      * @param cb
      */
-    initialScan(cb) {
-      var t = this;
-
+    async initialScan() {
       if (!this.__db) {
         this.__db = {};
       }
 
       log.debug("Scanning source code");
-      async.parallel(
-        [
-          // Load Resources
-          function (cb) {
-            if (!t.__resManager) {
-              cb(null);
-              return;
-            }
-
-            t.__resManager
-              .findAllResources()
-              .then(() => cb())
-              .catch(cb);
-          }
-        ],
-
-        function (err) {
-          log.debug("processed source and resources");
-          cb(err);
-        }
-      );
+      if (this.__resManager) {
+        await this.__resManager.findAllResources();
+      }
+      log.debug("processed source and resources");
     },
 
     /**

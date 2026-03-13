@@ -22,7 +22,6 @@
 
 const { promisify } = require("util");
 const nodePromisify = promisify;
-const PromisePool = require("es6-promise-pool");
 
 qx.Class.define("qx.tool.utils.Promisify", {
   statics: {
@@ -87,15 +86,8 @@ qx.Class.define("qx.tool.utils.Promisify", {
      * @returns {Promise}
      */
     async poolEachOf(arr, size, fn) {
-      let index = 0;
-      let pool = new PromisePool(() => {
-        if (index >= arr.length) {
-          return null;
-        }
-        let item = arr[index++];
-        return fn(item);
-      }, size);
-      await pool.start();
+      const limiter = new qx.util.ConcurrencyLimiter(size);
+      await Promise.all(arr.map(item => limiter.add(() => fn(item))));
     },
 
     async map(arr, fn) {
@@ -139,26 +131,21 @@ qx.Class.define("qx.tool.utils.Promisify", {
     },
 
     async somePool(arr, size, fn) {
-      return await new qx.Promise((resolve, reject) => {
-        let index = 0;
-        let pool = new PromisePool(() => {
-          if (!resolve) {
-            return null;
-          }
-          if (index >= arr.length) {
-            resolve(false);
-            return null;
-          }
-          let item = arr[index++];
-          return fn(item).then(result => {
-            if (result && resolve) {
-              resolve(true);
-              resolve = null;
+      const limiter = new qx.util.ConcurrencyLimiter(size);
+      let found = false;
+      await Promise.all(
+        arr.map(item =>
+          limiter.add(async () => {
+            if (found) {
+              return;
             }
-          });
-        }, 10);
-        pool.start();
-      });
+            if (await fn(item)) {
+              found = true;
+            }
+          })
+        )
+      );
+      return found;
     },
 
     call(fn) {

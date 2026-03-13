@@ -319,7 +319,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
         await analyzer.resetDatabase();
       }
 
-      await qx.tool.utils.Utils.promisifyThis(analyzer.initialScan, analyzer);
+      await analyzer.initialScan();
       await analyzer.updateEnvironmentData();
 
       target.setAnalyzer(analyzer);
