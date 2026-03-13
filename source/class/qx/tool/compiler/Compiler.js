@@ -784,10 +784,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             "publish",
             "deploy",
             "standalone",
-            "localModules",
-            "title",
-            "description",
-            "group"
+            "localModules"
           ].forEach(name => {
             if (appConfig[name] !== undefined) {
               var fname = "set" + qx.lang.String.firstUp(name);
@@ -797,6 +794,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           allApplicationTypes[app.getType()] = true;
           if (appConfig.uri) {
             qx.tool.compiler.Console.print("qx.tool.cli.compile.deprecatedUri", "application.uri", appConfig.uri);
+          }
+          if (appConfig.title) {
+            app.setTitle(appConfig.title);
+          }
+          if (appConfig.description) {
+            app.setDescription(appConfig.description);
+          }
+          if (appConfig.group) {
+            app.setGroup(appConfig.group);
           }
           appConfig.localModules = appConfig.localModules || {};
           qx.lang.Object.mergeWith(appConfig.localModules, config.localModules || {}, false);
