@@ -162,6 +162,15 @@ qx.Class.define("qx.tool.compiler.app.Application", {
     },
 
     /**
+     * The group(s) this application belongs to (array of strings)
+     */
+    group: {
+      init: null,
+      nullable: true,
+      check: "Array"
+    },
+
+    /**
      * Whether this app can run on its own (true, default) or is part of another
      * application (false)
      */
