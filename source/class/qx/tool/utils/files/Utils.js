@@ -22,8 +22,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { rimraf } = require("rimraf");
-
 const { stat, mkdir, readdir, rename, unlink, copyFile: fsCopyFile } = fs.promises;
 
 qx.Class.define("qx.tool.utils.files.Utils", {
@@ -66,12 +64,12 @@ qx.Class.define("qx.tool.utils.files.Utils", {
 
       async function copy(statFrom, statTo) {
         if (statFrom.isDirectory()) {
-          if (statTo === null) await mkdir(to);
+          if (statTo === null) {await mkdir(to);}
           const files = await readdir(from);
           await Promise.all(files.map(file => t.sync(path.join(from, file), path.join(to, file), filter)));
         } else if (statFrom.isFile()) {
           const result = filter ? await filter(from, to) : true;
-          if (result) await t.copyFile(from, to);
+          if (result) {await t.copyFile(from, to);}
         }
       }
 
@@ -80,7 +78,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
       try {
         statTo = await stat(to);
       } catch (err) {
-        if (err.code !== "ENOENT") throw err;
+        if (err.code !== "ENOENT") {throw err;}
       }
 
       if (!statTo || statFrom.isDirectory() != statTo.isDirectory()) {
@@ -113,7 +111,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
       try {
         return await stat(filename);
       } catch (err) {
-        if (err.code !== "ENOENT") throw err;
+        if (err.code !== "ENOENT") {throw err;}
         return null;
       }
     },
@@ -128,7 +126,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
       try {
         await unlink(filename);
       } catch (err) {
-        if (err.code !== "ENOENT") throw err;
+        if (err.code !== "ENOENT") {throw err;}
       }
     },
 
@@ -143,7 +141,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
       try {
         await rename(from, to);
       } catch (err) {
-        if (err.code !== "ENOENT") throw err;
+        if (err.code !== "ENOENT") {throw err;}
       }
     },
 
@@ -177,7 +175,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
      * @async
      */
     async deleteRecursive(name) {
-      return rimraf(name);
+      return fs.promises.rm(name, { recursive: true, force: true });
     },
 
     /**
@@ -254,7 +252,7 @@ qx.Class.define("qx.tool.utils.files.Utils", {
         await stat(drivePrefix + dir);
         return next();
       } catch (err) {
-        if (err.code === "ENOENT") return drivePrefix + dir;
+        if (err.code === "ENOENT") {return drivePrefix + dir;}
         throw err;
       }
     }
