@@ -17,8 +17,6 @@
 ************************************************************************ */
 const path = require("upath");
 const fs = require("fs");
-const async = require("async");
-const { promisify } = require("util");
 const child_process = require("child_process");
 const psTree = require("ps-tree");
 /**
@@ -113,92 +111,16 @@ qx.Class.define("qx.tool.utils.Utils", {
     },
 
     /**
-     * Creates a dir
-     * @param dir
-     * @param cb
-     */
-    mkpath(dir, cb) {
-      dir = path.normalize(dir);
-      var segs = dir.split(path.sep);
-      var made = "";
-      async.eachSeries(
-        segs,
-        function (seg, cb) {
-          if (made.length || !seg.length) {
-            made += "/";
-          }
-          made += seg;
-          fs.access(made, fs.constants.F_OK, function (err) {
-            if (err) {
-              fs.mkdir(made, function (err) {
-                if (err && err.code === "EEXIST") {
-                  err = null;
-                }
-                cb(err);
-              });
-              return;
-            }
-            fs.stat(made, function (err, stat) {
-              if (err) {
-                cb(err);
-              } else if (stat.isDirectory()) {
-                cb(null);
-              } else {
-                cb(new Error("Cannot create " + made + " (in " + dir + ") because it exists and is not a directory", "ENOENT"));
-              }
-            });
-          });
-        },
-        function (err) {
-          cb(err);
-        }
-      );
-    },
-
-    /**
-     * Creates the parent directory of a filename, if it does not already exist
-     *
-     * @param {string} dir the directory to create the parent directory of
-     * @param {Function} [cb] the callback to call when done, or null
-     * @return {Promise?} a promise when complete, but only if no callback is given
-     */
-    mkParentPath(dir, cb) {
-      var segs = dir.split(/[\\\/]/);
-      segs.pop();
-      if (!segs.length) {
-        return cb && cb();
-      }
-      dir = segs.join(path.sep);
-      if (!cb) {
-        return qx.tool.utils.Promisify.promisify(cb => this.mkpath(dir, cb));
-      } else {
-        return this.mkpath(dir, cb);
-      }
-    },
-
-    /**
      * Creates the parent directory of a filename, if it does not already exist
      *
      * @param {string} filename the filename to create the parent directory of
-     *
-     * @return {Promise?} the value
+     * @return {Promise}
      */
-    makeParentDir(filename) {
-      const mkParentPath = promisify(this.mkParentPath).bind(this);
-      return mkParentPath(filename);
+    async makeParentDir(filename) {
+      const dir = path.dirname(filename);
+      await fs.promises.mkdir(dir, { recursive: true });
     },
 
-    /**
-     * Creates a directory, if it does not exist, including all intermediate paths
-     *
-     * @param {string} filename the directory to create
-     *
-     * @return {Promise?} the value
-     */
-    makeDirs(filename) {
-      const mkpath = promisify(this.mkpath);
-      return mkpath(filename);
-    },
 
     /**
      * Writable stream that keeps track of what the current line number is
