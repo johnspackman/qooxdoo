@@ -518,9 +518,8 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           return;
         }
         let appConfigs = targetConfig.appConfigs.filter(appConfig => {
-          if (argvAppGroups) {
-            let groups = appConfig.group || [];
-            if (!groups.find(groupName => !!argvAppGroups[groupName])) {
+          if (argvAppGroups && appConfig.group) {
+            if (!appConfig.group.find(groupName => !!argvAppGroups[groupName])) {
               return false;
             }
           }
@@ -784,7 +783,10 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             "publish",
             "deploy",
             "standalone",
-            "localModules"
+            "localModules",
+            "title",
+            "description",
+            "group"
           ].forEach(name => {
             if (appConfig[name] !== undefined) {
               var fname = "set" + qx.lang.String.firstUp(name);
@@ -794,15 +796,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           allApplicationTypes[app.getType()] = true;
           if (appConfig.uri) {
             qx.tool.compiler.Console.print("qx.tool.cli.compile.deprecatedUri", "application.uri", appConfig.uri);
-          }
-          if (appConfig.title) {
-            app.setTitle(appConfig.title);
-          }
-          if (appConfig.description) {
-            app.setDescription(appConfig.description);
-          }
-          if (appConfig.group) {
-            app.setGroup(appConfig.group);
           }
           appConfig.localModules = appConfig.localModules || {};
           qx.lang.Object.mergeWith(appConfig.localModules, config.localModules || {}, false);
