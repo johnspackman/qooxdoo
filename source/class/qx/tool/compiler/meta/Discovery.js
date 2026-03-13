@@ -3,26 +3,26 @@ const fs = require("fs");
 const chokidar = require("chokidar");
 
 /**
- * Discovery is used to discover classes in a project by watching specified paths for changes.
+ * Discovery is used to discover files containing classes in a project by watching specified paths for changes.
  */
 qx.Class.define("qx.tool.compiler.meta.Discovery", {
   extend: qx.core.Object,
 
   construct() {
     super();
-    this.__classes = {};
-    this.__paths = [];
+    this.__discoveredFiles = {};
+    this.__watchedPaths = {};
   },
 
   events: {
     /** Fired when a class is added to the discovery, data is {ClassMeta} */
-    classAdded: "qx.event.type.Data",
+    fileAdded: "qx.event.type.Data",
 
     /** Fired when a class is added to the discovery, data is {ClassMeta} */
-    classRemoved: "qx.event.type.Data",
+    fileRemoved: "qx.event.type.Data",
 
     /** Fired when a class file changes, data is {ClassMeta} */
-    classChanged: "qx.event.type.Data",
+    fileChanged: "qx.event.type.Data",
 
     /** Fired when the discovery process is starting */
     starting: "qx.event.type.Event",
@@ -35,25 +35,22 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
     __started: false,
 
     /**
-     * @typedef ClassMeta
+     * @typedef {Object} FileMeta
      * @property {String} classname - The name of the class
-     * @property {String} packageName - The package name of the class
-     * @property {String[]} filenames - The list of filenames where the class is defined
-     * @property {Date} lastModified - The last modified timestamp of the class file
      *
-     * @type {Object<String, ClassMeta>} list of ClassMeta objects, indexed by classname
+     * @type {Object<String, FileMeta>} list of discovered files
      */
-    __classes: null,
+    __discoveredFiles: null,
 
-    /** @type{Array<String>} paths that need to be searched / watched */
-    __paths: null,
+
 
     /**
      * @typedef WatchedPath
      * @property {String} path - The path to watch
      * @property {chokidar.FSWatcher} watcher - The chokidar watcher instance
      *
-     * @type {Object<String, WatchedPath>} list of WatchedPath objects, incdexed by path
+     * @type {Object<String, WatchedPath?>} list of WatchedPath objects.
+     * The object values are initially null, but after the discovery starts they are changed for WatchedPath objects.
      */
     __watchedPaths: null,
 
@@ -63,10 +60,12 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      * @param {String} filename
      */
     addPath(filename) {
-      if (this.__started) {
-        throw new Error("Cannot add paths after discovery has started.");
+      if (qx.core.Environment.get("qx.debug")) {
+        if (this.__started) {
+          throw new Error("Cannot add paths after discovery has started.");
+        }
       }
-      this.__paths.push(filename);
+      this.__watchedPaths[filename] = null;
     },
 
     /**
@@ -78,8 +77,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
       }
       this.fireEvent("starting");
       this.__started = true;
-      this.__watchedPaths = {};
-      for (let filename of this.__paths) {
+      for (let filename in this.__watchedPaths) {
         filename = path.resolve(filename);
         let stat = null;
         try {
@@ -91,17 +89,17 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
           }
           throw ex;
         }
-        let confirmedName = await qx.tool.utils.files.Utils.correctCase(filename);
-        let watcher = chokidar.watch(confirmedName, {
+        let watcher = chokidar.watch(filename, {
           //ignored: /(^|[\/\\])\../
         });
         let watchedPath = {
-          path: confirmedName,
+          path: filename,
           watcher: watcher,
           ready: false
         };
-        this.__watchedPaths[confirmedName] = watchedPath;
-
+        this.__watchedPaths[filename] = watchedPath;
+        
+        let confirmedName = filename;
         watcher.on("change", filename => this.__onFileChange("change", filename, confirmedName));
         watcher.on("add", filename => this.__onFileChange("add", filename, confirmedName));
         watcher.on("unlink", filename => this.__onFileChange("unlink", filename, confirmedName));
@@ -138,12 +136,9 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
               if (packageName.length) {
                 classname = packageName + "." + classname;
               }
-              this.__classes[classname] = {
-                filenames: [fullFilename],
-                lastModified: stat.mtime,
-                packageName: packageName,
-                classname: classname
-              };
+              this.__discoveredFiles[fullFilename] = {
+                classname
+              }
             }
           }
         }
@@ -169,20 +164,23 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
     /**
      * Returns the list of discovered classes
      *
-     * @returns {ClassMeta[]} list of ClassMeta objects for all discovered classes
+     * @returns {string[]} list of all discovered class files
      */
-    getDiscoveredClasses() {
-      return Object.values(this.__classes);
+    getDiscoveredFiles() {
+      return Object.keys(this.__discoveredFiles);
     },
 
     /**
-     * Returns the ClassMeta object for the given classname
-     *
-     * @param {String} classname
-     * @returns {ClassMeta|null} the ClassMeta object for the given classname, or null if not found
+     * @param {string} filename 
+     * @returns {string}
      */
-    getDiscoveredClass(classname) {
-      return this.__classes[classname] || null;
+    getClassnameForFile(filename) {
+      if (qx.core.Environment.get("qx.debug")) {
+        if (!this.__discoveredFiles[filename]) {
+          throw new Error(`Cannot find file ${filename} in discovery.`);
+        }
+      }
+      return this.__discoveredFiles[filename].classname;
     },
 
     /**
@@ -201,25 +199,20 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
       if (packageName.length) {
         classname = packageName + "." + classname;
       }
-
       if (event == "unlink") {
-        if (this.__classes[classname]) {
-          this.fireDataEvent("classRemoved", classname);
-          delete this.__classes[classname];
+        if (this.__discoveredFiles[filename]) {
+          this.fireDataEvent("fileRemoved", filename);
+          delete this.__discoveredFiles[filename];
         }
       } else if (event == "add") {
         if (filename.endsWith(".js")) {
-          let stat = fs.statSync(filename);
-          this.__classes[classname] = {
-            filenames: [filename],
-            lastModified: stat.mtime,
-            packageName: packageName,
-            classname: classname
+          this.__discoveredFiles[filename] = {
+            classname
           };
-          this.fireDataEvent("classAdded", classname);
+          this.fireDataEvent("fileAdded", filename);
         }
       } else if (event == "change") {
-        this.fireDataEvent("classChanged", classname);
+        this.fireDataEvent("fileChanged", filename);
       }
     }
   }

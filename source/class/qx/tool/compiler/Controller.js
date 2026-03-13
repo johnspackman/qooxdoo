@@ -69,7 +69,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     this.__makers = [];
     this.__discovery = new qx.tool.compiler.meta.Discovery();
     this.__dbClassInfoCache = {};
-    this.__changedClasses = {};
+    this.__changedFiles = {};
     this.__compilingClasses = {};
     this.__dirtyClasses = {};
     this.__dirtyMakers = {};
@@ -156,11 +156,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
      */
     __typescriptWriter: null,
     /**
-     * @type {Object.<string, '+' | '-'>} List of changed classes, indexed by classname,
+     * @type {Object.<string, '+' | '-'>} List of changed files, indexed by file name,
      * with value "+" for added/changed files and "-" for removed files
-     * The classes that have been queued up for compilation but are not yet being compiled
+     * These are for the classes that have been queued up for compilation but are not yet being compiled
      */
-    __changedClasses: null,
+    __changedFiles: null,
     /**
      * @type {qx.tool.compiler.TranspilerPool}
      * The pool of transpiler workers which invoke Babel to do the transpilation
@@ -260,8 +260,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
       this.fireEvent("metaDbConfigured");
 
       // Scan the discovered classes and add them to the meta database
-      let discoveredClasses = qx.lang.Array.clone(this.__discovery.getDiscoveredClasses());
-      await Promise.all(discoveredClasses.map(classmeta => metaDb.fastAddFile(classmeta.filenames.at(-1), false)));
+      let discoveredFiles = this.__discovery.getDiscoveredFiles();
+      await Promise.all(discoveredFiles.map(file => metaDb.fastAddFile(file, false)));
       this.fireEvent("addedDiscoveredClasses");
 
       
@@ -276,17 +276,17 @@ qx.Class.define("qx.tool.compiler.Controller", {
        * @param {qx.event.type.Data} evt
        */
       const onFileChange = async evt => {
-        let classname = evt.getData();
-        this.__changedClasses[classname] = '+';
+        let filename = evt.getData();
+        this.__changedFiles[filename] = '+';
         debounceProcessChangedFiles.trigger();
       };
 
       if (this.__watch) {        
-        this.__discovery.addListener("classAdded", onFileChange);
-        this.__discovery.addListener("classChanged", onFileChange);
-        this.__discovery.addListener("classRemoved", async evt => {
-          let classname = evt.getData();
-          this.__changedClasses[classname] = "-";
+        this.__discovery.addListener("fileAdded", onFileChange);
+        this.__discovery.addListener("fileChanged", onFileChange);
+        this.__discovery.addListener("fileRemoved", async evt => {
+          let filename = evt.getData();
+          this.__changedFiles[filename] = "-";
           debounceProcessChangedFiles.trigger();
         });
       }
@@ -354,30 +354,27 @@ qx.Class.define("qx.tool.compiler.Controller", {
     async __processChangedFiles() {
       let metaDb = this.__metaDb;
       this.fireEvent("changesDetected");
-      let changedClasses = this.__changedClasses;
+      let changedFiles = this.__changedFiles;
       let added = [];
-      this.__changedClasses = {};
+      this.__changedFiles = {};
 
-
-      await Promise.all(Object.entries(changedClasses).map(async ([classname, changeType]) => {        
-        let classmeta = this.__discovery.getDiscoveredClass(classname);
-        let filename = classmeta.filenames.at(-1);
+      await Promise.all(Object.entries(changedFiles).map(async ([filename, changeType]) => {        
         if (changeType === "+") {
+          let classname = this.__discovery.getClassnameForFile(filename);
           added.push(classname);
           await metaDb.addFile(filename, true);
         } else {
           await metaDb.removeFile(filename);
         }
-      }));      
+      }));
 
       await metaDb.reparseAll();
       await metaDb.save();
 
       if (this.__typescriptEnabled) {
-        qx.tool.compiler.Console.info(`Generating typescript output ...`);
+        qx.tool.compiler.Console.logVerbose(`Generating typescript output ...`);
         await this.__typescriptWriter.process();
       }
-
 
       let compilationRequired = false;
       for (let maker of this.__makers) {
@@ -386,10 +383,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
           for (let classname of added) {
             if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
               compilationRequired = true;
+              let hashKey = maker.getAnalyzer().toHashCode() + ":" + classname;
+              this.__dirtyClasses[hashKey] = true;
               this.compileClass(maker.getAnalyzer(), classname, true);
               this.fireDataEvent("classNeedsToBeCompiled", { maker, classname });
-              let hashKey = maker.getTarget().getOutputDir() + ":" + classname;
-              this.__dirtyClasses[hashKey] = true;
               break;
             }
           }
@@ -398,7 +395,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       if (!compilationRequired) {
         this.fireEvent("allMakersMade");
-        return;
       }
     },
 
@@ -407,16 +403,19 @@ qx.Class.define("qx.tool.compiler.Controller", {
      *
      * @param {qx.tool.compiler.Analyzer} analyzer
      * @param {String} classname
+     * @param {boolean} cached Whether the cached compile result was taken
      */
-    _onClassCompiled(analyzer, classname) {
-      this.fireDataEvent("compiledClass", { classname, analyzer });
-      for (let maker of this.__makers) {
-        if (maker.getAnalyzer() === analyzer) {
-          for (let app of maker.getApplications()) {
-            let dependencies = app.getDependencies() || [];
-            if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
-              this.__dirtyMakers[maker.toHashCode()] = maker;
-              break;
+    _onClassCompiled(analyzer, classname, cached) {      
+      if (!cached) {
+        this.fireDataEvent("compiledClass", { classname, analyzer });
+        for (let maker of this.__makers) {
+          if (maker.getAnalyzer() === analyzer) {
+            for (let app of maker.getApplications()) {
+              let dependencies = app.getDependencies() || [];
+              if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
+                this.__dirtyMakers[maker.toHashCode()] = maker;
+                break;
+              }
             }
           }
         }
@@ -441,34 +440,20 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let promise = maker.make();
       promise = promise
         .then(() => {
-          if (promise === this.__makingMakers[hashKey]) {
-            delete this.__makingMakers[hashKey];
-            if (
-              Object.keys(this.__makingMakers).length === 0 &&
-              Object.keys(this.__dirtyMakers).length === 0 &&
-              Object.keys(this.__compilingClasses).length === 0
-            ) {
-              if (this.__transpilerPool) {
-                //after the initial build, we won't be using worker threads anymore (at least for now) to make things simpler
-                this.__transpilerPool.dispose();
-                this.__transpilerPool = null;
-              }
-              this.fireEvent("allMakersMade");
-            } else {
-              let makerByHashCode = Object.fromEntries(this.__makers.map(m => [m.toHashCode(), m]));
-              const printMaker = hash => {
-                let maker = makerByHashCode[hash];
-                return maker.getTarget();
-              };
-              qx.tool.compiler.Console.logVerbose("debug: making makers: " + Object.keys(this.__makingMakers).map(printMaker).join(", "));
-              qx.tool.compiler.Console.logVerbose("debug: dirty makers: " + Object.keys(this.__dirtyMakers).map(printMaker).join(", "));
-              qx.tool.compiler.Console.logVerbose("debug: compiling classes: " + Object.keys(this.__compilingClasses).join(", "));
+          delete this.__makingMakers[hashKey];
+          if (
+            Object.keys(this.__makingMakers).length === 0 &&
+            Object.keys(this.__dirtyMakers).length === 0 &&
+            Object.keys(this.__compilingClasses).length === 0
+          ) {
+            if (this.__transpilerPool) {
+              //after the initial build, we won't be using worker threads anymore (at least for now) to make things simpler
+              this.__transpilerPool.dispose();
+              this.__transpilerPool = null;
             }
-            return true;
-          } else {
-            delete this.__makingMakers[hashKey];
-            return this.__makeMaker(maker);
+            this.fireEvent("allMakersMade");
           }
+          return true;
         })
         .catch(err => {
           delete this.__makingMakers[hashKey];
@@ -491,7 +476,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      *
      */
     compileClass(analyzer, classname, force) {
-      let hashKey = analyzer.getMaker().getTarget().getOutputDir() + ":" + classname;
+      let hashKey = analyzer.toHashCode() + ":" + classname;
       let promise = this.__dirtyClasses[hashKey] ? null : this.__compilingClasses[hashKey];
       if (promise) {
         return promise;
@@ -503,9 +488,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         .then(result => {
           if (promise === this.__compilingClasses[hashKey]) {
             delete this.__compilingClasses[hashKey];
-            if (!result.cached) {
-              this._onClassCompiled(analyzer, classname);
-            }
+            this._onClassCompiled(analyzer, classname, result.cached);
             return result.dbClassInfo;
           } else {
             return this.__compilingClasses[hashKey];

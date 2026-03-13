@@ -31,6 +31,12 @@ qx.Class.define("qx.tool.compiler.app.Application", {
    */
   construct(classname) {
     super();
+
+    qx.event.GlobalError.setErrorHandler(function (ex) {
+      console.error("An unrecoverable error has occured. The application will quit. Please report the problem to the Qooxdoo developers. Detail: " + ex);
+      process.exit(1);
+    }, this)
+
     this.initType();
     var args = qx.lang.Array.fromArguments(arguments);
     var t = this;

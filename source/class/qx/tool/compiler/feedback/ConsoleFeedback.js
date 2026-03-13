@@ -55,9 +55,9 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
     controller.addListener("classNeedsToBeCompiled", this.__onClassNeedsToBeCompiled, this);
     controller.addListener("compilingClass", this.__onCompilingClass, this);
     controller.addListener("compiledClass", this.__onCompiledClass, this);
-    controller.getDiscovery().addListener("classAdded", this.__onClassAdded, this);
-    controller.getDiscovery().addListener("classRemoved", this.__onClassRemoved, this);
-    controller.getDiscovery().addListener("classChanged", this.__onClassChanged, this);
+    controller.getDiscovery().addListener("fileAdded", this.__onFileAdded, this);
+    controller.getDiscovery().addListener("fileRemoved", this.__onFileRemoved, this);
+    controller.getDiscovery().addListener("fileChanged", this.__onFileChanged, this);
     controller.addListener("addMaker", this.__onAddMaker, this);
   },
 
@@ -70,9 +70,9 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      *
      * @param {qx.event.type.Data} e
      */
-    __onClassAdded(e) {
-      let classname = e.getData();
-      qx.tool.compiler.Console.logVerbose(`Added class ${classname} to discovery.`);
+    __onFileAdded(e) {
+      let filename = e.getData();
+      qx.tool.compiler.Console.logVerbose(`Added file ${filename} to discovery.`);
     },
 
     /**
@@ -80,9 +80,9 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      *
      * @param {qx.event.type.Data} e
      */
-    __onClassRemoved(e) {
-      let classname = e.getData();
-      qx.tool.compiler.Console.logVerbose(`Removed class ${classname} from discovery.`);
+    __onFileRemoved(e) {
+      let filename = e.getData();
+      qx.tool.compiler.Console.logVerbose(`Removed file ${filename} from discovery.`);
     },
 
     /**
@@ -90,9 +90,9 @@ qx.Class.define("qx.tool.compiler.feedback.ConsoleFeedback", {
      *
      * @param {qx.event.type.Data} e
      */
-    __onClassChanged(e) {
-      let classname = e.getData();
-      qx.tool.compiler.Console.logVerbose(`Detected change to class ${classname} in discovery.`);
+    __onFileChanged(e) {
+      let filename = e.getData();
+      qx.tool.compiler.Console.logVerbose(`Detected change to file ${filename} in discovery.`);
     },
 
     /**
