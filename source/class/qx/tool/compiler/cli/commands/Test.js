@@ -192,7 +192,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
         }
       });
 
-      this.addListener("afterStart", async () => {
+      this.addListenerOnce("afterStart", async () => {
         qx.tool.compiler.Console.info(`Running unit tests`);
         if (this.argv.verbose) {
           console.log(this.argv);

@@ -18,12 +18,12 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
   extend: qx.core.Object,
   /**
    *
-   * @param {?number} size Number of workers in the pool. Defaults to number of CPU cores minus one.
+   * @param {?number} size Number of workers in the pool. Defaults to number of CPU cores / 2
    * @param {?Function} workerFactory Optional factory function that creates a worker. Defaults to creating a Worker from the current process.
    */
   construct(size, workerFactory) {
     super();
-    this.__poolSize = size || os.cpus().length - 1;
+    this.__poolSize = size || Math.round(os.cpus().length / 2);
     this.__workerFactory = workerFactory || (() => new Worker(process.argv[1], { argv: ["transpiler-worker"] }));
     this.__workers = [];
     this.__queue = [];

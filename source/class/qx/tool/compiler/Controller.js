@@ -673,15 +673,15 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname);
       let compiled = cf.compile(source, sourceFilename);
 
-      let mappingUrl;
-      if (classFileConfig.applicationTypes.includes("browser")) {
-        mappingUrl = path.basename(outputFilename) + ".map?dt=" + Date.now();
-      } else {
-        mappingUrl = outputFilename + ".map";
-      }
-
-      await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
       if (compiled) {
+        let mappingUrl;
+        if (classFileConfig.applicationTypes.includes("browser")) {
+          mappingUrl = path.basename(outputFilename) + ".map?dt=" + Date.now();
+        } else {
+          mappingUrl = outputFilename + ".map";
+        }
+
+        await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
         await fs.promises.writeFile(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
         await fs.promises.writeFile(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
       }

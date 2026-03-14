@@ -297,7 +297,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("nJobs").set({
           shortCode: "j",
-          description: "Number of threads to use for compilation. By default it's number of CPU cores minus one. If set to zero, uses only the main thread.",
+          description: "Number of threads to use for compilation. By default it's number of CPU cores / 2. If set to zero, uses only the main thread.",
           type: "integer",
           value: null,
           required: false
@@ -483,7 +483,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       if (hasCustomCompiler && !this.argv.isCustom) {
         qx.tool.compiler.Console.log(">>>Custom compiler detected - compiling custom compiler first...");
         //we will compile our custom compiler first, then run it in a child process and let that take over.
-        let compilerCompiler = new qx.tool.compiler.Compiler({ ...data, compilerOnly: true, watch: false });
+        let compilerCompiler = new qx.tool.compiler.Compiler({ ...data, compilerOnly: true, watch: false, nJobs: 0 });
         await compilerCompiler.compileOnce();
 
         let makers = compilerCompiler.getMakers();

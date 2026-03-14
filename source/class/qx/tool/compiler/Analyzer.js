@@ -23,14 +23,8 @@
 /* eslint no-nested-ternary: 0 */
 /* eslint no-inner-declarations: 0 */
 
-var fs = require("fs");
-const path = require("path");
 
 var hash = require("object-hash");
-
-const { promisify } = require("util");
-const readFile = promisify(fs.readFile);
-const writeFile = promisify(fs.writeFile);
 
 var log = qx.tool.utils.LogManager.createLog("analyzer");
 
