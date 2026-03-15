@@ -29,7 +29,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
     async createCliCommand(clazz = this) {
       let cmd = await qx.tool.compiler.cli.Command.createCliCommand(clazz);
       cmd.set({
-        name: "transpiler-worker"
+        name: "transpiler-worker",
+        hidden: true
       });
       return cmd;
     }

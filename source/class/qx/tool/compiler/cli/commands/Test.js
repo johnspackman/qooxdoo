@@ -192,7 +192,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
         }
       });
 
-      this.addListenerOnce("afterStart", async () => {
+      this.addListener("afterStart", async () => {
         qx.tool.compiler.Console.info(`Running unit tests`);
         if (this.argv.verbose) {
           console.log(this.argv);
@@ -210,7 +210,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
         }
         // for bash exitcode is not allowed to be more then 255!
         // We must exit the process here because serve runs infinite!
-        process.exit(Math.min(255, this.getExitCode()));
+        process.exitCode = Math.min(255, this.getExitCode());
       });
 
       if (this.__needsServer()) {
@@ -220,7 +220,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
         // compile only
         await qx.tool.compiler.cli.commands.Compile.prototype.process.call(this);
         // since the server is not started, manually fire the event necessary for firing the "runTests" event
-        await this.fireDataEventAsync("afterStart");
+        await this.fireEventAsync("afterStart");
       }
     },
 

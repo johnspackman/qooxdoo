@@ -108,6 +108,9 @@ qx.Class.define("qx.tool.compiler.cli.Command", {
         if (!c) {
           continue;
         }
+        if (!qx.Class.isSubClassOf(c, qx.tool.compiler.cli.Command)) {
+          continue;
+        } 
         if (!c.createCliCommand) {
           continue;
         }

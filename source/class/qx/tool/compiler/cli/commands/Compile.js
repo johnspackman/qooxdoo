@@ -324,7 +324,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("is-custom").set({
           description: "Whether this compiler is a custom compiler. DO NOT set this flag manually; it is reserved for internal use.",
-          type: "string"
+          type: "string",
+          hidden: true
         })
       );
 
@@ -443,6 +444,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
      * @type {qx.tool.compiler.Compiler}
      */
     __compiler: null,
+
     /**
      * @Override
      */
@@ -479,8 +481,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       };
 
 
-      let hasCustomCompiler = compileConfig.applications.find(app => app.compiler);
-      if (hasCustomCompiler && !this.argv.isCustom) {
+      if (this._hasCustomCompiler() && !this._isCustomCompiler()) {
         qx.tool.compiler.Console.log(">>>Custom compiler detected - compiling custom compiler first...");
         //we will compile our custom compiler first, then run it in a child process and let that take over.
         let compilerCompiler = new qx.tool.compiler.Compiler({ ...data, compilerOnly: true, watch: false, nJobs: 0 });
@@ -501,10 +502,12 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
           }
         });
         
-        return new Promise((resolve, reject) => {
-          cp.on("exit", (code, signal) => {
+        await new Promise(() => {
+          cp.on("exit", (code) => {
             process.exitCode = code;
-            resolve();
+            // exit process. The whole work is done by the custom compiler, 
+            // so we just need to exit with the correct code here.
+            process.exit();
           });
         });
       }
@@ -512,7 +515,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       let compiler;
       //if we are running as a custom compiler,
       //we need to get and load the custom compiler class
-      if (this.argv.isCustom) {
+      if (this._isCustomCompiler()) {
         let compilerClassName = qx.core.Environment.get("qx.tool.compiler.Compiler.compilerClass");
         if (!compilerClassName) {
           throw new Error("Your project is set to use a custom compiler but the environment setting qx.tool.compiler.Compiler.compilerClass is not set. \
@@ -528,7 +531,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
           throw new Error("Compiler class " + compilerClassName + " does not implement qx.tool.compiler.ICompilerInterface");
         }
 
-        compiler = new CompilerClass(data);
+          compiler = new CompilerClass(data);
       } else {
         compiler = new qx.tool.compiler.Compiler(data);
       }
@@ -543,17 +546,16 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
       qx.tool.compiler.Console.log(">>> Starting compilation of project...");
       await compiler.start(data);
-      await new Promise(resolve => {
+      return new Promise(resolve => {
         compiler.addListenerOnce("made", async () => {
           if (!this.argv.watch) {
             await compiler.stop();
-            this.__exit();
+            this._exit();
             resolve();
           }
           //If we are watching, we never exit so this promise never resolves!
         });
       });
-      return process.exitCode;
     },
 
     /**
@@ -564,11 +566,29 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
     getMakers() {
       return this.__compiler.getMakers();
     },
+    
+    /**
+     *  Returns whether this compiler is a custom compiler (i.e. whether it contains any applications with a custom compiler specified). 
+     * @returns {boolean}
+     */
+    _hasCustomCompiler() {
+      let compileConfig = this.getCompilerApi().getConfiguration();
+      return compileConfig.applications.find(app => app.compiler);
+    },  
+
+    /**
+     * Returns whether this compiler is running as a custom compiler (i.e. whether it was launched by another instance of Compile to run a custom compiler).
+     * @returns {boolean}
+     */
+    _isCustomCompiler() {
+      return this.argv.isCustom;
+    },
+   
 
     /**
      * Exits the process with the correct exit code
      */
-    __exit() {
+    _exit() {
       let makers = this.getMakers();
       let success = makers.every(maker => maker.success);
       let hasWarnings = makers.some(maker => maker.hasWarnings);
