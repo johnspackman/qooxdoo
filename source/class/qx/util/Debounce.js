@@ -32,15 +32,12 @@ qx.Class.define("qx.util.Debounce", {
   construct(cb, timeout) {
     super();
     this.__callback = cb;
-    if (timeout) {
-      this.setTimeout(timeout);
-    }
+    this.setTimeout(timeout);
   },
 
   properties: {
     /** The timeout before firing the method */
     timeout: {
-      init: 250,
       nullable: false,
       check: "Integer",
       event: "changeTimeout"
