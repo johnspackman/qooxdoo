@@ -503,7 +503,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
         });
         
         await new Promise(() => {
-          cp.on("exit", (code) => {
+          cp.on("exit", code => {
             process.exitCode = code;
             // exit process. The whole work is done by the custom compiler, 
             // so we just need to exit with the correct code here.
