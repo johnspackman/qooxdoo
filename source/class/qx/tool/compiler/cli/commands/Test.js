@@ -209,8 +209,9 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
           await test.execute();
         }
         // for bash exitcode is not allowed to be more then 255!
-        // We must exit the process here because serve runs infinite!
         process.exitCode = Math.min(255, this.getExitCode());
+        // We must exit the process here because serve runs infinite!
+        process.exit(); 
       });
 
       if (this.__needsServer()) {
