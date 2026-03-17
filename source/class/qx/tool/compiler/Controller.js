@@ -666,6 +666,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       if (transformer && transformer.shouldTransform(sourceInfo)) {
         source = transformer.transform(sourceInfo);
         if (qx.core.Environment.get("qx.tool.compiler.writeTransformedSources")) {
+          await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
           fs.promises.writeFile(outputFilename + ".trans", source, "utf8"); //no need to await this because it's just for the user to see
         }
       }
