@@ -214,8 +214,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
    * @param {qx.tool.compiler.meta.MetaDatabase} metaDb the meta database
    * @param {qx.tool.compiler.ClassFileConfig} compileConfig the configuration for the class compilation
    * @param {String} className the full name of the class
+   * @param {string} manglePrefix The prefix used for mangling/minifying privates, unique to this class
    */
-  construct(metaDb, compileConfig, className) {
+  construct(metaDb, compileConfig, className, manglePrefix) {
     super();
 
     this.__metaDb = metaDb;
@@ -250,6 +251,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     this.__privates = {};
     this.__blockedPrivates = {};
     this.__privateMangling = this.__compileConfig.getManglePrivates();
+    this.__manglePrefix = manglePrefix;
 
     for (let key of this.__compileConfig.getSymbols()) {
       this.__globalSymbols[key] = true;
@@ -296,6 +298,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     __blockedPrivates: null,
     __externals: null,
     __commonjsModules: null,
+    __manglePrefix: null,
+
     /**
      * Loads the source, transpiles and analyzes the code, storing the result in outputPath
      *
@@ -2343,17 +2347,11 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           this.addMarker("class.blockedMangle", location, name);
           return name;
         }
-        let prefixes = this.__compileConfig.getManglePrefixes();
-        let prefix = prefixes.classPrefixes[this.__className];
-        if (!prefix) {
-          prefix = "__P_" + ++prefixes.nextPrefix + "_";
-          prefixes.classPrefixes[this.__className] = prefix;
-        }
 
         if (this.__privateMangling == "readable") {
-          coded = this.__privates[name] = name + prefix + Object.keys(this.__privates).length;
+          coded = this.__privates[name] = name + this.__manglePrefix + Object.keys(this.__privates).length;
         } else {
-          coded = this.__privates[name] = prefix + Object.keys(this.__privates).length;
+          coded = this.__privates[name] = this.__manglePrefix + Object.keys(this.__privates).length;
         }
       }
       return coded;

@@ -263,6 +263,31 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     },
 
     /**
+     * Returns a prefix that is unique to a particular class,
+     * used for mangling privates.
+     * 
+     * @param {string} classname 
+     * @returns {string}
+     */
+    getManglePrefix(classname) {
+      let db = this.__db;
+      if (!db.manglePrefixes) {
+        db.manglePrefixes = {
+          nextPrefix: 1,
+          classPrefixes: {}
+        };
+      }
+
+      let prefixes = db.manglePrefixes;
+      let prefix = prefixes.classPrefixes[classname];
+      if (!prefix) {
+        prefix = "__P_" + ++prefixes.nextPrefix + "_";
+        prefixes.classPrefixes[classname] = prefix;
+      }
+      return prefix;
+    },
+
+    /**
      * Scans the source files for javascript class and resource references and
      * calculates the dependency tree
      *

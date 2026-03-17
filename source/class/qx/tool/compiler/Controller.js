@@ -33,6 +33,8 @@ const path = require("upath");
  * @property {string} classname
  * @property {string} filename Absolute path of source file
  * @property {string} source The source code itself
+ * @property {string} manglePrefix The prefix used for mangling privates to make them distinct across different classes
+ * 
  * 
  * @typedef {Object} MakerInfo
  * @property {qx.tool.compiler.ISourceTransformer?} transformer
@@ -607,7 +609,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let sourceInfo = {
         classname,
         sourceFilename: sourceFilename,
-        outputFilename: outputFilename
+        outputFilename: outputFilename,
+        manglePrefix: analyzer.getManglePrefix(classname)
       };
 
 
@@ -656,7 +659,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     /**
      * Tranforms (if applicable), transpiles and writes output to disk
      * @param {SourceInfo} sourceInfo
-     * @param {qx.tool.compiler.Controller.MakerInfo} makerInfo
+     * @param {MakerInfo} makerInfo
      * @param {qx.tool.compiler.meta.MetaDatabase} metaDb
      * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>}
      */
@@ -674,7 +677,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         }
       }
 
-      let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname);
+      let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname, sourceInfo.manglePrefix);
       let compiled = cf.compile(source, sourceFilename);
 
       if (compiled.code) {

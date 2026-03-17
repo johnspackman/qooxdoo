@@ -28,8 +28,6 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
       check: "Boolean"
     },
 
-    manglePrefixes: {},
-
     ignores: {
       init: [],
       check: "Array"
@@ -76,15 +74,6 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
         symbols = [...CF.QX_GLOBALS, ...CF.COMMON_GLOBALS, ...CF.BROWSER_GLOBALS];
       }
       config.setSymbols(symbols);
-
-      let db = analyzer.getDatabase();
-      if (!db.manglePrefixes) {
-        db.manglePrefixes = {
-          nextPrefix: 1,
-          classPrefixes: {}
-        };
-      }
-      config.setManglePrefixes(db.manglePrefixes);
       config.setManglePrivates(analyzer.getManglePrivates());
 
       return config;
