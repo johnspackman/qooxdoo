@@ -28,8 +28,6 @@ const path = require("upath");
  * compiling them for targets, and relaying information about modifications to the
  * makers
  * 
- * @typedef {Object} CompileInfo
- * @property {DbClassInfo} dbClassInfo - the database class information
  * 
  * @typedef {Object} SourceInfo Information regarding the source file to be compiled
  * @property {string} classname
@@ -39,6 +37,8 @@ const path = require("upath");
  * @typedef {Object} MakerInfo
  * @property {qx.tool.compiler.ISourceTransformer?} transformer
  * @property {qx.tool.compiler.ClassFileConfig} classFileConfig
+ * 
+ * @typedef {{ dbClassInfo: qx.tool.compiler.ClassFile.DbClassInfo, cached: boolean}} CompilationResult
  * 
  */
 qx.Class.define("qx.tool.compiler.Controller", {
@@ -403,10 +403,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
      *
      * @param {qx.tool.compiler.Analyzer} analyzer
      * @param {String} classname
-     * @param {boolean} cached Whether the cached compile result was taken
+     * @param {CompilationResult} result Result of the compilation
      */
-    _onClassCompiled(analyzer, classname, cached) {      
-      if (!cached) {
+    _onClassCompiled(analyzer, classname, result) {      
+      if (!result.cached) {
         this.fireDataEvent("compiledClass", { classname, analyzer });
         for (let maker of this.__makers) {
           if (maker.getAnalyzer() === analyzer) {
@@ -418,6 +418,19 @@ qx.Class.define("qx.tool.compiler.Controller", {
               }
             }
           }
+        }
+      }
+
+      //Only print the markers when we are making,
+      //because all the classes get re-checked anyway when we make
+      //and this will prevent duplicated markers being printed
+      if (Object.keys(this.__makingMakers).length > 0) {
+        let markers = result.dbClassInfo.markers;
+        if (markers) {
+          markers.forEach(function (marker) {
+            var str = qx.tool.compiler.Console.decodeMarker(marker);
+            qx.tool.compiler.Console.warn(classname + ": " + str + ` (${analyzer.getMaker().getTarget().getOutputDir()})`);
+          });
         }
       }
 
@@ -488,7 +501,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         .then(result => {
           if (promise === this.__compilingClasses[hashKey]) {
             delete this.__compilingClasses[hashKey];
-            this._onClassCompiled(analyzer, classname, result.cached);
+            this._onClassCompiled(analyzer, classname, result);
             return result.dbClassInfo;
           } else {
             return this.__compilingClasses[hashKey];
@@ -496,7 +509,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         })
         .catch(err => {
           delete this.__compilingClasses[hashKey];
-          qx.tool.compiler.Console.error("Error compiling class " + classname + ": " + err.message);
+          qx.tool.compiler.Console.error("Unhandled exception while compiling class " + classname + ": " + err.stack);
           return { fatalCompileError: true };
         });
       this.__compilingClasses[hashKey] = promise;
@@ -532,12 +545,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {qx.tool.compiler.Analyzer} analyzer
      * @param {String} classname
      * @param {Boolean} force
-     * @returns {Promise<CompileInfo>}
+     * @returns {Promise<CompilationResult>}
      */
     async __compileClassImpl(analyzer, classname, force) {
       let meta = this.__metaDb.getMetaData(classname);
       if (!meta) {
-        throw new Error(`Cannot find class ${classname} in project/libraries.`);
+        qx.tool.compiler.Console.error(`Cannot find class ${classname} in project/libraries.`);
+        return { dbClassInfo: { fatalCompileError: true } };
       }
 
       let sourceFilename = path.resolve(path.join(this.__metaDb.getRootDir(), meta.classFilename));
@@ -597,42 +611,31 @@ qx.Class.define("qx.tool.compiler.Controller", {
       };
 
 
-      let compiled;
+      let dbClassInfoNew;
       if (this.__transpilerPool) {
-        compiled = await this.__transpilerPool.callMethod("transpile", [sourceInfo, analyzer.getMaker().toHashCode()]);
+        dbClassInfoNew = await this.__transpilerPool.callMethod("transpile", [sourceInfo, analyzer.getMaker().toHashCode()]);
       } else {
         let makerInfo = {
           classFileConfig: analyzer.getClassFileConfig(),
           transformer: analyzer.getMaker().getTransformer()
         };
-        compiled = await qx.tool.compiler.Controller.transpile(sourceInfo, makerInfo, this.__metaDb);
+        dbClassInfoNew = await qx.tool.compiler.Controller.transpile(sourceInfo, makerInfo, this.__metaDb);
       }
 
-      if (compiled) {
-        //Update dbClassInfo
-        delete dbClassInfo.unresolved;
-        delete dbClassInfo.dependsOn;
-        delete dbClassInfo.assets;
-        delete dbClassInfo.translations;
-        delete dbClassInfo.markers;
-        delete dbClassInfo.fatalCompileError;
-        delete dbClassInfo.commonjsModules;
-  
-        for (var key in compiled.dbClassInfo) {
-          dbClassInfo[key] = compiled.dbClassInfo[key];
-        }
-        
-        await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
-  
-        let markers = dbClassInfo.markers;
-        if (markers) {
-          markers.forEach(function (marker) {
-            var str = qx.tool.compiler.Console.decodeMarker(marker);
-            console.warn(classname + ": " + str + ` (${analyzer.getMaker().getTarget().getOutputDir()})`);
-          });
-        }
-      }
+      //Update dbClassInfo
+      delete dbClassInfo.unresolved;
+      delete dbClassInfo.dependsOn;
+      delete dbClassInfo.assets;
+      delete dbClassInfo.translations;
+      delete dbClassInfo.markers;
+      delete dbClassInfo.fatalCompileError;
+      delete dbClassInfo.commonjsModules;
 
+      for (var key in dbClassInfoNew) {
+        dbClassInfo[key] = dbClassInfoNew[key];
+      }
+      
+      await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
 
       return { dbClassInfo, cached: false };
     },
@@ -655,7 +658,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {SourceInfo} sourceInfo
      * @param {qx.tool.compiler.Controller.MakerInfo} makerInfo
      * @param {qx.tool.compiler.meta.MetaDatabase} metaDb
-     * @returns {Promise<CompileInfo>}
+     * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>}
      */
     async transpile(sourceInfo, makerInfo, metaDb) {
       let { classFileConfig, transformer } = makerInfo;
@@ -674,7 +677,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname);
       let compiled = cf.compile(source, sourceFilename);
 
-      if (compiled) {
+      if (compiled.code) {
         let mappingUrl;
         if (classFileConfig.applicationTypes.includes("browser")) {
           mappingUrl = path.basename(outputFilename) + ".map?dt=" + Date.now();
@@ -686,7 +689,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
         await fs.promises.writeFile(outputFilename, compiled.code + "\n\n//# sourceMappingURL=" + mappingUrl, "utf8");
         await fs.promises.writeFile(outputFilename + ".map", JSON.stringify(compiled.map, null, 2), "utf8");
       }
-      return compiled ? { dbClassInfo: compiled.dbClassInfo } : null;
+      return compiled.dbClassInfo;
     }
   }
 });

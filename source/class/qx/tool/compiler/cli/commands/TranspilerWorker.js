@@ -76,7 +76,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
     /**
      * @param {SourceInfo} sourceInfo
      * @param {string} makerId ID of the maker so that we can look up the correct class file config
-     * @returns {qx.tool.compiler.ClassFile.CompileResult}
+     * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>}
      */
     async transpile(sourceInfo, makerId) {
       let start = Date.now();

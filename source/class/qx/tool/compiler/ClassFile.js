@@ -314,7 +314,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       t.__fatalCompileError = false;
       t.__numClassesDefined = 0;
 
-      var result;
+      var result = {};
       try {
         let babelConfig = t.__compileConfig.getBabelConfig() || {};
         let options = qx.lang.Object.clone(babelConfig.options || {}, true);
@@ -385,21 +385,23 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         let transform = babelCore.transform(src, config);
         result = {code: transform.code, map: transform.map};
       } catch (ex) {
-        t.addMarker("compiler.syntaxError", ex.loc, ex.message);
-        t.__fatalCompileError = true;
-        t._compileDbClassInfo();
-        return;
+        if (ex.loc) { //this means it's a Babel parse exception
+          t.addMarker("compiler.syntaxError", ex.loc, ex.message);
+          t.__fatalCompileError = true;
+        } else {
+          //Some other exception, most likely due to a bug in our code
+          throw ex;
+        }
       }
 
       if (!t.__numClassesDefined) {
         t.addMarker("compiler.missingClassDef");
         t.__fatalCompileError = true;
-        t._compileDbClassInfo();
-        return;
       }
 
-      result.dbClassInfo = this.__dbClassInfo;
+      t._compileDbClassInfo();
 
+      result.dbClassInfo = this.__dbClassInfo;
       return result;
     },
 
@@ -481,7 +483,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           });
         }
 
-        // Class heirararchy
+        // Class hierarchy
         dbClassInfo.extends = meta.superClass;
         dbClassInfo.include = meta.mixins.slice(0);
         dbClassInfo.implement = meta.interfaces.slice(0);
