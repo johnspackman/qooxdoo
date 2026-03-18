@@ -154,7 +154,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
       let watchedPaths = Object.values(this.__watchedPaths);
       this.__watchedPaths = {};
       for (let watchedPath of watchedPaths) {
-        if (watchedPath.watcher) {
+        if (watchedPath?.watcher) {
           await watchedPath.watcher.close();
         }
       }

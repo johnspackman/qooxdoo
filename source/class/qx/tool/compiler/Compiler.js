@@ -177,6 +177,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         this.__controller.addListenerOnce("allMakersMade", resolve);
       });
     },
+
+    /**
+     * 
+     * @returns {boolean} Whether an error has been encountered during startup
+     */
+    hasStartError() {
+      return this.__controller.hasStartError();
+    },
+
     /**
      * @override
      */

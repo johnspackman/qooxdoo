@@ -531,7 +531,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
           throw new Error("Compiler class " + compilerClassName + " does not implement qx.tool.compiler.ICompilerInterface");
         }
 
-          compiler = new CompilerClass(data);
+        compiler = new CompilerClass(data);
       } else {
         compiler = new qx.tool.compiler.Compiler(data);
       }
@@ -539,19 +539,17 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       this.__compiler = compiler;
 
       //relay the events
-      let events = Object.keys(qx.tool.compiler.ICompilerInterface.$$events);      
+      let events = Object.keys(qx.tool.compiler.ICompilerInterface.$$events);
       for (let event of events) {
         compiler.addListener(event, evt => this.dispatchEvent(evt.clone()));
       }
 
       qx.tool.compiler.Console.log(">>> Starting compilation of project...");
       await compiler.start(data);
-      return new Promise(resolve => {
-        compiler.addListenerOnce("made", async () => {
+      return new Promise((resolve, reject) => {
+        compiler.addListenerOnce("made", () => {
           if (!this.argv.watch) {
-            await compiler.stop();
-            this._exit();
-            resolve();
+            this._exit().then(resolve, reject);
           }
           //If we are watching, we never exit so this promise never resolves!
         });
@@ -586,11 +584,12 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
    
 
     /**
-     * Exits the process with the correct exit code
+     * Runs the finalization code ran on exit
+     * @returns {integer} the process exit code
      */
-    _exit() {
+    async _exit() {
       let makers = this.getMakers();
-      let success = makers.every(maker => maker.success);
+      let success = makers.every(maker => maker.success) && !this.__compiler.hasStartError();
       let hasWarnings = makers.some(maker => maker.hasWarnings);
       if (success && hasWarnings && this.argv.warnAsError) {
         success = false;
@@ -614,7 +613,8 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
             "   *******************************************************************************************"
         );
       }
-      process.exitCode = success ? 0 : 1;
+      await this.__compiler.stop();
+      return success ? 0 : 1;
     }
   },
 

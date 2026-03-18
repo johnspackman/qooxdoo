@@ -274,13 +274,15 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * Unless you are sure that this method is appropriate, you should use `addFile()` instead.
      *
      * @param {String} filename
+     * @return {boolean} False if there were any user errors in the file e.g. syntax errors, true otherwise
      */
     async fastAddFile(filename) {
       filename = path.resolve(filename);
       if (!this.__metaByFilename[filename] || this.__startupDetectedOutOfDate[filename]) {
         delete this.__startupDetectedOutOfDate[filename];
-        await this.addFile(filename, true);
+        return await this.addFile(filename, true);
       }
+      return true;
     },
 
     /**
@@ -288,14 +290,14 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      *
      * @param {String} filename
      * @param {Boolean} force Always recompute the meta, even if it's up to date
-     * @returns {Promise<boolean>} Whether the file was added successfully. 
+     * @returns {Promise<boolean>} False if there were any fundamental user errors in the project code (e.g. syntax errors), true otherwise
      */
     async addFile(filename, force) {
       filename = await qx.tool.utils.files.Utils.correctCase(filename);
       filename = path.resolve(filename);
       let meta = this.__metaByFilename[filename];
       if (meta && !force && !(await meta.isOutOfDate())) {
-        return false;
+        return true;
       }
 
       let libraries = Object.values(this.getDatabase().libraries || {}).map(l => l.sourceDir);
@@ -306,13 +308,14 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       try {
         var metaData = await meta.parse(filename);
       } catch (ex) {
-        console.error("Failed to parse meta data for file " + filename + ": " + ex.message);
+        qx.tool.compiler.Console.error("Failed to parse meta data for file " + filename + ": " + ex.message);
         return false;
       }
 
       let classname = metaData.className;
       if (metaData.className === undefined) {
-        return false;
+        //This may seem like an error, but we do have files which don't define classes, e.g. packages' __init__.js
+        return true;
       }
       this.__metaByClassname[metaData.className] = meta;
       this.__metaByFilename[filename] = meta;

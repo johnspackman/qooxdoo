@@ -140,6 +140,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
   members: {
     /**
+     * Whether this controller has encountered an error during calling the `start()` method
+     */
+    __startError: false,
+    /**
      * Whether to watch for file changes
      */
     __watch: false,
@@ -263,7 +267,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       // Scan the discovered classes and add them to the meta database
       let discoveredFiles = this.__discovery.getDiscoveredFiles();
-      await Promise.all(discoveredFiles.map(file => metaDb.fastAddFile(file, false)));
+      let addMetaResults = await Promise.all(discoveredFiles.map(file => metaDb.fastAddFile(file, false)));
+      this.__startError ??= addMetaResults.any(x => !x);
       this.fireEvent("addedDiscoveredClasses");
 
       
@@ -338,6 +343,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
         this.__makeMaker(maker);
       }
       this.fireEvent("started");
+    },
+
+    /**
+     * 
+     * @returns {boolean}
+     */
+    hasStartError() {
+      return this.__startError;
     },
 
     async stop() {
