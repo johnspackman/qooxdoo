@@ -28,7 +28,7 @@ const path = require("upath");
  * @ignore(loadSass)
  */
 /* global loadSass */
-const sass = loadSass();
+const sass = window["loadSass"]();
 
 /**
  * @ignore(process)

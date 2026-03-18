@@ -27,7 +27,7 @@ const path = require("upath");
  * @ignore(loadSass)
  */
 /* global loadSass */
-const sass = loadSass();
+const sass = window["loadSass"]();
 const fs = qx.tool.utils.Promisify.fs;
 
 qx.Class.define("qx.tool.compiler.resources.ScssConverter", {
