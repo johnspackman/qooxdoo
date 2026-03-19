@@ -327,13 +327,25 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
         // Events
         else if (propertyName == "events") {
           metaData.events = {};
-          property.value.properties.forEach(event => {
-            let name = event.key.name;
+          let eventAnnotations = {};
+          let eventPaths = path.get("value.properties");
+          if (!Array.isArray(eventPaths)) {
+            eventPaths = [eventPaths];
+          }
+          eventPaths.forEach(eventPath => {
+            let event = eventPath.node;
+            let name = event.key.type === "StringLiteral" ? event.key.value : event.key.name;
+            if (name && name[0] === "@") {
+              eventAnnotations[name] = eventPath.get("value").toString();
+              return;
+            }
+            if (!name) {
+              return;
+            }
             metaData.events[name] = {
               type: null,
               jsdoc: qx.tool.utils.BabelHelpers.getJsDoc(event.leadingComments)
             };
-
             if (event.value.type == "StringLiteral") {
               metaData.events[name].type = event.value.value;
               metaData.events[name].location = {
@@ -342,6 +354,12 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
               };
             }
           });
+          for (let annoName in eventAnnotations) {
+            let bareName = annoName.substring(1);
+            if (metaData.events[bareName]) {
+              metaData.events[bareName].annotation = forceArray(eventAnnotations[annoName]);
+            }
+          }
         }
 
         // Properties
