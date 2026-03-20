@@ -191,6 +191,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      * @param {String} rootDir the directory where the file is located (used to determine the package name)
      */
     __onFileChange(event, filename, rootDir) {
+      filename = path.normalize(filename);
       let packageName = path.relative(rootDir, filename);
       packageName = packageName.split(path.sep);
       packageName.pop();
