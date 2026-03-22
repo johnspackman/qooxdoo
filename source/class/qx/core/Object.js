@@ -272,10 +272,7 @@ qx.Class.define("qx.core.Object", {
         if (property && this.$$propertyValues && this.$$propertyValues[name] !== undefined) {
           var value = this.$$propertyValues[name].value;
           if (value !== undefined) {
-            var setter = "set" + qx.lang.String.firstUp(name);
-            if (clone[setter]) {
-              clone[setter](value);
-            }
+            qx.data.SingleValueBinding.setSafe(clone, name, value);
           }
         }
       }

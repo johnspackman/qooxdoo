@@ -762,5 +762,50 @@ qx.Class.define("qx.data.SingleValueBinding", {
       }
       return out.filter(s => s.length > 0);
     },
+
+    /**
+     * Calls the setter for a property. Throws if setter doesn't exist.
+     * @param {Object} obj
+     * @param {string} propName
+     * @param {*} value
+     */
+    set(obj, propName, value) {
+      return obj["set" + qx.lang.String.firstUp(propName)](value);
+    },
+
+    /**
+     * Calls the setter only if it exists on obj.
+     * @param {Object} obj
+     * @param {string} propName
+     * @param {*} value
+     * @return {boolean} true if setter was found and called
+     */
+    setSafe(obj, propName, value) {
+      const setter = "set" + qx.lang.String.firstUp(propName);
+      if (obj[setter]) {
+        obj[setter](value);
+        return true;
+      }
+      return false;
+    },
+
+    /**
+     * Calls the getter for a property.
+     * @param {Object} obj
+     * @param {string} propName
+     * @return {*}
+     */
+    get(obj, propName) {
+      return obj["get" + qx.lang.String.firstUp(propName)]();
+    },
+
+    /**
+     * Calls the resetter for a property.
+     * @param {Object} obj
+     * @param {string} propName
+     */
+    reset(obj, propName) {
+      return obj["reset" + qx.lang.String.firstUp(propName)]();
+    }
   }
 });

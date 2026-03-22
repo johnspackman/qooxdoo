@@ -285,7 +285,7 @@ qx.Class.define("qx.theme.manager.Font", {
         qx.Class.getProperties(qx.bom.Font).forEach(propertyName => {
           let value = fontDef[propertyName];
           if (value !== undefined) {
-            font["set" + qx.lang.String.firstUp(propertyName)](value);
+            qx.data.SingleValueBinding.set(font, propertyName, value);
           }
         });
         createdFonts[fontId].themed = true;
@@ -301,9 +301,7 @@ qx.Class.define("qx.theme.manager.Font", {
         ["css", "fontFaces", "comparisonString", "version"].forEach(
           propertyName => {
             if (webFontDef[propertyName]) {
-              loader["set" + qx.lang.String.firstUp(propertyName)](
-                webFontDef[propertyName]
-              );
+              qx.data.SingleValueBinding.set(loader, propertyName, webFontDef[propertyName]);
             }
           }
         );

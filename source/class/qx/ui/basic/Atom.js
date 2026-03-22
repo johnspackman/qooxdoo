@@ -284,17 +284,16 @@ qx.Class.define("qx.ui.basic.Atom", {
 
     __safeSetPropertyOnLayout(value, propertyName) {
       const layout = this._getLayout();
-      const propertySetter = `set${qx.lang.String.firstUp(propertyName)}`;
-      if (layout[propertySetter]) {
-        layout[propertySetter](value);
-      } else if (qx.core.Environment.get("qx.debug")) {
-        this.warn(
-          `The \`${propertyName}\` property of a ${
-            this.classname
-          } was set, but the layout ${
-            this._getLayout().classname
-          } does not support a \`${propertyName}\` property.`
-        );
+      if (!qx.data.SingleValueBinding.setSafe(layout, propertyName, value)) {
+        if (qx.core.Environment.get("qx.debug")) {
+          this.warn(
+            `The \`${propertyName}\` property of a ${
+              this.classname
+            } was set, but the layout ${
+              this._getLayout().classname
+            } does not support a \`${propertyName}\` property.`
+          );
+        }
       }
     },
 
