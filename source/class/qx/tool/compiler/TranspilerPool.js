@@ -8,6 +8,8 @@ const os = require("os");
  * @property {Worker} worker
  * @property {CallTracker|null} pendingCall
  * @property {boolean} ready
+ * @property {number} replayIdx Index into __replayMessages during replay; advances to length when done
+ * @property {boolean} replayDone True once all replay messages have been processed
  *
  * @typedef {Object} CallTracker
  * @property {string} methodName
@@ -27,10 +29,7 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
     this.__workerFactory = workerFactory || (() => new Worker(process.argv[1], { argv: ["transpiler-worker"] }));
     this.__workers = [];
     this.__queue = [];
-
-    for (let i = 0; i < this.__poolSize; i++) {
-      this.__createWorker();
-    }
+    this.__replayMessages = [];
   },
 
   destruct() {
@@ -73,6 +72,12 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
     __queue: null,
 
     /**
+     * @type {Array<{methodName: string, args: Array}>}
+     * callAll messages to replay on lazily-created workers before they handle real work
+     */
+    __replayMessages: null,
+
+    /**
      * Calls a remote method on an available worker.
      * Queues the call if no worker is available.
      * @param {string} methodName
@@ -88,6 +93,9 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
           promise: { resolve, reject }
         };
         this.__queue.push(tracker);
+        if (this.__workers.length < this.__poolSize && !this.__workers.some(w => w.ready)) {
+          this.__createWorker();
+        }
         this.__checkQueue();
       });
     },
@@ -100,6 +108,7 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
      */
     callAll(methodName, args) {
       args ??= [];
+      this.__replayMessages.push({ methodName, args });
       let promises = [];
       for (let workerTracker of this.__workers) {
         if (!workerTracker.ready) {
@@ -127,25 +136,47 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
       let tracker = {
         worker,
         pendingCall: null,
-        ready: false
+        ready: false,
+        replayIdx: -1,
+        replayDone: false
       };
 
       this.__workers.push(tracker);
 
       worker.addListener("message", msg => {
         if (msg.type === "methodReturn") {
-          tracker.pendingCall.promise.resolve(msg.result);
-          tracker.pendingCall = null;
-          tracker.ready = true;
-          this.__checkQueue(tracker);
-        } else if (msg.type === "ready") {
-          tracker.ready = true;
-          this.__checkQueue(tracker);
-          if (++this.__nReady === this.__workers.length) {
-            this.fireEvent("allReady");
+          if (!tracker.replayDone) {
+            tracker.replayIdx++;
+            this.__sendNextReplay(tracker);
+          } else {
+            tracker.pendingCall.promise.resolve(msg.result);
+            tracker.pendingCall = null;
+            tracker.ready = true;
+            this.__checkQueue(tracker);
           }
+        } else if (msg.type === "ready") {
+          tracker.replayIdx = 0;
+          this.__sendNextReplay(tracker);
         }
       });
+    },
+
+    /**
+     * Sends the next replay message to a worker, or marks it ready if all replays are done.
+     * @param {WorkerTracker} tracker
+     */
+    __sendNextReplay(tracker) {
+      if (tracker.replayIdx < this.__replayMessages.length) {
+        let msg = this.__replayMessages[tracker.replayIdx];
+        tracker.worker.postMessage({ type: "callMethod", methodName: msg.methodName, args: msg.args });
+      } else {
+        tracker.replayDone = true;
+        tracker.ready = true;
+        this.__checkQueue(tracker);
+        if (++this.__nReady === this.__workers.length) {
+          this.fireEvent("allReady");
+        }
+      }
     },
 
     /**

@@ -112,12 +112,32 @@ qx.Class.define("qx.test.tool.compiler.TranspilerPool", {
     async testCallAllDispatchesToAll() {
       let pool = new qx.tool.compiler.TranspilerPool(3, this.__createFactory());
       try {
-        await pool.waitForAllReady();
+        // With lazy creation, workers are only created when callMethod is called.
+        // Use slow calls (30ms) so all 3 workers are created and each receives exactly
+        // one task before any of them completes — guaranteeing all are ready afterwards.
+        await Promise.all([pool.callMethod("slow", [1]), pool.callMethod("slow", [2]), pool.callMethod("slow", [3])]);
         let results = await pool.callAll("echo", [99]);
         this.assertEquals(3, results.length);
         for (let r of results) {
           this.assertEquals(99, r);
         }
+      } finally {
+        pool.dispose();
+      }
+    },
+
+    async testWorkerCreatedLazily() {
+      let workerCount = 0;
+      let baseFactory = this.__createFactory();
+      let trackingFactory = () => {
+        workerCount++;
+        return baseFactory();
+      };
+      let pool = new qx.tool.compiler.TranspilerPool(4, trackingFactory);
+      try {
+        this.assertEquals(0, workerCount, "No workers should be created in construct()");
+        await pool.callMethod("echo", [1]);
+        this.assertEquals(1, workerCount, "Exactly one worker created for one call");
       } finally {
         pool.dispose();
       }
