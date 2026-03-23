@@ -2072,6 +2072,28 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           exit(path) {
             checkNodeJsDocDirectives(path.node);
             path.node.declarations.forEach(decl => {
+              const scanIdsRecursively = node => {
+                if (!node) return;
+                // Object destructuring `var {a,b} = {...}`
+                if (node.type == "ObjectPattern") {
+                  node.properties.forEach(scanIdsRecursively);
+                  // Array destructuring `var [a,b] = [...]`
+                } else if (node.type == "ArrayPattern") {
+                  node.elements.forEach(element => scanIdsRecursively(element));
+                } else if (node.type == "RestElement") {
+                  t.addDeclaration(node.argument.name);
+                } else if (node.type == "AssignmentPattern") {
+                  t.addDeclaration(node.left.name);
+                } else if (node.type == "ObjectProperty") {
+                  scanIdsRecursively(node.value);
+                } else if (node.type == "Identifier") {
+                  t.addDeclaration(node.name);
+                } else if (node.type == "AssignmentExpression") {
+                  t.addDeclaration(node.left.name);
+                } else {
+                  qx.tool.compiler.Console.warn(`Unknown variable declaration pattern: ${node.type}`, node.loc);
+                }
+              };
               // Simple `var x` form
               if (decl.id.type == "Identifier") {
                 let value = null;
@@ -2083,32 +2105,8 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                   }
                 }
                 t.addDeclaration(decl.id.name, value);
-
-                // Object destructuring `var {a,b} = {...}`
-              } else if (decl.id.type == "ObjectPattern") {
-                decl.id.properties.forEach(prop => {
-                  if (prop.type == "RestElement") {
-                    t.addDeclaration(prop.argument.name);
-                  } else if (prop.value.type == "AssignmentPattern") {
-                    t.addDeclaration(prop.value.left.name);
-                  } else {
-                    t.addDeclaration(prop.value.name);
-                  }
-                });
-
-                // Array destructuring `var [a,b] = [...]`
-              } else if (decl.id.type == "ArrayPattern") {
-                decl.id.elements.forEach(prop => {
-                  if (prop) {
-                    if (prop.type == "AssignmentPattern") {
-                      t.addDeclaration(prop.left.name);
-                    } else if (prop.type == "RestElement") {
-                      t.addDeclaration(prop.argument.name);
-                    } else {
-                      t.addDeclaration(prop.name);
-                    }
-                  }
-                });
+              } else {
+                scanIdsRecursively(decl.id);
               }
             });
           }
