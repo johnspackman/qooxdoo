@@ -798,8 +798,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             "group"
           ].forEach(name => {
             if (appConfig[name] !== undefined) {
-              var fname = "set" + qx.lang.String.firstUp(name);
-              app[fname](appConfig[name]);
+              app.set(name, appConfig[name]);
             }
           });
           allApplicationTypes[app.getType()] = true;
