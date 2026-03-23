@@ -433,7 +433,10 @@ qx.Class.define("qx.data.marshal.Json", {
           }
           propertyName = propertyNameReplaced;
           // only set the properties if they are available [BUG #5909]
-          qx.data.SingleValueBinding.setSafe(model, propertyName, this.__toModel(data[key], includeBubbleEvents, key, depth + 1));
+          var setterName = "set" + qx.lang.String.firstUp(propertyName);
+          if (model[setterName]) {
+            model[setterName](this.__toModel(data[key], includeBubbleEvents, key, depth + 1));
+          }
         }
         return model;
       }
