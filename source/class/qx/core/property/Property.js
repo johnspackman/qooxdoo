@@ -64,7 +64,13 @@ qx.Bootstrap.define("qx.core.property.Property", {
      * If set to true, this enables the deprecated `deferredInit` setting in property definitions,
      * before initFunctions were introduced.
      */
-    "qx.core.property.Property.allowDeferredInit": true
+    "qx.core.property.Property.allowDeferredInit": true,
+
+    /**
+     * If set to true, a warning will be shown if the apply method of a property returns a promise
+     * when set using set, not setAsync.
+     */
+    "qx.core.property.Property.applyReturnedPromiseWarning": false
   },
 
   members: {
@@ -187,6 +193,10 @@ qx.Bootstrap.define("qx.core.property.Property", {
         }
       }
       this.__definition = def;
+
+      if (qx.core.Environment.get("qx.debug")) {
+        this.__validateProperty();
+      }
 
       // Figure out the storage implementation
       if (def.storage) {
@@ -363,6 +373,54 @@ qx.Bootstrap.define("qx.core.property.Property", {
     },
 
     /**
+     * Ensures the property definition is in the correct format.
+     * Only runs during development mode.
+     */
+    __validateProperty() {
+      let def = this.__definition;
+      // Ensure they're not passing a qx.core.Object descendent as a property
+      if (qx.core.Environment.get("qx.debug")) {
+        if (qx.Bootstrap.isQxCoreObject(def)) {
+          throw new Error(`Property ${this}:` + "Can't use qx.core.Object descendent as property");
+        }
+      }
+
+      // Set allowed keys based on whether this is a grouped
+      // property or not
+      let allowedKeys = def.group ? qx.core.property.Property._allowedPropGroupKeys : qx.core.property.Property._allowedPropKeys;
+
+      // Ensure only allowed keys were provided
+      Object.keys(def).forEach(key => {
+        let allowed = allowedKeys[key];
+
+        if (!(key in allowedKeys)) {
+          throw new Error(`${this}: ` + (def.group ? "group " : "") + `property '${this}' defined with unrecognized key '${key}'`);
+        }
+
+        // Flag any deprecated keys
+        if (key in qx.core.property.Property.$$deprecatedPropKeys) {
+          console.warn(`Property '${this}': ` + `${qx.core.property.Property.$$deprecatedPropKeys[key]}`);
+        }
+
+        if (allowed !== null) {
+          // Convert non-array 'allowed' values to an array
+          if (!Array.isArray(allowed)) {
+            allowed = [allowed];
+          }
+
+          if (!allowed.includes(typeof def[key])) {
+            throw new Error(
+              `${this}: ` +
+                (def.group ? "group " : "") +
+                `property '${this}' defined with wrong value type ` +
+                `for key '${key}' (found ${typeof def[key]})`
+            );
+          }
+        }
+      });
+    },
+
+    /**
      * @Override
      */
     clone(clazz) {
@@ -395,14 +453,6 @@ qx.Bootstrap.define("qx.core.property.Property", {
      */
     defineProperty(clazz, patch) {
       let propertyName = this.__propertyName;
-      let scopePrefix = "";
-      if (propertyName.startsWith("__")) {
-        scopePrefix = "__";
-        propertyName = propertyName.substring(scopePrefix.length);
-      } else if (propertyName.startsWith("_")) {
-        scopePrefix = "_";
-        propertyName = propertyName.substring(scopePrefix.length);
-      }
       let upname = qx.Bootstrap.firstUp(propertyName);
       let self = this;
 
@@ -429,7 +479,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
       }
 
       const addMethod = (name, func) => {
-        clazz.prototype[scopePrefix + name] = func;
+        clazz.prototype[name] = func;
         qx.Bootstrap.setDisplayName(func, clazz.classname, "prototype." + name);
       };
 
@@ -445,7 +495,9 @@ qx.Bootstrap.define("qx.core.property.Property", {
         clazz.prototype["$$init_" + propertyName] = undefined;
       }
 
-      addMethod("init" + upname, function (...args) {
+      let methods = this.__definition?.$$mangledMethods ?? qx.core.property.Property.getInjectedMethods(propertyName)
+      
+      addMethod(methods.init, function (...args) {
         self.init(this, ...args);
       });
 
@@ -495,54 +547,95 @@ qx.Bootstrap.define("qx.core.property.Property", {
       propertyConfig.set = function (value) {
         self.set(this, value);
       };
-      Object.defineProperty(clazz.prototype, scopePrefix + propertyName, propertyConfig);
+      Object.defineProperty(clazz.prototype, propertyName, propertyConfig);
 
       if (!this.__pseudoProperty) {
-        addMethod("get" + upname, function (cb) {
-          if (cb) {
-            if (qx.core.Environment.get("qx.debug")) {
-              if (typeof cb !== "function") {
-                throw new Error(`${self}: If an argument is passed into getter, it must be a callback.`);
-              }
+        addMethod(methods.get, function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Getter of property ${this} called with arguments, which is not allowed`);
             }
-            return self.getAsync(this).then(cb);
-          } else {
-            return self.get(this);
           }
+          return self.get(this);
         });
-        addMethod("get" + upname + "Async", async function () {
+        addMethod(methods.getAsync, async function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Getter of property ${this} called with arguments, which is not allowed`);
+            }
+          }
           return await self.getAsync(this);
         });
       }
 
       if (this.__definition?.check === "Boolean") {
-        addMethod("is" + upname, function () {
+        addMethod(methods.is, function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Getter of property ${this} called with arguments, which is not allowed`);
+            }
+          }
           return self.get(this);
         });
-        addMethod("is" + upname + "Async", async function () {
+        addMethod(methods.isAsync, async function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Getter of property ${this} called with arguments, which is not allowed`);
+            }
+          }
           return await self.getAsync(this);
         });
-        addMethod("toggle" + upname, function () {
+        addMethod(methods.toggle, function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Toggle for property ${this} called with arguments, which is not allowed`);
+            }
+          }
           return self.set(this, !self.get(this));
         });
-        addMethod("toggle" + upname + "Async", async function () {
+        addMethod(methods.toggleAsync, async function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Toggle for property ${this} called with arguments, which is not allowed`);
+            }
+          }
           return await self.setAsync(this, !(await self.getAsync(this)));
         });
       }
 
       if (!this.__pseudoProperty) {
-        addMethod("set" + upname, function (value) {
+        addMethod(methods.set, function (value) {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length !== 1) {
+              throw new Error(`Setter for property ${this} called with wrong number of arguments. Ex`);
+            }
+          }
           self.set(this, value);
           return value;
         });
-        addMethod("set" + upname + "Async", async function (value) {
+        addMethod(methods.setAsync, async function (value) {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length !== 1) {
+              throw new Error(`Setter for property ${this} called with wrong number of arguments`);
+            }
+          }
           await self.setAsync(this, value);
           return value;
         });
-        addMethod("reset" + upname, function () {
+        addMethod(methods.reset, function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Resetter for property ${this} called with arguments, which is not allowed`);
+            }
+          }
           self.reset(this);
         });
-        addMethod("reset" + upname + "Async", function () {
+        addMethod(methods.resetAsync, function () {
+          if (qx.core.Environment.get("qx.debug")) {
+            if (arguments.length) {
+              throw new Error(`Resetter for property ${this} called with arguments, which is not allowed`);
+            }
+          }
           return self.resetAsync(this);
         });
       }
@@ -577,9 +670,12 @@ qx.Bootstrap.define("qx.core.property.Property", {
         }
       }
       let state = this.getPropertyState(thisObj);
-      if (state.initMethodCalled) {
-        this.warn(`${this}: init() called more than once, ignoring`);
-        return;
+
+      if (!this.supportsGetAsync()) {
+        if (state.initMethodCalled) {
+          this.warn(`${this}: init() called more than once, ignoring`);
+          return;
+        }
       }
       state.initMethodCalled = true;
 
@@ -599,8 +695,13 @@ qx.Bootstrap.define("qx.core.property.Property", {
       if (!this.isReadOnly()) {
         this.__storage.set(thisObj, this, value);
       }
-      this.__setMutating(thisObj, true);
-      thisObj["$$init_" + this.__propertyName] = value;
+    
+      if (!this.supportsGetAsync()) {
+        thisObj["$$init_" + this.__propertyName] = value;
+      }
+
+      this.__pushState(thisObj, "mutating");
+      this.__pushState(thisObj, "initializing");
 
       try {
         if (this.__apply) {
@@ -612,7 +713,8 @@ qx.Bootstrap.define("qx.core.property.Property", {
         }
         this.__applyValueToInheritedChildren(thisObj);
       } finally {
-        this.__setMutating(thisObj, false);
+        this.__popState(thisObj, "initializing");
+        this.__popState(thisObj, "mutating");
       }
     },
 
@@ -947,7 +1049,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
         return;
       }
 
-      this.__setMutating(thisObj, true);
+      this.__pushState(thisObj, "mutating");
 
       if (value === undefined) {
         value = null;
@@ -956,12 +1058,14 @@ qx.Bootstrap.define("qx.core.property.Property", {
       if (this.__apply) {
         let out = this.__callFunction(thisObj, this.__apply, value, oldValue, this.__propertyName);
 
-        if (qx.lang.Type.isPromise(out)) {
-          this.warn(
+        if (qx.core.Environment.get("qx.core.property.Property.applyReturnedPromiseWarning")) {
+          if (qx.lang.Type.isPromise(out)) {
+            this.warn(
             "Apply function for property " +
-              this +
+            this +
               " returned a Promise, but the property was set synchronously. The promise will be ignored."
-          );
+            );
+          }
         }
       }
 
@@ -972,7 +1076,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
       if (this.isInheritable()) {
         this.__applyValueToInheritedChildren(thisObj);
       }
-      this.__setMutating(thisObj, false);
+      this.__popState(thisObj, "mutating");
     },
 
     /**
@@ -1068,24 +1172,23 @@ qx.Bootstrap.define("qx.core.property.Property", {
         return;
       }
 
-      let resolve;
-      let promise = new Promise(r => (resolve = r));
-      this.__setMutating(thisObj, promise);
+      this.__pushState(thisObj, "mutating");
 
       if (value === undefined) {
         value = null;
       }
 
-      if (this.__apply) {
-        await this.__callFunction(thisObj, this.__apply, value, oldValue, this.__propertyName);
-      }
+      try {
+        if (this.__apply) {
+          await this.__callFunction(thisObj, this.__apply, value, oldValue, this.__propertyName);
+        }
 
-      if (this.__eventName && qx.event.Registration.hasListener(thisObj, this.__eventName)) {
-        await thisObj.fireDataEventAsync(this.__eventName, value, oldValue);
+        if (this.__eventName && qx.event.Registration.hasListener(thisObj, this.__eventName)) {
+          await thisObj.fireDataEventAsync(this.__eventName, value, oldValue);
+        }
+      } finally {
+        this.__popState(thisObj, "mutating");
       }
-
-      this.__setMutating(thisObj, false);
-      resolve();
     },
 
     /**
@@ -1156,10 +1259,11 @@ qx.Bootstrap.define("qx.core.property.Property", {
      * @returns {Promise<*>}
      */
     async __getAsyncImpl(thisObj, safe) {
-      if (qx.core.Environment.get("qx.debug")) {
-        if (!this.__supportsGetAsync) {
+      if (!this.__supportsGetAsync) {
+        if (qx.core.Environment.get("qx.debug")) {
           this.warn(`Called getAsync in property ${this} which does not support async getter. The value will be read synchronously.`);
         }
+        return this.__getImpl(thisObj, safe);
       }
       const getRaw = async () => {
         let value = this.__storage.get(thisObj, this);
@@ -1173,9 +1277,18 @@ qx.Bootstrap.define("qx.core.property.Property", {
           return value;
         }
 
-        if (this.__supportsGetAsync) {
-          return await this.__storage.getAsync(thisObj, this);
+        value = await this.__storage.getAsync(thisObj, this);
+        let storage = this.__storage.get(thisObj, this);
+
+        //Check for the unlikely event that the storage has been set by something else during the await:
+        if (storage !== undefined) {
+          value = storage;
+        } else {          
+          //Apply the new value,
+          //like we autoApply properties with synchronous init values by default
+          this.init(thisObj, value)
         }
+        return value;
       };
 
       let value = await getRaw();
@@ -1257,7 +1370,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
 
       if (shouldApply) {
         if (!this.isEqual(thisObj, value, oldValue)) {
-          this.__setMutating(thisObj, true);
+          this.__pushState(thisObj, "mutating");
           try {
             if (this.__apply) {
               this.__callFunction(thisObj, this.__apply, value, oldValue, this.__propertyName);
@@ -1267,7 +1380,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
             }
             this.__applyValueToInheritedChildren(thisObj);
           } finally {
-            this.__setMutating(thisObj, false);
+            this.__popState(thisObj, "mutating");
           }
         }
       }
@@ -1281,32 +1394,51 @@ qx.Bootstrap.define("qx.core.property.Property", {
      */
     isMutating(thisObj) {
       let state = this.getPropertyState(thisObj);
-      return state.mutatingCount !== undefined && state.mutatingCount > 0;
+      return !!state.mutating;
     },
 
     /**
-     * Called internally to set the mutating state for a property
-     *
-     * @param {qx.core.Object} thisObj
-     * @param {Boolean} mutating
+     * Returns whether the init method is being called
+     * @param {qx.core.Object} thisObj 
+     * @returns {boolean}
      */
-    __setMutating(thisObj, mutating) {
+    isInitializing(thisObj) {
       let state = this.getPropertyState(thisObj);
-      if (mutating) {
-        if (state.mutatingCount === undefined) {
-          state.mutatingCount = 1;
-        } else {
-          state.mutatingCount++;
-        }
+      return !!state.initializing;
+    },
+
+    /**
+     *
+     * @param {qx.core.Object} thisObj 
+     * @param {string} stateName 
+     */
+    __pushState(thisObj, stateName) {
+      let state = this.getPropertyState(thisObj);
+      if (state[stateName] === undefined) {
+        state[stateName] = 1;
+        state[stateName + "_promise"] = Promise.withResolvers();
       } else {
-        if (state.mutatingCount === undefined) {
-          throw new Error(`Property ${this} of ${thisObj} is not mutating`);
-        }
-        state.mutatingCount--;
-        if (state.mutatingCount == 0) {
-          delete state.promiseMutating;
-          delete state.mutatingCount;
-        }
+        state[stateName]++;
+      }      
+    },
+
+    /**
+     *
+     * @param {qx.core.Object} thisObj 
+     * @param {string} stateName 
+     */
+    __popState(thisObj, stateName) {
+      let state = this.getPropertyState(thisObj);
+
+      if (state[stateName] === undefined) {
+        throw new Error(`Property ${this} of ${thisObj} has no state ${stateName}`);
+      }
+      state[stateName]--;
+      if (state[stateName] == 0) {
+        let {resolve} = state[stateName + "_promise"];
+        delete state[stateName];
+        delete state[stateName + "_promise"];
+        resolve();
       }
     },
 
@@ -1317,15 +1449,8 @@ qx.Bootstrap.define("qx.core.property.Property", {
      * @returns {Promise<>}
      */
     async resolveMutating(thisObj) {
-      if (thisObj.$$propertyMutating === undefined || !thisObj.$$propertyMutating[this.__propertyName]) {
-        return qx.Promise.resolve();
-      }
-      let promise = thisObj.$$propertyMutating[this.__propertyName];
-      if (typeof promise == "boolean") {
-        promise = new qx.Promise();
-        thisObj.$$propertyMutating[this.__propertyName] = promise;
-      }
-      await promise;
+      let state = this.getPropertyState(thisObj);
+      return state.mutating_promise?.promise ?? Promise.resolve();
     },
 
     /**
@@ -1333,7 +1458,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
      *
      * @return {qx.core.check.Check}
      */
-    getCheck(value) {
+    getCheck() {
       return this.__check;
     },
 
@@ -1404,13 +1529,6 @@ qx.Bootstrap.define("qx.core.property.Property", {
 
       return false;
     },
-
-    /**
-     * Promise that resolves when the property is ready, or when it has finished mutating
-     *
-     * @param {qx.core.Object} thisObj the object on which the property is defined
-     */
-    promiseReady(thisObj) {},
 
     /**
      * Whether the property has a defined value stored locally,
@@ -1508,6 +1626,80 @@ qx.Bootstrap.define("qx.core.property.Property", {
      */
     toString() {
       return this.__clazz.classname + "." + this.__propertyName;
+    }
+  },
+
+  statics: {
+    /** Supported keys for property definitions */
+    _allowedPropKeys: {
+      "@": null, // Anything
+      name: "string", // String
+      dereference: "boolean", // Boolean
+      inheritable: "boolean", // Boolean
+      nullable: "boolean", // Boolean
+      themeable: "boolean", // Boolean
+      refine: "boolean", // Boolean
+      init: null, // var
+      apply: ["string", "function"], // String, Function
+      event: ["string", "object"], // String or null
+      check: null, // Array, String, Function
+      transform: null, // String, Function
+      deferredInit: "boolean", // Boolean
+      validate: ["string", "function"], // String, Function
+      isEqual: ["string", "function"], // String, Function
+      autoApply: "boolean", // Boolean
+      get: ["string", "function"], // String, Function
+      set: ["string", "function"], // String, Function
+      getAsync: ["string", "function"], // String, Function
+      setAsync: ["string", "function"], // String, Function
+      initFunction: "function", // Function
+      storage: "function", // implements qx.core.propertystorage.IStorage
+      immutable: "string", // String
+      $$mangledMethods: "object"
+    },
+
+    /** Supported keys for property group definitions */
+    _allowedPropGroupKeys: {
+      "@": null, // Anything
+      name: "string", // String
+      group: "object", // Array
+      mode: "string", // String
+      themeable: "boolean" // Boolean
+    },
+
+    /** Deprecated keys for properties, that we want to warn about */
+    $$deprecatedPropKeys: {},
+
+    /**
+     * Returns an object mapping the method IDs to the names of the methods which will be injected into the class by the property system.
+     * @param {string} propName Full property name, including any leading _'s
+     * @returns {Object}
+     */
+    getInjectedMethods(propName) {
+      let scopePrefix = propName.startsWith("__") ? "__" : propName.startsWith("_") ? "_" : "";
+      let raw = propName.substring(scopePrefix.length);
+      let upname = qx.Bootstrap.firstUp(raw);
+      let methods =  {
+        get: "get" + upname,
+        is: "is" + upname,
+        set: "set" + upname,
+        toggle: "toggle" + upname,
+        reset: "reset" + upname,
+        init: "init" + upname,        
+        getAsync: "get" + upname + "Async",
+        isAsync: "is" + upname + "Async",
+        setAsync: "set" + upname + "Async",
+        toggleAsync: "toggle" + upname + "Async",
+        resetAsync: "reset" + upname + "Async",
+      };
+
+      if (scopePrefix.length) {
+        for (let [key, value] of Object.entries(methods)) {
+          methods[key] = scopePrefix + value;
+        }
+      }
+
+      return methods;
     }
   }
 });

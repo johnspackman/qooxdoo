@@ -152,23 +152,7 @@ qx.Class.define("qx.test.core.Property", {
 
         members: {
           /**@override */
-          init(prop, property) {
-            qx.test.cpnfv8.ExternalStorage._subclassStorage = {
-              externallyStored: 0
-            };
-          },
-
-          /**@override */
           getAsync() {},
-
-          /**@override */
-          setAsync() {},
-
-          /**@override */
-          reset(thisObj, property, value) {
-            console.log("in externallyStored reset");
-            qx.test.cpnfv8.ExternalStorage._subclassStorage[property.getPropertyName()] = value;
-          },
 
           /**@override */
           get(thisObj, prop) {
@@ -2364,10 +2348,7 @@ qx.Class.define("qx.test.core.Property", {
               return fooCached;
             },
             getAsync() {
-              if (fooCached === undefined) {
-                fooCached = 7;
-              }
-              return fooCached;
+              return Promise.resolve(7);
             },
             set(value) {
               fooCached = value;
@@ -2389,12 +2370,67 @@ qx.Class.define("qx.test.core.Property", {
         this.assertEquals(7, value, "getFooAsync should return the initial value");
         instance.setFoo(42);
         this.assertEquals(42, instance.getFoo(), "getFoo should return the updated value");
+        instance.resetFoo();
+        try {
+          instance.getFoo();
+          this.assertTrue(false, "getFoo should throw an error after property has been reset");
+        } catch (e) {}
+        value = await instance.getFooAsync();
+        this.assertEquals(7, value, "getFooAsync should return the initial value again after reset");
       };
 
       doit().then(() => {
         this.resume();
       });
       this.wait(1000);
+    },
+
+    async testPrivateAndProtectedProperties() {
+      qx.Class.undefine("qx.test.core.property.TestPrivateProperties");
+      qx.Class.define("qx.test.core.property.TestPrivateProperties", {
+        extend: qx.core.Object,
+        properties: {
+          _protectedProperty: "String",
+          __privateProperty: "String"
+        },
+        members: {
+          __member: null,
+          async test() {
+            this.__member;
+            this._setProtectedProperty("protected");
+            this.assertEquals("protected", this._getProtectedProperty(), "Setting/getting protected property value");
+
+            this.__setPrivateProperty("private");
+            this.assertEquals("private", this.__getPrivateProperty(), "Setting/getting private property value");
+
+            this.set({
+              _protectedProperty: "2",
+              __privateProperty: "2"
+            });
+
+            this.assertEquals("2", this._getProtectedProperty(), "Setting protected using obj.set({...})");
+            this.assertEquals("2", this.__getPrivateProperty(), "Setting private using obj.set({...})");
+
+            this._protectedProperty = "3";
+            this.__privateProperty = "3";
+
+            this.assertEquals("3", this._protectedProperty, "Setting protected natively");
+            this.assertEquals("3", this.__privateProperty, "Setting private natively");
+            
+            this.set("__privateProperty", "4");
+            this.set("_protectedProperty", "4");
+
+            this.assertEquals("4", this.get("__privateProperty"), "Setting private using obj.set(\"...\")");
+            this.assertEquals("4", this.get("_protectedProperty"), "Setting protected using obj.set(\"...\")");
+            
+            await this.setAsync("__privateProperty", "5");
+            this.assertEquals("5", this.get("__privateProperty"), "Setting private using obj.setAsync(\"...\")");
+          }
+        }
+      });
+
+      let obj = new qx.test.core.property.TestPrivateProperties();
+      await obj.test();
     },
 
     /**
