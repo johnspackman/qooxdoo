@@ -2073,7 +2073,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
             checkNodeJsDocDirectives(path.node);
             path.node.declarations.forEach(decl => {
               const scanIdsRecursively = node => {
-                if (!node) return;
+                if (!node) {
+                  return;
+                }
                 // Object destructuring `var {a,b} = {...}`
                 if (node.type == "ObjectPattern") {
                   node.properties.forEach(scanIdsRecursively);
