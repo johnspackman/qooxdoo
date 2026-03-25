@@ -46,15 +46,6 @@ const path = require("upath");
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
 
-  environment: {
-    /**
-     * Useful for debugging purposes.
-     * If set to true, the transformed source files will be written to disk alongside the compiled files.
-     * They will have the .trans extension appended to the filename.
-     */
-    "qx.tool.compiler.writeTransformedSources": false
-  },
-
   /**
    *
    * @param {Object} options Options for the controller
@@ -684,10 +675,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       if (transformer && transformer.shouldTransform(sourceInfo)) {
         source = transformer.transform(sourceInfo);
-        if (qx.core.Environment.get("qx.tool.compiler.writeTransformedSources")) {
-          await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
-          fs.promises.writeFile(outputFilename + ".trans", source, "utf8"); //no need to await this because it's just for the user to see
-        }
+        await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
+        sourceFilename = outputFilename.replace(/\.js$/, ".trans.js");
+        fs.promises.writeFile(sourceFilename, source, "utf8"); //no need to await this because this only starts to matter once the user starts running and debugging
       }
 
       let cf = new qx.tool.compiler.ClassFile(metaDb, classFileConfig, classname, sourceInfo.manglePrefix);
