@@ -254,11 +254,11 @@ qx.Class.define("qx.html.Jsx", {
      * Also adds all the ReactiveVars in the array as reactive dependencies of the element,
      * so that they can be disposed later.
      * @param {Array} children the children to convert
-     * @returns {qx.data.reactivevar.ReactiveVar} a reactive var which tracks the whole array
+     * @returns {qx.svelte.reactivevar.ReactiveVar} a reactive var which tracks the whole array
      */
     _childrenToReactiveVar(element, children) {    
-      const isReactive = c => typeof c === "object" && c instanceof qx.data.reactivevar.ReactiveVar;
-      let childrenReactive = new qx.data.reactivevar.Derived(() => children.map(c => isReactive(c) ? c.get() : c));
+      const isReactive = c => typeof c === "object" && c instanceof qx.svelte.reactivevar.ReactiveVar;
+      let childrenReactive = new qx.svelte.reactivevar.Derived(() => children.map(c => isReactive(c) ? c.get() : c));
       element.setReactiveChildren(childrenReactive);
       return childrenReactive;
     },

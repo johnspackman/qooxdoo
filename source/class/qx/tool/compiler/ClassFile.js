@@ -1685,7 +1685,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
               let firstDot = watchPath.indexOf(".");
               let propertyPath = watchPath.substring(firstDot + 1, watchPath.length);
               return types.newExpression(                    
-                babylon.parse("qx.data.reactivevar.PropertyPath").program.body[0].expression, //constructor expression
+                babylon.parse("qx.svelte.reactivevar.PropertyPath").program.body[0].expression, //constructor expression
                 [//args
                   path.node.object, // the object we are listening to
                   types.stringLiteral(propertyPath)
@@ -1705,7 +1705,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 let itemName = path.get("arguments.1").node;
                 path.replaceWith(
                   types.newExpression(
-                    babylon.parse("qx.data.reactivevar.ArrayMapper").program.body[0].expression, //constructor expression
+                    babylon.parse("qx.svelte.reactivevar.ArrayMapper").program.body[0].expression, //constructor expression
                     [
                       pathWatcher, //Array reactive var
                       types.arrowFunctionExpression([itemName], path.get("arguments.2").node), //getKey function

@@ -2,8 +2,8 @@
  * A ReactiveVar which derives its value from other ReactiveVars using a generator function.
  * Note: Currently, only at most one Derived ReactiveVar can listen to another ReactiveVar
  */
-qx.Class.define("qx.data.reactivevar.Derived", {
-  extend: qx.data.reactivevar.ReactiveVar,
+qx.Class.define("qx.svelte.reactivevar.Derived", {
+  extend: qx.svelte.reactivevar.ReactiveVar,
   /**
    * @param {Function} generator The function which returns the output value based on the input values. It must meet the following requirements:
    * - It must call the get() method (not getValue()) of any ReactiveVar which it depends on, in order for the dependencies to be tracked correctly.$$allowconstruct
@@ -13,7 +13,7 @@ qx.Class.define("qx.data.reactivevar.Derived", {
     super();
     this.__generator = generator;
     let sources = (this.__sources = []);
-    const ReactiveVar = qx.data.reactivevar.ReactiveVar;
+    const ReactiveVar = qx.svelte.reactivevar.ReactiveVar;
     ReactiveVar.setOnGetCallback(source => sources.push(source));
     let initialValue = generator();
     ReactiveVar.setOnGetCallback(null);
@@ -37,7 +37,7 @@ qx.Class.define("qx.data.reactivevar.Derived", {
      */
     __generator: null,
     /**
-     * @type {qx.data.reactivevar.IReactiveVar[]}
+     * @type {qx.svelte.reactivevar.IReactiveVar[]}
      */
     __sources: null,
 

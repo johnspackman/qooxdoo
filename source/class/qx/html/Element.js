@@ -514,15 +514,36 @@ qx.Class.define("qx.html.Element", {
     __attribValues: null,
 
     /**
-     * @type {qx.data.reactivevar.ReactiveVar} Reactive var for the children of the node
+     * @type {qx.svelte.reactivevar.ReactiveVar[]} Reactive var for the children of the node
      */
-    _reactiveChildren: null,
+    __reactiveChildren: null,
 
+    /**
+     * //!todo
+     */
+    __ownedReactiveVars: null,
+
+    /**
+     * //!todo
+     * @param {*} reactive 
+     */
     setReactiveChildren(reactive) {
       if (this.__reactiveChildren) {
         throw new Error("This element already has reactive children. Cannot set reactive children twice.");
       }
       this.__reactiveChildren = reactive;
+    },
+
+    /**
+     * //!todo
+     * @param {*} reactive 
+     */
+    setOwnedReactiveVars(vars) {
+      if (this.__ownedReactiveVars) {
+        throw new Error("This element already has owned reactive vars. Cannot set owned reactive vars twice.");
+      }
+
+      this.__ownedReactiveVars = vars;
     },
 
     /**
@@ -2027,6 +2048,7 @@ qx.Class.define("qx.html.Element", {
       this.__lazyScrollIntoViewY =
         null;
 
-    this._reactiveChildren?.dispose();
+    this._disposeArray("__ownedReactiveVars");
+    this.__reactiveChildren?.dispose();
   }
 });

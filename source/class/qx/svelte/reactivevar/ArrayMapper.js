@@ -13,10 +13,10 @@
  * @template KeyType Type of the key used to keep track of items. It must be a valid key type for a JavaScript Map, and be unique for each item in the input array.
  * @template OutputType Type of items in the output array
  */
-qx.Class.define("qx.data.reactivevar.ArrayMapper", {
-  extend: qx.data.reactivevar.ReactiveVar,
+qx.Class.define("qx.svelte.reactivevar.ArrayMapper", {
+  extend: qx.svelte.reactivevar.ReactiveVar,
   /**
-   * @param {qx.data.reactivevar.ReactiveVar<InputType>} input 
+   * @param {qx.svelte.reactivevar.ReactiveVar<InputType>} input 
    * @param {(x: InputType) => [OutputType, Function]} mapFunc A function which maps the input item to the output item. It also returns a dispose function which is called when the item is removed from the array.
    * @param {(x: InputType) => KeyType} [getKey] A function which returns the key for an item. The key must be unique for each item in the input array.
    */
@@ -46,7 +46,7 @@ qx.Class.define("qx.data.reactivevar.ArrayMapper", {
   },
   members: {
     /**
-     * @type {qx.data.reactivevar.ReactiveVar<InputType>}
+     * @type {qx.svelte.reactivevar.ReactiveVar<InputType>}
      */
     __input: null,
     /**

@@ -6,13 +6,22 @@
  * 
  * @template ValueType Type of the value of this ReactiveVar
  */
-qx.Class.define("qx.data.reactivevar.ReactiveVar", {
+qx.Class.define("qx.svelte.reactivevar.ReactiveVar", {
   type: "abstract",
   extend: qx.core.Object,
-  construct() {
+  construct(value) {
     super();
     this.__trackers = [];
     this.addListener("changeValue", this.__updateTrackers, this);
+
+    if (value !== undefined) {
+      this.setValue(value);
+    }
+
+    // const ReactiveVarRecorder = qx.svelte.reactivevar.Recorder;
+    // if (ReactiveVarRecorder) {
+    //   ReactiveVarRecorder.addVar(this);
+    // }
   },
   destruct() {
     this.removeListener("changeValue", this.__updateTrackers, this);
@@ -34,7 +43,7 @@ qx.Class.define("qx.data.reactivevar.ReactiveVar", {
      * Whether to track changes of the array if the value is a qx.data.Array.
      * This can be set at most once.
      */
-    trackArrayChange: {
+    trackArrayChange: {//!todo refactor
       init: true,
       check: "Boolean"
     }
@@ -43,13 +52,17 @@ qx.Class.define("qx.data.reactivevar.ReactiveVar", {
     _isInDerived: false, // Whether this ReactiveVar is being used in a Derived ReactiveVar. This is used to prevent a ReactiveVar from being used in multiple Derived ReactiveVars.
     _applyValue(value, oldValue) {
       if (value) {
-        if (this.trackArrayChange && value && (value instanceof qx.data.Array)) {
+        if (this.trackArrayChange && (value instanceof qx.data.Array)) {
           value.addListener("change", this.__onArrayChange, this);
+        } else if (value[SymbolReactiveProxy]) {
+          value[SymbolReactiveProxy].bind("value", this, "value");
         }
       }
       if (oldValue) {
-        if (this.trackArrayChange && oldValue && (oldValue instanceof qx.data.Array)) {
+        if (this.trackArrayChange && (oldValue instanceof qx.data.Array)) {
           oldValue.removeListener("change", this.__onArrayChange, this);
+        } else if (oldValue[SymbolReactiveProxy]) {
+          oldValue[SymbolReactiveProxy].unbind("value", this, "value");
         }
       }
     },
@@ -92,7 +105,7 @@ qx.Class.define("qx.data.reactivevar.ReactiveVar", {
       }
     },
     get() {
-      let gettersCallback = qx.data.reactivevar.ReactiveVar.__onGetCallback ?? (() => {});
+      let gettersCallback = qx.svelte.reactivevar.ReactiveVar.__onGetCallback ?? (() => {});
       gettersCallback(this);
       return this.getValue();
     },
@@ -111,13 +124,30 @@ qx.Class.define("qx.data.reactivevar.ReactiveVar", {
      * Used to track dependencies in Derived ReactiveVars.
      */
     setOnGetCallback(callback) {
-      const ReactiveVar = qx.data.reactivevar.ReactiveVar;
+      const ReactiveVar = qx.svelte.reactivevar.ReactiveVar;
       if (qx.core.Environment.get("qx.debug")) {
         if (ReactiveVar.__onGetCallback && callback) {
           throw new Error("ReactiveVar: Cannot set onGetCallback, because there is already one set. Did you forget to call setOnGetCallback(null)?");
         }
       }
       ReactiveVar.__onGetCallback = callback;
+    },
+
+    /**
+     * Wraps a value in a ReactiveVar, selecting the appropriate class to track the value.
+     * @param {*} value 
+     * @returns 
+     */
+    wrap(value) {
+      if (value instanceof qx.svelte.reactivevar.ReactiveVar) {
+        return value;
+      } else if (value instanceof qx.data.Array) {
+        return new qx.svelte.reactivevar.ArrayWrapper(value);
+      } else if (value && ReactiveProxy.is(value)) {
+        return new qx.svelte.reactivevar.ReactiveProxyWrapper(value);
+      } else {
+        return new qx.svelte.reactivevar.ReactiveVar(value);
+      }
     }
   }
 });

@@ -1,8 +1,8 @@
 /**
  * A ReactiveVar which tracks the value of a property path on a source object.
  */
-qx.Class.define("qx.data.reactivevar.PropertyPath", {
-  extend: qx.data.reactivevar.ReactiveVar,
+qx.Class.define("qx.svelte.reactivevar.PropertyPath", {
+  extend: qx.svelte.reactivevar.ReactiveVar,
   /**
    * 
    * @param {qx.core.Object} source 
