@@ -584,8 +584,6 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
             unusedEntries[msgid] = true;
           }
 
-          let metaDb = this.getController().getMetaDb();
-
           for (let classname of this.__classes) {
             let isAppClass = appLibrary.isClass(classname);
             let classLibrary = (!isAppClass && libraries.find(lib => lib.isClass(classname))) || null;

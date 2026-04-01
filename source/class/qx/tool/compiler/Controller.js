@@ -255,11 +255,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
       metaDb.getDatabase().environmentChecks = environmentChecks;
       this.fireEvent("metaDbConfigured");
-
-      // Scan the discovered classes and add them to the meta database
-      let discoveredFiles = this.__discovery.getDiscoveredFiles();
-      let addMetaResults = await Promise.all(discoveredFiles.map(file => metaDb.fastAddFile(file, false)));
-      this.__startError ??= addMetaResults.any(x => !x);
+      this.__startError ||= !await metaDb.addFiles(this.__discovery.getDiscoveredFiles());
       this.fireEvent("addedDiscoveredClasses");
 
       
@@ -290,7 +286,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
 
       // Process the meta data and save to disk
-      await metaDb.reparseAll();
       await metaDb.save();
       await this.fireDataEventAsync("writtenMetaData", metaDb);
 
@@ -556,7 +551,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
     async __compileClassImpl(analyzer, classname, force) {
       let meta = this.__metaDb.getMetaData(classname);
       if (!meta) {
-        qx.tool.compiler.Console.error(`Cannot find class ${classname} in project/libraries.`);
+        qx.tool.compiler.Console.error(`Compiler Error: Cannot find class ${classname} in project/libraries.`);
         return { dbClassInfo: { fatalCompileError: true } };
       }
 
@@ -654,6 +649,10 @@ qx.Class.define("qx.tool.compiler.Controller", {
       return this.__discovery;
     },
 
+    /**
+     * The returned object must not be modified.
+     * @returns {qx.tool.compiler.meta.MetaDatabase}
+     */
     getMetaDb() {
       return this.__metaDb;
     }

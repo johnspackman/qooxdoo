@@ -42,7 +42,6 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     this.__dirtyClasses = {};
     this.__database = {};
     this.__lastSerialized = 0;
-    this.__startupDetectedOutOfDate = {};
   },
 
   properties: {
@@ -100,7 +99,6 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      */
     __serialized: null,    
 
-    __startupDetectedOutOfDate: null,
 
     /**
      * Saves the database
@@ -159,11 +157,11 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         this.__metaByFilename = {};
         this.__packages = {};
         this.__dirtyClasses = {};
-        this.__startupDetectedOutOfDate = {};
         let data = await qx.tool.utils.Json.loadJsonAsync(filename);
         this.__database = data;
 
         let classnamesToLoad = data.classnames || [];
+        delete data.classnames;
         //2026-JAN-15 - I don't think we need to limit concurrency here? - NodeJs should be able to handle loads of parallel disk IO operations
         await Promise.all(classnamesToLoad.map(async classname => {
           let segs = classname.split(".");
@@ -174,17 +172,14 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
           }
           let filename = this.getRootDir() + "/" + classname.replace(/\./g, "/") + ".json";
           if (fs.existsSync(filename)) {
-            await qx.tool.utils.Utils.makeParentDir(filename);
             let metaReader = new qx.tool.compiler.meta.ClassMeta(this.getRootDir());
             await metaReader.loadMeta(filename);
-            if (await metaReader.isOutOfDate()) {
-              this.__startupDetectedOutOfDate[filename] = true;
+            if (!await metaReader.isOutOfDate()) {
+              this.__metaByClassname[classname] = metaReader;
+              let classFilename = metaReader.getMetaData().classFilename;
+              classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
+              this.__metaByFilename[classFilename] = metaReader;
             }
-            this.__metaByClassname[classname] = metaReader;
-            let classFilename = metaReader.getMetaData().classFilename;
-            classFilename = path.resolve(path.join(this.getRootDir(), classFilename));
-
-            this.__metaByFilename[classFilename] = metaReader;
           }
         }));
       }
@@ -268,21 +263,25 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
     },
 
     /**
-     * Quickly adds a file to the database, without parsing it unless necessary.  This is used only to speed up
-     * startup and relies on tests during `load()` which are presumed to not be out of date.
+     * Adds the files to the database,
+     * but only for ones which are not cached.
      *
-     * Unless you are sure that this method is appropriate, you should use `addFile()` instead.
-     *
-     * @param {String} filename
-     * @return {boolean} False if there were any user errors in the file e.g. syntax errors, true otherwise
+     * @param {string[]} files
+     * @returns {Promise<boolean>} True if there were no syntax errors while adding the files, false otherwise
      */
-    async fastAddFile(filename) {
-      filename = path.resolve(filename);
-      if (!this.__metaByFilename[filename] || this.__startupDetectedOutOfDate[filename]) {
-        delete this.__startupDetectedOutOfDate[filename];
-        return await this.addFile(filename, true);
-      }
-      return true;
+    async addFiles(files) {
+      let addMetaResults = await Promise.all(
+        files.map(filename => {
+          if (!this.__metaByFilename[filename]) {
+            return this.addFile(filename, true);
+          } else {
+            return true;
+          }
+        })
+      );
+
+      await this.reparseAll();
+      return addMetaResults.every(Boolean);
     },
 
     /**
@@ -770,7 +769,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         await this.addFile(filename, options.force || false);
       }
       await this.reparseAll();
-    },
+    }
   },
 
   statics: {

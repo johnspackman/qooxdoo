@@ -610,6 +610,9 @@ qx.Class.define("qx.tool.compiler.app.Application", {
       var requiredLibs = {};
       this.__loadDeps.forEach(classname => {
         let classInfo = analyzer.getDbClassInfo(classname);
+        if (classInfo.fatalCompileError) {
+          return;
+        }
         if (classInfo.assets) {
           classInfo.assets.forEach(asset => {
             var pos = asset.indexOf("/");
@@ -629,7 +632,7 @@ qx.Class.define("qx.tool.compiler.app.Application", {
           this.__requiredLibs.push(ns);
         } else {
           Console.print(
-            "qx.tool.compiler.application.missingRequiredLibrary",//!TODO this code can be simplified
+            "qx.tool.compiler.application.missingRequiredLibrary",
             ns
           );
         }
