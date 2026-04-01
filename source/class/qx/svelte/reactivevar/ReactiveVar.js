@@ -7,7 +7,6 @@
  * @template ValueType Type of the value of this ReactiveVar
  */
 qx.Class.define("qx.svelte.reactivevar.ReactiveVar", {
-  type: "abstract",
   extend: qx.core.Object,
   construct(value) {
     super();
@@ -54,15 +53,11 @@ qx.Class.define("qx.svelte.reactivevar.ReactiveVar", {
       if (value) {
         if (this.trackArrayChange && (value instanceof qx.data.Array)) {
           value.addListener("change", this.__onArrayChange, this);
-        } else if (value[SymbolReactiveProxy]) {
-          value[SymbolReactiveProxy].bind("value", this, "value");
-        }
+        } 
       }
       if (oldValue) {
         if (this.trackArrayChange && (oldValue instanceof qx.data.Array)) {
           oldValue.removeListener("change", this.__onArrayChange, this);
-        } else if (oldValue[SymbolReactiveProxy]) {
-          oldValue[SymbolReactiveProxy].unbind("value", this, "value");
         }
       }
     },
@@ -142,8 +137,8 @@ qx.Class.define("qx.svelte.reactivevar.ReactiveVar", {
       if (value instanceof qx.svelte.reactivevar.ReactiveVar) {
         return value;
       } else if (value instanceof qx.data.Array) {
-        return new qx.svelte.reactivevar.ArrayWrapper(value);
-      } else if (value && ReactiveProxy.is(value)) {
+        return new qx.svelte.reactivevar.ReactiveVar(value);//!todo
+      } else if (value && qx.svelte.ReactiveProxy.is(value)) {
         return new qx.svelte.reactivevar.ReactiveProxyWrapper(value);
       } else {
         return new qx.svelte.reactivevar.ReactiveVar(value);

@@ -806,7 +806,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       let json = new TextDecoder().decode(new Uint8Array(buffer));
       let dataObj = JSON.parse(json);
       let metaDb = new qx.tool.compiler.meta.MetaDatabase();
-      metaDb.__metaByClassname = qx.lang.Object.map(dataObj.metaByClassname, m => qx.tool.compiler.meta.ClassMeta.fromNativeObject(m));
+      metaDb.__metaByClassname = qx.lang.Object.map(dataObj.metaByClassname, m => qx.tool.compiler.meta.ClassMeta.fromNativeObject(metaDb, m));
       metaDb.__packages = dataObj.packages;
       metaDb.__database = {
         environmentChecks: dataObj.environmentChecks

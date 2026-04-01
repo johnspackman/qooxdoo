@@ -101,6 +101,7 @@
     "jstransformer-dot": "^0.1.2",
     "metalsmith": "^2.6.1",
     "object-hash": "^2.1.1",
+    "observable-slim": "^0.2.2",
     "prettier": "^2.5.1",
     "ps-tree": "^1.2.0",
     "regenerator-runtime": "^0.14.1",

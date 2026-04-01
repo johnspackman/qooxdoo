@@ -668,7 +668,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {qx.tool.compiler.meta.MetaDatabase} metaDb
      * @returns {Promise<qx.tool.compiler.ClassFile.DbClassInfo>}
      */
-    async transpile(sourceInfo, makerInfo, metaDb) {//!TODO I think is class is becoming a God class
+    async transpile(sourceInfo, makerInfo, metaDb) {
       let { classFileConfig, transformer } = makerInfo;
       let { classname, outputFilename, sourceFilename } = sourceInfo;
       outputFilename = path.resolve(outputFilename);

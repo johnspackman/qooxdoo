@@ -232,8 +232,8 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
      * @param {Object} obj 
      * @returns {qx.tool.compiler.meta.ClassMeta}
      */
-    fromNativeObject(obj) {
-      let classMeta = new qx.tool.compiler.meta.ClassMeta();//TODO wrong constructor args
+    fromNativeObject(metaDb, obj) {
+      let classMeta = new qx.tool.compiler.meta.ClassMeta(metaDb);//!TODO make metadb singleton
       classMeta.__metaData = obj;
       classMeta.__readOnly = true;
       return classMeta;
