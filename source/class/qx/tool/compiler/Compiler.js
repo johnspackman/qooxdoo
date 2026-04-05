@@ -65,13 +65,17 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     /**
      * @override
      */
-    making: "qx.event.type.Event",
+    making: "qx.event.type.Data",
 
     /**
      * @override
      */
-    made: "qx.event.type.Event",
+    made: "qx.event.type.Data",
 
+    /**
+     * @override
+     */
+    allDone: "qx.event.type.Event",
     /**
      * @override
      */
@@ -218,8 +222,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
       let controller = new qx.tool.compiler.Controller(controllerOptions);
 
-      let countMaking = 0;
-
       new qx.tool.compiler.feedback.ConsoleFeedback(controller);
 
       await qx.Promise.all(
@@ -241,10 +243,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             analyzer.setIgnores(config.ignores);
           }
 
-          maker.addListener("writtenApplication", async evt => {
-            await this.fireDataEventAsync("writtenApplication", evt.getData().application.getName());
-          });
-
           let stat = await qx.tool.utils.files.Utils.safeStat("source/index.html");
 
           if (stat) {
@@ -257,28 +255,10 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           analyzer.addListener("saveDatabase", e => this.dispatchEvent(e.clone()));
           target.addListener("checkEnvironment", e => this.dispatchEvent(e.clone()));
 
-          let appInfos = [];
-          target.addListener("writingApplication", async () => {
-            let appInfo = {
-              maker,
-              target,
-              appMeta: target.getAppMeta()
-            };
-
-            appInfos.push(appInfo);
-            await this.fireDataEventAsync("writingApplication", appInfo);
-          });
-          target.addListener("writtenApplication", async () => {
-            await this.fireDataEventAsync("writtenApplication", {
-              maker,
-              target,
-              appMeta: target.getAppMeta()
-            });
-          });
-          maker.addListener("writtenApplications", async () => {
-            await this.fireDataEventAsync("writtenApplications", appInfos);
-            appInfos = [];
-          });
+          maker.addListener("writingApplications", e => this.dispatchEvent(e.clone()));
+          maker.addListener("writingApplication", e => this.dispatchEvent(e.clone()));
+          maker.addListener("writtenApplication", e => this.dispatchEvent(e.clone()));
+          maker.addListener("writtenApplications", e => this.dispatchEvent(e.clone()));
 
           if (target instanceof qx.tool.compiler.targets.BuildTarget) {
             target.addListener("minifyingApplication", e => this.dispatchEvent(e.clone()));
@@ -286,19 +266,17 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           }
 
           maker.addListener("making", () => {
-            countMaking++;
-            if (countMaking == 1) {
-              this.fireEvent("making");
-            }
+             this.fireDataEvent("making", maker);
           });
 
           maker.addListener("made", () => {
-            countMaking--;
-            if (countMaking == 0) {
-              this.fireEvent("made");
-            }
+              this.fireDataEvent("made", maker);
           });
-          
+
+          controller.addListener("allMakersMade", () => {
+              this.fireEvent("allDone");
+          });
+
           controller.addMaker(maker);
         })
       );      

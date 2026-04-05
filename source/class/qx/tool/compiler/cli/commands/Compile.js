@@ -336,38 +336,35 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
   properties: {},
   events: {
     /**
-     * Fired when application writing starts
+     * Fired when application writing starts; data is an array of objects, each containing:
+     *   application {qx.tool.compiler.app.Application}
+     *   analyzer {qx.tool.compiler.Analyzer}
+     *   maker {qx.tool.compiler.makers.Maker}
      */
-    writingApplications: "qx.event.type.Event",
+    writingApplications: "qx.event.type.Data",
 
     /**
      * Fired when writing of single application starts; data is an object containing:
+     *   application {qx.tool.compiler.app.Application}
+     *   analyzer {qx.tool.compiler.Analyzer}
      *   maker {qx.tool.compiler.makers.Maker}
-     *   target {qx.tool.compiler.targets.Target}
-     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
      */
     writingApplication: "qx.event.type.Data",
 
     /**
      * Fired when writing of single application is complete; data is an object containing:
+     *   application {qx.tool.compiler.app.Application}
+     *   analyzer {qx.tool.compiler.Analyzer}
      *   maker {qx.tool.compiler.makers.Maker}
-     *   target {qx.tool.compiler.targets.Target}
-     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
-     *
-     * Note that target.getAppMeta() will return null after this event has been fired
      */
     writtenApplication: "qx.event.type.Data",
 
     /**
-     * Fired after writing of all applications; data is an object containing an array,
-     * each of which has previously been passed with `writeApplication`:
+     * Fired after writing of all applications; data is an array of objects, each containing:
+     *   application {qx.tool.compiler.app.Application}
+     *   analyzer {qx.tool.compiler.Analyzer}
      *   maker {qx.tool.compiler.makers.Maker}
-     *   target {qx.tool.compiler.targets.Target}
-     *   appMeta {qx.tool.compiler.targets.meta.ApplicationMeta}
-     *
-     * Note that target.getAppMeta() will return null after this event has been fired
      */
-
     writtenApplications: "qx.event.type.Data",
 
     /**
@@ -409,14 +406,19 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
     checkEnvironment: "qx.event.type.Data",
 
     /**
-     * Fired when making of apps begins
+     * Fired when making of apps begins. Data: the Maker instance.
      */
-    making: "qx.event.type.Event",
+    making: "qx.event.type.Data",
 
     /**
-     * Fired when making of apps is done.
+     * Fired when making of apps is done. Data: the Maker instance.
      */
-    made: "qx.event.type.Event",
+    made: "qx.event.type.Data",
+
+    /**
+     * Fired once when all makers have finished — after the last `made` event.
+     */
+    allDone: "qx.event.type.Event",
 
     /**
      * Fired when minification begins.

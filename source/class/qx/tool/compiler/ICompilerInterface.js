@@ -82,12 +82,17 @@ qx.Interface.define("qx.tool.compiler.ICompilerInterface", {
     /**
      * Fired when making of apps begins
      */
-    making: "qx.event.type.Event",
+    making: "qx.event.type.Data",
 
     /**
      * Fired when making of apps is done.
      */
-    made: "qx.event.type.Event",
+    made: "qx.event.type.Data",
+
+    /**
+     * Fired when all compilation is done.
+     */
+    allDone: "qx.event.type.Event",
 
     /**
      * Fired when minification begins.

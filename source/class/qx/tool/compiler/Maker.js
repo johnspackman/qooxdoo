@@ -120,12 +120,12 @@ qx.Class.define("qx.tool.compiler.Maker", {
   },
 
   events: {
-    making: "qx.event.type.Event",
-    made: "qx.event.type.Event",
-    writingApplications: "qx.event.type.Event",
+    making: "qx.event.type.Data",
+    made: "qx.event.type.Data",
+    writingApplications: "qx.event.type.Data",
     writingApplication: "qx.event.type.Data",
     writtenApplication: "qx.event.type.Data",
-    writtenApplications: "qx.event.type.Event"
+    writtenApplications: "qx.event.type.Data"
   },
 
   members: {
@@ -302,9 +302,10 @@ qx.Class.define("qx.tool.compiler.Maker", {
           throw new Error("Maker must be initialized by calling init() before make()");
         }
       }
-      await this.fireEventAsync("making");
       var analyzer = this.getAnalyzer();
       let target = this.getTarget();
+
+      await this.fireEventAsync("making");
 
       this.setSuccess(null);
       this.setHasWarnings(null);
@@ -348,7 +349,6 @@ qx.Class.define("qx.tool.compiler.Maker", {
       await analyzer.analyzeClasses();
 
       await analyzer.saveDatabase();
-      await this.fireEventAsync("writingApplications");
 
       // Detect which applications need to be recompiled by looking for classes recently compiled
       //  which is on the application's dependency list.  The first time `.make()` is called there
@@ -357,10 +357,10 @@ qx.Class.define("qx.tool.compiler.Maker", {
       let compiledClasses = this.getRecentlyCompiledClasses(true);
       let db = analyzer.getDatabase();
 
-      var appsThisTime = await this.__applications.filter(async app => {
+      var appsThisTime = (await Promise.all(this.__applications.map(async app => {
         let loadDeps = app.getDependencies();
         if (!loadDeps || !loadDeps.length) {
-          return true;
+          return { application: app, analyzer, maker: this };
         }
         let res = loadDeps.some(name => Boolean(compiledClasses[name]));
         let localModules = app.getLocalModules();
@@ -369,13 +369,15 @@ qx.Class.define("qx.tool.compiler.Maker", {
 
           res ||= stat.mtime.getTime() > (db?.modulesInfo?.localModules[requireName] || 0);
         }
-        return res;
-      });
+        return res ? { application: app, analyzer, maker: this } : null;
+      }))).filter(Boolean);
+
+      await this.fireDataEventAsync("writingApplications", appsThisTime);
 
       let allAppInfos = [];
 
       for (let i = 0; i < appsThisTime.length; i++) {
-        let application = appsThisTime[i];
+        let { application } = appsThisTime[i];
         if (application.getType() != "browser" && !compileEnv["qx.headless"]) {
           qx.tool.compiler.Console.print("qx.tool.compiler.maker.appNotHeadless", application.getName());
         }
@@ -404,11 +406,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
           });
         }
 
-        let appInfo = {
-          application,
-          analyzer,
-          maker: this
-        };
+        let appInfo = appsThisTime[i];
 
         allAppInfos.push(appInfo);
         await this.fireDataEventAsync("writingApplication", appInfo);
@@ -416,7 +414,7 @@ qx.Class.define("qx.tool.compiler.Maker", {
         await this.fireDataEventAsync("writtenApplication", appInfo);
       }
 
-      await this.fireEventAsync("writtenApplications");
+      await this.fireDataEventAsync("writtenApplications", allAppInfos);
 
       await analyzer.saveDatabase();
       this.setSuccess(success);
