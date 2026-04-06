@@ -266,15 +266,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           }
 
           maker.addListener("making", () => {
-             this.fireDataEvent("making", maker);
+             this.fireDataEventAsync("making", maker);
           });
 
           maker.addListener("made", () => {
-              this.fireDataEvent("made", maker);
+              this.fireDataEventAsync("made", maker);
           });
 
           controller.addListener("allMakersMade", () => {
-              this.fireEvent("allDone");
+              this.fireEventAsync("allDone");
           });
 
           controller.addMaker(maker);
