@@ -265,21 +265,21 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             target.addListener("minifiedApplication", e => this.dispatchEvent(e.clone()));
           }
 
-          maker.addListener("making", () => {
-             this.fireDataEventAsync("making", maker);
+          maker.addListener("making", async () => {
+             await this.fireDataEventAsync("making", maker);
           });
 
-          maker.addListener("made", () => {
-              this.fireDataEventAsync("made", maker);
-          });
-
-          controller.addListener("allMakersMade", () => {
-              this.fireEventAsync("allDone");
+          maker.addListener("made", async () => {
+              await this.fireDataEventAsync("made", maker);
           });
 
           controller.addMaker(maker);
         })
-      );      
+      );
+
+      controller.addListenerOnce("allMakersMade", async () => {
+        await this.fireEventAsync("allDone");
+      });
 
       this.__controller = controller;
       controller.start();

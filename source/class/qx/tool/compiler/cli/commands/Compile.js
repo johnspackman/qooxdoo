@@ -545,11 +545,10 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       for (let event of events) {
         compiler.addListener(event, evt => this.dispatchEvent(evt.clone()));
       }
-
       qx.tool.compiler.Console.log(">>> Starting compilation of project...");
       await compiler.start(data);
       return new Promise((resolve, reject) => {
-        compiler.addListenerOnce("made", () => {
+        this.addListener("allDone", () => {
           if (!this.argv.watch) {
             this._exit().then(resolve, reject);
           }
