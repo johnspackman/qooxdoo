@@ -411,6 +411,8 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
                 memberMeta.type = "function";
                 memberMeta.params = [];
                 collapseParamMeta(member, memberMeta);
+              } else if (type === "statics" && member.type === "ObjectProperty") {
+                memberMeta.init = memberPath.get("value").getSource();
               }
             });
           }
