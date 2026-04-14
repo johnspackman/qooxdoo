@@ -120,8 +120,8 @@ qx.Class.define("qx.tool.compiler.Maker", {
   },
 
   events: {
-    making: "qx.event.type.Data",
-    made: "qx.event.type.Data",
+    making: "qx.event.type.Event",
+    made: "qx.event.type.Event",
     writingApplications: "qx.event.type.Data",
     writingApplication: "qx.event.type.Data",
     writtenApplication: "qx.event.type.Data",
