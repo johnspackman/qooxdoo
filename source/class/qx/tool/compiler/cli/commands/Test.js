@@ -197,7 +197,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
         if (this.argv.verbose) {
           console.log(this.argv);
         }
-        await this.fireDataEventAsync("runTests", this);
         if (
           this.getCompilerApi() &&
           typeof this.getCompilerApi().beforeTests == "function"
@@ -208,6 +207,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
           qx.tool.compiler.Console.info(`Running ${test.getName()}`);
           await test.execute();
         }
+        await this.fireDataEventAsync("runTests", this);
         // for bash exitcode is not allowed to be more then 255!
         process.exitCode = Math.min(255, this.getExitCode());
         // We must exit the process here because serve runs infinite!
