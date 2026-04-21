@@ -214,7 +214,9 @@ qx.Class.define("qx.tool.compiler.cli.commands.Test", {
         process.exit(); 
       });
 
-      if (this.__needsServer()) {
+      // setNeedsServer so that it is usable in compile.js
+      this.setNeedsServer(this.__needsServer());
+      if (this.getNeedsServer()) {
         // start server
         await super.process();
       } else {
