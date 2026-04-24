@@ -409,15 +409,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
     _onClassCompiled(analyzer, classname, result) {      
       if (!result.cached) {
         this.fireDataEvent("compiledClass", { classname, analyzer });
-        for (let maker of this.__makers) {
-          if (maker.getAnalyzer() === analyzer) {
-            for (let app of maker.getApplications()) {
-              let dependencies = app.getDependencies() || [];
-              if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
-                this.__dirtyMakers[maker.toHashCode()] = maker;
-                break;
-              }
-            }
+        let maker = analyzer.getMaker();
+        maker.onClassCompiled(classname);
+        for (let app of maker.getApplications()) {
+          let dependencies = app.getDependencies() || [];
+          if (dependencies.includes(classname) || app.getRequiredClasses().includes(classname) || app.getTheme() == classname) {
+            this.__dirtyMakers[maker.toHashCode()] = maker;
+            break;
           }
         }
       }

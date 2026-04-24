@@ -455,15 +455,15 @@ qx.Class.define("qx.tool.compiler.Maker", {
         return this._analyzer;
       }
       this._analyzer = this._createAnalyzer();
-      this._analyzer.addListener("compiledClass", evt => {
-        let data = evt.getData();
-        this._compiledClasses[data.classFile.getClassName()] = true;
-      });
       return this._analyzer;
     },
 
+    /**
+     * 
+     * @param {string} classname 
+     */
     onClassCompiled(classname) {
-      this._compiledClasses[classname] = true;
+      this.__compiledClasses[classname] = true;
     },
 
     /**
@@ -473,9 +473,9 @@ qx.Class.define("qx.tool.compiler.Maker", {
      * @return {Map} list of class names that have been compiled
      */
     getRecentlyCompiledClasses(eraseAfter) {
-      let classes = this._compiledClasses;
+      let classes = this.__compiledClasses;
       if (eraseAfter) {
-        this._compiledClasses = {};
+        this.__compiledClasses = {};
       }
       return classes;
     },

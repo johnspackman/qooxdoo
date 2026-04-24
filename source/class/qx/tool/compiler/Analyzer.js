@@ -165,13 +165,6 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     compiledClass: "qx.event.type.Data",
 
     /**
-     * Fired when a class is already compiled (but needed for compilation); data is a map:
-     * className: {String}
-     * dbClassInfo: {Object} the newly populated class info
-     */
-    alreadyCompiledClass: "qx.event.type.Data",
-
-    /**
      * Fired when the database is been saved
      * database: {Object} the database to save
      */
