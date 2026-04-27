@@ -36,11 +36,9 @@ qx.Bootstrap.define("qx.core.property.Property", {
 
   environment: {
     /**
-     * @deprecated Changing this setting is deprecated.
-     * If set to true, then getting a property that is inheritable but has nothing to inherit from
-     * will return null, instead of throwing an error.
+     * Show warning if getting inherited value for an inheritable property when there's no parent to inherit from.
      */
-    "qx.core.property.Property.inheritableDefaultIsNull": false,
+    "qx.core.property.Property.warnInheritFromNothing": false,
 
     /**
      * If set to true, then properties with init values will have their apply method called during construction.
@@ -639,12 +637,6 @@ qx.Bootstrap.define("qx.core.property.Property", {
           return self.resetAsync(this);
         });
       }
-
-      if (this.__pseudoProperty) {
-        this.__supportsGetAsync = this.__clazz.prototype["get" + qx.Bootstrap.firstUp(this.__propertyName) + "Async"] !== undefined;
-      } else {
-        this.__supportsGetAsync = this.__storage.supportsGetAsync();
-      }
     },
 
     /**
@@ -775,24 +767,6 @@ qx.Bootstrap.define("qx.core.property.Property", {
         return this.__callFunction(thisObj, "get" + qx.Bootstrap.firstUp(this.__propertyName) + "Async");
       }
       return this.__getAsyncImpl(thisObj, false);
-    },
-
-    /**
-     * Gets a property value; if not initialized, it will return undefined
-     * @param {qx.core.Object} thisObj
-     * @param {boolean?} async
-     * @returns {*}
-     */
-    getSafe(thisObj, async = false) {
-      if (qx.core.Environment.get("qx.debug")) {
-        if (this.__pseudoProperty) {
-          throw new Error(`${this}: Pseudo properties do not support getSafe`);
-        }
-      }      
-      if (async) {
-        return this.__getAsyncImpl(thisObj, true);
-      }
-      return this.__getImpl(thisObj, true);
     },
 
     /**
@@ -1049,34 +1023,37 @@ qx.Bootstrap.define("qx.core.property.Property", {
         return;
       }
 
-      this.__pushState(thisObj, "mutating");
-
       if (value === undefined) {
         value = null;
       }
 
-      if (this.__apply) {
-        let out = this.__callFunction(thisObj, this.__apply, value, oldValue, this.__propertyName);
+      this.__pushState(thisObj, "mutating");
 
-        if (qx.core.Environment.get("qx.core.property.Property.applyReturnedPromiseWarning")) {
-          if (qx.lang.Type.isPromise(out)) {
-            this.warn(
-            "Apply function for property " +
-            this +
-              " returned a Promise, but the property was set synchronously. The promise will be ignored."
-            );
+      try {
+        if (this.__apply) {
+          let out = this.__callFunction(thisObj, this.__apply, value, oldValue, this.__propertyName);
+
+          if (qx.core.Environment.get("qx.core.property.Property.applyReturnedPromiseWarning")) {
+            if (qx.lang.Type.isPromise(out)) {
+              this.warn(
+                "Apply function for property " +
+                  this +
+                  " returned a Promise, but the property was set synchronously. The promise will be ignored."
+              );
+            }
           }
         }
-      }
 
-      if (this.__eventName && qx.event.Registration.hasListener(thisObj, this.__eventName)) {
-        thisObj.fireDataEvent(this.__eventName, value, oldValue);
-      }
+        if (this.__eventName && qx.event.Registration.hasListener(thisObj, this.__eventName)) {
+          thisObj.fireDataEvent(this.__eventName, value, oldValue);
+        }
 
-      if (this.isInheritable()) {
-        this.__applyValueToInheritedChildren(thisObj);
+        if (this.isInheritable()) {
+          this.__applyValueToInheritedChildren(thisObj);
+        }
+      } finally {
+        this.__popState(thisObj, "mutating");
       }
-      this.__popState(thisObj, "mutating");
     },
 
     /**
@@ -1171,13 +1148,12 @@ qx.Bootstrap.define("qx.core.property.Property", {
       if (!shouldApply) {
         return;
       }
-
-      this.__pushState(thisObj, "mutating");
-
+      
       if (value === undefined) {
         value = null;
       }
-
+      
+      this.__pushState(thisObj, "mutating");
       try {
         if (this.__apply) {
           await this.__callFunction(thisObj, this.__apply, value, oldValue, this.__propertyName);
@@ -1231,7 +1207,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
 
       if (value !== undefined) {
         return value;
-      } else if (this.__supportsGetAsync) {
+      } else if (this.supportsGetAsync()) {
         if (!safe) {
           throw new Error("Property " + this + " has not been initialized - try using getAsync() instead");
         } else {
@@ -1243,8 +1219,14 @@ qx.Bootstrap.define("qx.core.property.Property", {
         return false;
       } else if (this.__definition?.nullable || this.__check?.isNullable()) {
         return null;
-      } else if (qx.core.Environment.get("qx.core.property.Property.inheritableDefaultIsNull") && this.isInheritable()) {
-        return null;
+      } else if (this.isInheritable()) {
+        //This behaviour is weird, but it's there to preserve BC.
+        let out = value == "inherit" ? "inherit" : null;
+
+        if (qx.core.Environment.get("qx.core.property.Property.warnInheritFromNothing")) {
+          this.warn(`Property ${this}: No parent widget to inherit from when getting inherited value. The value ${out} will be returned instead.`)
+        }
+        return out;
       } else if (safe) {
         return undefined;
       } else {
@@ -1259,7 +1241,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
      * @returns {Promise<*>}
      */
     async __getAsyncImpl(thisObj, safe) {
-      if (!this.__supportsGetAsync) {
+      if (!this.supportsGetAsync()) {
         if (qx.core.Environment.get("qx.debug")) {
           this.warn(`Called getAsync in property ${this} which does not support async getter. The value will be read synchronously.`);
         }
@@ -1548,7 +1530,7 @@ qx.Bootstrap.define("qx.core.property.Property", {
      * @return {Boolean}
      */
     supportsGetAsync() {
-      return this.__supportsGetAsync;      
+      return !!this.__storage?.supportsGetAsync();      
     },
 
     /**
