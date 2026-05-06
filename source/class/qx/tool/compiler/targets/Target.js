@@ -401,7 +401,9 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
           libraryInfoMap[libnamespace] = library.getLibraryInfo();
         }
         addExternal(library.getAddScript(), "urisBefore");
-        addExternal(library.getAddCss(), "cssBefore");
+        if (application.getType() === "browser") {
+          addExternal(library.getAddCss(), "cssBefore");
+        }
       });
 
       /*
