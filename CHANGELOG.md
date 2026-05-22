@@ -13,6 +13,12 @@ The compiler has received an overhaul, which includes the following changes:
 - **Meta data** - Meta data, which is stored in `compiled/meta` by default is now always generated,
 whereas previously it was only generated if TypeScript was enabled in the `qx compile` command.
 
+## Breaking changes
+- Subclasses now inherit static methods and properties from their superclass via
+  the constructor prototype chain, matching native JavaScript `class extends`
+  semantics: reading `Sub.STATIC` resolves to the superclass value, assigning
+  `Sub.STATIC = ...` shadows it on the subclass, and mutations stay isolated.
+  Previously statics were strictly per-class and not visible on subclasses.
 
 # 8.0.0-beta.2
 
