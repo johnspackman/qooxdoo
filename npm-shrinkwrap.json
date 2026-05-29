@@ -49,6 +49,7 @@
         "fontkit": "^2.0.2",
         "get-value": "^3.0.1",
         "glob": "^13.0.6",
+        "ignore": "^5.2.0",
         "image-size": "^0.8.3",
         "inquirer": "^13.2.5",
         "jsdoctypeparser": "^9.0.0",
