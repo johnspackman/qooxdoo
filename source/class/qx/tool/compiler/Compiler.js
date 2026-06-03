@@ -1,19 +1,18 @@
 const fs = qx.tool.utils.Promisify.fs;
-const semver = require("semver");
 const path = require("upath");
 const consoleControl = require("console-control-strings");
 
 /**
  * @use(qx.core.BaseInit)
  * @use(qx.tool.*)
- * 
+ *
  */
 
 qx.Class.define("qx.tool.compiler.Compiler", {
   implement: [qx.tool.compiler.ICompilerInterface],
   extend: qx.core.Object,
   /**
-   * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data 
+   * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data
    */
   construct(data) {
     super();
@@ -59,7 +58,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
     /**
      * @override
-     */     
+     */
     checkEnvironment: "qx.event.type.Data",
 
     /**
@@ -85,7 +84,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      * @override
      */
     minifiedApplication: "qx.event.type.Data"
-  
   },
   members: {
     /** @type {cliProgress.SingleBar|null} progress bar instance */
@@ -122,7 +120,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     /**
      * @override
      */
-    async start() {      
+    async start() {
       let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       let data = this.__data;
 
@@ -134,9 +132,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
             var value = m[3];
             configDb.setOverride(key, value);
           } else {
-            throw new qx.tool.utils.Utils.UserError(
-              `Failed to parse environment setting commandline option '--set ${kv}'`
-            );
+            throw new qx.tool.utils.Utils.UserError(`Failed to parse environment setting commandline option '--set ${kv}'`);
           }
         });
       }
@@ -145,7 +141,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         data["feedback"] = configDb.db("qx.default.feedback", true);
       }
 
-      if (!data["machine-readable"]) {            
+      if (!data["machine-readable"]) {
         let color = configDb.db("qx.default.color", null);
         if (color) {
           let colorOn = consoleControl.color(color.split(" "));
@@ -159,15 +155,13 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
 
       let compilerApi = qx.tool.compiler.cli.ConfigLoader.getInstance().getCompilerApi();
-      let libPaths = compilerApi
-        .getLibraryApis()
-        .map(lib => lib.getRootDir());
+      let libPaths = compilerApi.getLibraryApis().map(lib => lib.getRootDir());
       data.libs = libPaths;
-      
+
       if (data["feedback"] === null) {
         data["feedback"] = configDb.db("qx.default.feedback", true);
       }
-      
+
       if (data["machineReadable"]) {
         qx.tool.compiler.Console.getInstance().setMachineReadable(true);
       }
@@ -183,7 +177,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     },
 
     /**
-     * 
+     *
      * @returns {boolean} Whether an error has been encountered during startup
      */
     hasStartError() {
@@ -266,11 +260,11 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           }
 
           maker.addListener("making", async () => {
-             await this.fireDataEventAsync("making", maker);
+            await this.fireDataEventAsync("making", maker);
           });
 
           maker.addListener("made", async () => {
-              await this.fireDataEventAsync("made", maker);
+            await this.fireDataEventAsync("made", maker);
           });
 
           controller.addMaker(maker);
@@ -320,12 +314,16 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       var argvAppNames = null;
       if (data["app-name"]) {
         argvAppNames = {};
-        String(data["app-name"]).split(",").forEach(name => (argvAppNames[name] = true));
+        String(data["app-name"])
+          .split(",")
+          .forEach(name => (argvAppNames[name] = true));
       }
       var argvAppGroups = null;
       if (data["app-group"]) {
         argvAppGroups = {};
-        String(data["app-group"]).split(",").forEach(name => (argvAppGroups[name] = true));
+        String(data["app-group"])
+          .split(",")
+          .forEach(name => (argvAppGroups[name] = true));
       }
 
       /*
@@ -661,7 +659,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           maker.getAnalyzer().setApplicationTypes(targetConfig["application-types"]);
         }
 
-
         maker.setLocales(config.locales || ["en"]);
         if (config.writeAllTranslations) {
           maker.setWriteAllTranslations(config.writeAllTranslations);
@@ -860,7 +857,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
       return makers;
     },
-    
+
     /**
      * Resolves the target class from the type name; accepts "source", "build", or a class
      * a class name
@@ -982,7 +979,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
               break;
             case "@qooxdoo/framework": {
               let qxVersion = data.qxVersion;
-              if (!semver.satisfies(qxVersion, requiredRange, { loose: true })) {
+              if (!qx.tool.utils.Utils.versionSatisfies(qxVersion, requiredRange)) {
                 errors.push(`${lib.getNamespace()}: Needs @qooxdoo/framework version ${requiredRange}, found ${qxVersion}`);
               }
               break;
@@ -998,7 +995,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
               }
               // github release of a package
               let libVersion = l.getLibraryInfo().version;
-              if (!semver.valid(libVersion, { loose: true })) {
+              if (!qx.tool.utils.Utils.versionValid(libVersion)) {
                 if (!data.quiet) {
                   Console.warn(`${reqUri}: Version is not valid: ${libVersion}`);
                 }
@@ -1006,7 +1003,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
                 if (!data.quiet) {
                   Console.warn(`${reqUri}: Cannot check whether commit hash ${requiredRange} corresponds to version ${libVersion}`);
                 }
-              } else if (!semver.satisfies(libVersion, requiredRange, { loose: true })) {
+              } else if (!qx.tool.utils.Utils.versionSatisfies(libVersion, requiredRange)) {
                 errors.push(`${lib.getNamespace()}: Needs ${reqUri} version ${requiredRange}, found ${libVersion}`);
               }
               break;

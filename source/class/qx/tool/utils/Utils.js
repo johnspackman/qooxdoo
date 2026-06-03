@@ -19,6 +19,7 @@ const path = require("upath");
 const fs = require("fs");
 const child_process = require("child_process");
 const psTree = require("ps-tree");
+
 /**
  * @ignore(process)
  */
@@ -30,6 +31,37 @@ qx.Class.define("qx.tool.utils.Utils", {
   extend: qx.core.Object,
 
   statics: {
+    /**
+     * Does a semver satisifies check, ignoring any prerelease tags on the version
+     *
+     * @param {String} version
+     * @param {String} range
+     * @returns {Boolean}
+     */
+    versionSatisfies(version, range, options) {
+      let m = version.match(/^([0-9]+\.[0-9]+\.[0-9]+)-.*/);
+      if (m) {
+        version = m[1];
+      }
+      const semver = require("semver");
+      return semver.satisfies(version, range, options);
+    },
+
+    /**
+     * Does a semver valid check, ignoring any prerelease tags on the version
+     *
+     * @param {String} version
+     * @returns {Boolean}
+     */
+    versionValid(version) {
+      let m = version.match(/^([0-9]+\.[0-9]+\.[0-9]+)(-.+)?$/);
+      if (m) {
+        version = m[1];
+      }
+      const semver = require("semver");
+      return semver.valid(version) != null;
+    },
+
     /**
      * Creates a Promise which can be resolved/rejected externally - it has
      * the resolve/reject methods as properties
@@ -121,7 +153,6 @@ qx.Class.define("qx.tool.utils.Utils", {
       await fs.promises.mkdir(dir, { recursive: true });
     },
 
-
     /**
      * Writable stream that keeps track of what the current line number is
      */
@@ -165,7 +196,6 @@ qx.Class.define("qx.tool.utils.Utils", {
       // Not an object
       return false;
     },
-
 
     /**
      * Runs the given command and returns an object containing information on the
@@ -212,7 +242,7 @@ qx.Class.define("qx.tool.utils.Utils", {
           env = Object.assign({}, env);
           Object.assign(env, options.env);
         }
-        
+
         // Use String array for arguments - no shell needed
         let proc = child_process.spawn(options.cmd, options.args || [], {
           cwd: options.cwd,
@@ -418,9 +448,7 @@ qx.Class.define("qx.tool.utils.Utils", {
      * @return {String}
      */
     getTemplateDir() {
-      let dir = qx.util.ResourceManager.getInstance().toUri(
-        "qx/tool/compiler/cli/templates/template_vars.js"
-      );
+      let dir = qx.util.ResourceManager.getInstance().toUri("qx/tool/compiler/cli/templates/template_vars.js");
 
       dir = path.dirname(dir);
       return dir;
