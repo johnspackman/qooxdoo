@@ -119,7 +119,6 @@
     "yauzl-promise": "^4.0.0"
   },
   "devDependencies": {
-    "baseline-browser-mapping": "^2.10.0",
     "dirsum": "^0.1.1",
     "source-map-support": "^0.5.21",
     "tree-kill": "^1.2.2"
