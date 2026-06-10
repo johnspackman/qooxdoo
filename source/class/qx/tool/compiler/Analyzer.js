@@ -23,7 +23,6 @@
 /* eslint no-nested-ternary: 0 */
 /* eslint no-inner-declarations: 0 */
 
-
 var hash = require("object-hash");
 
 var log = qx.tool.utils.LogManager.createLog("analyzer");
@@ -214,7 +213,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     __classFileConfig: null,
 
     /**
-     * 
+     *
      * @returns {qx.tool.compiler.ClassFileConfig}
      */
     getClassFileConfig() {
@@ -258,8 +257,8 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
     /**
      * Returns a prefix that is unique to a particular class,
      * used for mangling privates.
-     * 
-     * @param {string} classname 
+     *
+     * @param {string} classname
      * @returns {string}
      */
     getManglePrefix(classname) {
@@ -462,7 +461,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
         let dbClassInfo = await compileClass(classname);
         if (!dbClassInfo) {
           return; //This means class failed to compile. Assume the error has already been handled.
-        };
+        }
         if (dbClassInfo?.dependsOn) {
           Object.keys(dbClassInfo.dependsOn).forEach(depName => ensureProcessed(depName));
         }
@@ -902,8 +901,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
         const currentLibraryKeys = Object.keys(currentLibraries).sort();
 
         // Check if a library was added or removed
-        if (dbLibraryKeys.length !== currentLibraryKeys.length ||
-            !dbLibraryKeys.every((key, index) => key === currentLibraryKeys[index])) {
+        if (dbLibraryKeys.length !== currentLibraryKeys.length || !dbLibraryKeys.every((key, index) => key === currentLibraryKeys[index])) {
           return true;
         }
 
@@ -936,7 +934,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
 
       db.libraries = libraries;
       db.environmentHash = this.__environmentHash;
-      db.compilerVersion = qx.tool.config.Utils.getCompilerVersion();
+      db.compilerVersion = qx.core.Environment.get("qx.version");
     },
 
     getMaker() {
