@@ -42,8 +42,6 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      */
     __discoveredFiles: null,
 
-
-
     /**
      * @typedef WatchedPath
      * @property {String} path - The path to watch
@@ -79,15 +77,10 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
       this.__started = true;
       for (let filename in this.__watchedPaths) {
         filename = path.resolve(filename);
-        let stat = null;
-        try {
-          stat = await fs.promises.stat(filename);
-        } catch (ex) {
-          if (ex.code === "ENOENT") {
-            this.warn(`Directory ${filename} does not exist.`);
-            continue;
-          }
-          throw ex;
+        let stat = await qx.tool.utils.files.Utils.safeStat(filename);
+        if (!stat) {
+          this.warn(`Directory ${filename} does not exist.`);
+          continue;
         }
         let watcher = chokidar.watch(filename, {
           //ignored: /(^|[\/\\])\../
@@ -98,7 +91,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
           ready: false
         };
         this.__watchedPaths[filename] = watchedPath;
-        
+
         let confirmedName = filename;
         watcher.on("change", filename => this.__onFileChange("change", filename, confirmedName));
         watcher.on("add", filename => this.__onFileChange("add", filename, confirmedName));
@@ -108,10 +101,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
           watchedPath.ready = true;
         });
         watcher.on("error", err => {
-          qx.tool.compiler.Console.print(
-            err.code == "ENOSPC" ? "qx.tool.cli.watch.enospcError" : "qx.tool.cli.watch.watchError",
-            err
-          );
+          qx.tool.compiler.Console.print(err.code == "ENOSPC" ? "qx.tool.cli.watch.enospcError" : "qx.tool.cli.watch.watchError", err);
         });
       }
 
@@ -138,7 +128,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
               }
               this.__discoveredFiles[fullFilename] = {
                 classname
-              }
+              };
             }
           }
         }
@@ -171,7 +161,7 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
     },
 
     /**
-     * @param {string} filename 
+     * @param {string} filename
      * @returns {string}
      */
     getClassnameForFile(filename) {

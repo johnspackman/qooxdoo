@@ -55,8 +55,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("update-po-files").set({
           shortCode: "u",
-          description:
-            "enables detection of translations and writing them out into .po files",
+          description: "enables detection of translations and writing them out into .po files",
           type: "boolean",
           value: false
         })
@@ -72,8 +71,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
 
       cmd.addFlag(
         new qx.tool.cli.Flag("write-all-translations").set({
-          description:
-            "enables output of all translations, not just those that are explicitly referenced",
+          description: "enables output of all translations, not just those that are explicitly referenced",
           type: "boolean"
         })
       );
@@ -81,8 +79,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("target").set({
           shortCode: "t",
-          description:
-            "Set the target type: source or build or class name. Default is first target in config file",
+          description: "Set the target type: source or build or class name. Default is first target in config file",
           required: true,
           type: "string",
           value: "source"
@@ -91,8 +88,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
 
       cmd.addFlag(
         new qx.tool.cli.Flag("output-path-prefix").set({
-          description:
-            "Sets a prefix for the output path of the target - used to compile a version into a non-standard directory",
+          description: "Sets a prefix for the output path of the target - used to compile a version into a non-standard directory",
           type: "string"
         })
       );
@@ -140,8 +136,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
 
       cmd.addFlag(
         new qx.tool.cli.Flag("watch").set({
-          description:
-            "enables watching for changes and continuous compilation",
+          description: "enables watching for changes and continuous compilation",
           type: "boolean",
           shortCode: "w",
           value: false
@@ -155,7 +150,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
           value: false
         })
       );
-      
+
       cmd.addFlag(
         new qx.tool.cli.Flag("machine-readable").set({
           shortCode: "M",
@@ -183,8 +178,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
 
       cmd.addFlag(
         new qx.tool.cli.Flag("save-source-in-map").set({
-          description:
-            "Saves the source code in the map file (build target only)",
+          description: "Saves the source code in the map file (build target only)",
           type: "boolean"
         })
       );
@@ -200,8 +194,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("save-unminified").set({
           shortCode: "u",
-          description:
-            "Saves a copy of the unminified version of output files (build target only)",
+          description: "Saves a copy of the unminified version of output files (build target only)",
           type: "boolean"
         })
       );
@@ -216,8 +209,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("erase").set({
           shortCode: "e",
-          description:
-            "Enabled automatic deletion of the output directory when compiler version or environment variables change",
+          description: "Enabled automatic deletion of the output directory when compiler version or environment variables change",
           type: "boolean",
           value: true
         })
@@ -269,8 +261,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("write-library-info").set({
           shortCode: "I",
-          description:
-            "Write library information to the script, for reflection",
+          description: "Write library information to the script, for reflection",
           type: "boolean",
           value: true
         })
@@ -278,8 +269,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
 
       cmd.addFlag(
         new qx.tool.cli.Flag("write-compile-info").set({
-          description:
-            "Write application summary information to the script, used mostly for unit tests",
+          description: "Write application summary information to the script, used mostly for unit tests",
           type: "boolean",
           value: false
         })
@@ -297,7 +287,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       cmd.addFlag(
         new qx.tool.cli.Flag("nJobs").set({
           shortCode: "j",
-          description: "Number of threads to use for compilation. By default it's number of CPU cores / 2. If set to zero, uses only the main thread.",
+          description:
+            "Number of threads to use for compilation. By default it's number of CPU cores / 2. If set to zero, uses only the main thread.",
           type: "integer",
           value: null,
           required: false
@@ -317,6 +308,15 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
           description: "sets an environment value for the application",
           type: "string",
           array: true
+        })
+      );
+
+      cmd.addFlag(
+        new qx.tool.cli.Flag("custom-inspect").set({
+          description:
+            "The inspect or inspect-brk flag to use when running a custom compiler in debug mode; this should be [inspect[-brk]=][0.0.0.0:]port",
+          type: "string",
+          value: null
         })
       );
 
@@ -482,7 +482,6 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
         qxVersion: qxVersion
       };
 
-
       if (this._hasCustomCompiler() && !this._isCustomCompiler()) {
         qx.tool.compiler.Console.log(">>>Custom compiler detected - compiling custom compiler first...");
         //we will compile our custom compiler first, then run it in a child process and let that take over.
@@ -493,25 +492,71 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
         let target = makers[0].target;
         let app = makers[0].getApplications()[0];
 
+        let nodeCmdArgs = [];
+
+        if (this.argv.customInspect) {
+          debugger;
+          // customInspect should be in the format [inspect[-brk]=][ip:]port, e.g. "inspect=9229" or "inspect-brk=0.0.0.0:9231"
+          let customInspect = this.argv.customInspect;
+          let pos = customInspect.indexOf("=");
+          let inspectType = "inspect";
+          if (pos >= 0) {
+            inspectType = this.argv.customInspect.substring(0, pos);
+            if (inspectType !== "inspect" && inspectType !== "inspect-brk") {
+              qx.tool.compiler.Console.error("Invalid inspect type in --custom-inspect: " + inspectType);
+              process.exitCode = 1;
+              return;
+            }
+            customInspect = this.argv.customInspect.substring(pos + 1);
+          }
+          pos = customInspect.indexOf(":");
+          let host = null;
+          let port = null;
+          if (pos >= 0) {
+            host = customInspect.substring(0, pos);
+            port = customInspect.substring(pos + 1);
+          } else {
+            port = customInspect;
+          }
+          if (port) {
+            port = parseInt(port, 10);
+            if (isNaN(port) || port <= 0 || port > 65535) {
+              qx.tool.compiler.Console.error("Invalid port in --custom-inspect: " + port);
+              process.exitCode = 1;
+              return;
+            }
+          }
+          nodeCmdArgs.push(`--${inspectType}=${host ? host + ":" : ""}${port}`);
+        }
+
         let compilerPath = path.join(target.getOutputDir(), app.getProjectDir(), "index.js");
         await compilerCompiler.stop();
         compilerCompiler.dispose();
 
-        let cp = child_process.fork(compilerPath, process.argv.concat(["--is-custom=true"]), {
-          env: {
-            ...process.env,
-            QOOXDOO_PARENT_COMPILER_PATH: require.main.filename
+        nodeCmdArgs.push(compilerPath);
+        nodeCmdArgs = nodeCmdArgs.concat(
+          process.argv.slice(2).filter(arg => !arg.startsWith("--custom-inspect") && !arg.startsWith("--customInspect"))
+        );
+        nodeCmdArgs.push("--is-custom=true");
+        await new Promise(resolve => {
+          if (this.argv.verbose) {
+            qx.tool.compiler.Console.log(">>>Running custom compiler with command: " + process.execPath + " " + nodeCmdArgs.join(" "));
           }
-        });
-        
-        await new Promise(() => {
-          cp.on("exit", code => {
-            process.exitCode = code;
-            // exit process. The whole work is done by the custom compiler, 
-            // so we just need to exit with the correct code here.
-            process.exit();
+          qx.tool.utils.Utils.spawnProcess(process.execPath, nodeCmdArgs, {
+            env: {
+              ...process.env,
+              QOOXDOO_PARENT_COMPILER_PATH: require.main.filename
+            },
+            onClose: code => {
+              resolve();
+              process.exitCode = code;
+              // exit process. The whole work is done by the custom compiler,
+              // so we just need to exit with the correct code here.
+              process.exit();
+            }
           });
         });
+        return;
       }
 
       let compiler;
@@ -520,13 +565,19 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       if (this._isCustomCompiler()) {
         let compilerClassName = qx.core.Environment.get("qx.tool.compiler.Compiler.compilerClass");
         if (!compilerClassName) {
-          throw new Error("Your project is set to use a custom compiler but the environment setting qx.tool.compiler.Compiler.compilerClass is not set. \
-             Please set it to your compiler class.");
+          throw new Error(
+            "Your project is set to use a custom compiler but the environment setting qx.tool.compiler.Compiler.compilerClass is not set. \
+             Please set it to your compiler class."
+          );
         }
         let CompilerClass = qx.Class.getByName(compilerClassName);
 
         if (!CompilerClass) {
-          throw new Error("Could not find compiler class: " + compilerClassName + ". Please make sure you have included the class in your custom compiler application configuration.");
+          throw new Error(
+            "Could not find compiler class: " +
+              compilerClassName +
+              ". Please make sure you have included the class in your custom compiler application configuration."
+          );
         }
 
         if (!qx.Class.hasInterface(CompilerClass, qx.tool.compiler.ICompilerInterface)) {
@@ -565,15 +616,15 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
     getMakers() {
       return this.__compiler.getMakers();
     },
-    
+
     /**
-     *  Returns whether this compiler is a custom compiler (i.e. whether it contains any applications with a custom compiler specified). 
+     *  Returns whether this compiler is a custom compiler (i.e. whether it contains any applications with a custom compiler specified).
      * @returns {boolean}
      */
     _hasCustomCompiler() {
       let compileConfig = this.getCompilerApi().getConfiguration();
       return compileConfig.applications.find(app => app.compiler);
-    },  
+    },
 
     /**
      * Returns whether this compiler is running as a custom compiler (i.e. whether it was launched by another instance of Compile to run a custom compiler).
@@ -582,7 +633,6 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
     _isCustomCompiler() {
       return this.argv.isCustom;
     },
-   
 
     /**
      * Runs the finalization code ran on exit
@@ -631,18 +681,13 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
     qx.tool.compiler.Console.addMessageIds(
       {
-        "qx.tool.compiler.cli.compile.multipleDefaultTargets":
-          "Multiple default targets found!",
-        "qx.tool.compiler.cli.compile.unusedTarget":
-          "Target type %1, index %2 is unused",
+        "qx.tool.compiler.cli.compile.multipleDefaultTargets": "Multiple default targets found!",
+        "qx.tool.compiler.cli.compile.unusedTarget": "Target type %1, index %2 is unused",
         "qx.tool.compiler.cli.compile.selectingDefaultApp":
           "You have multiple applications, none of which are marked as 'default'; the first application named %1 has been chosen as the default application",
-        "qx.tool.compiler.cli.compile.legacyFiles":
-          "File %1 exists but is no longer used",
-        "qx.tool.compiler.cli.compile.deprecatedCompile":
-          "The configuration setting %1 in compile.json is deprecated",
-        "qx.tool.compiler.cli.compile.deprecatedCompileSeeOther":
-          "The configuration setting %1 in compile.json is deprecated (see %2)",
+        "qx.tool.compiler.cli.compile.legacyFiles": "File %1 exists but is no longer used",
+        "qx.tool.compiler.cli.compile.deprecatedCompile": "The configuration setting %1 in compile.json is deprecated",
+        "qx.tool.compiler.cli.compile.deprecatedCompileSeeOther": "The configuration setting %1 in compile.json is deprecated (see %2)",
         "qx.tool.compiler.cli.compile.deprecatedUri":
           "URIs are no longer set in compile.json, the configuration setting %1=%2 in compile.json is ignored (it's auto detected)",
         "qx.tool.compiler.cli.compile.deprecatedProvidesBoot":
