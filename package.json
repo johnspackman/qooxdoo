@@ -111,7 +111,7 @@
     "showdown": "^1.9.1",
     "source-map-js": "^1.0.2",
     "terser": "^5.22.0",
-    "tmp": "^0.2.5",
+    "tmp": "0.2.6",
     "unset-value": "^1.0.0",
     "upath": "^1.2.0",
     "update-notifier": "^6.0.2",

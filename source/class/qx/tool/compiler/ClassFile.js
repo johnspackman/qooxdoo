@@ -178,7 +178,7 @@ function formatValueAsCode(value) {
  * A class file is parsed and anaysed into an instance of ClassFile; it is intended to be
  * used entirely standalone, with configuration passed in via the `compileConfig` - this is
  * to allow the ClassFile to be used in an isolated manner, such as in a Node Worker.
- * 
+ *
  * @typedef {Object} DbClassInfo
  * @property {String} libraryName - The name of the library containing the class
  * @property {String} filename - The source filename of the class
@@ -191,20 +191,20 @@ function formatValueAsCode(value) {
  * @property {boolean} hasDefer
  * @property {Marker[]} markers
  * and many more
- * 
+ *
  * @typedef {Object} Marker
  * @property {qx.tool.compiler.Console.msgId} msgId - the marker message ID
  * @property {Array} args - arguments for the marker message
  * @property {Range?} pos
- * 
+ *
  * @typedef {Object} Range
  * @property {Position} start
  * @property {Position} end
- * 
+ *
  * @typedef {Object} Position
  * @property {Number} line
  * @property {Number} column
- * 
+ *
  */
 qx.Class.define("qx.tool.compiler.ClassFile", {
   extend: qx.core.Object,
@@ -387,9 +387,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         //   config.blacklist = ["spec.functionName"];
         // }
         let transform = babelCore.transform(src, config);
-        result = {code: transform.code, map: transform.map};
+        result = { code: transform.code, map: transform.map };
       } catch (ex) {
-        if (ex.loc) { //this means it's a Babel parse exception
+        if (ex.loc) {
+          //this means it's a Babel parse exception
           t.addMarker("compiler.syntaxError", ex.loc, ex.message);
           t.__fatalCompileError = true;
         } else {
@@ -410,7 +411,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
     },
 
     /**
-     * 
+     *
      * @returns {DbClassInfo}
      */
     getDbInfo() {
@@ -1163,9 +1164,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
           errorRecovery: true
         }).program.body[0];
 
-        membersPropertyNode.value.properties.push(
-          types.objectMethod("method", types.identifier("_createQxObjectImpl"), [], functionBlock)
-        );
+        membersPropertyNode.value.properties.push(types.objectMethod("method", types.identifier("_createQxObjectImpl"), [], functionBlock));
       }
 
       function checkValidTopLevel(path) {
@@ -1298,18 +1297,9 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 var data = collectJson(pdNode.value, true);
                 meta.name = propName;
                 meta.propertyType = "new";
-                [
-                  "refine",
-                  "themeable",
-                  "event",
-                  "inheritable",
-                  "apply",
-                  "async",
-                  "group",
-                  "nullable",
-                  "init",
-                  "transform"
-                ].forEach(name => (meta[name] = data[name]));
+                ["refine", "themeable", "event", "inheritable", "apply", "async", "group", "nullable", "init", "transform"].forEach(
+                  name => (meta[name] = data[name])
+                );
                 if (data.nullable !== undefined) {
                   meta.allowNull = data.nullable;
                 }
@@ -1343,13 +1333,13 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 if (propName.startsWith("__")) {
                   //If the properties are defined in quickhand notation i.e. a string instead of a POJO,
                   //we have to wrap them in a POJO
-                  if (pdNode.value.type === "StringLiteral") {                    
+                  if (pdNode.value.type === "StringLiteral") {
                     pdNode.value = babylon.parseExpression(`{ check: "${pdNode.value.value}" }`);
                   }
 
                   //Create an entry called $$mangledMethods in the definition
                   let methodsPropertyNode = babylon.parseExpression(`{ $$mangledMethods: {} }`).properties[0];
-                  pdNode.value.properties.push(methodsPropertyNode);                  
+                  pdNode.value.properties.push(methodsPropertyNode);
 
                   let injectedMethods = qx.core.property.Property.getInjectedMethods(propName);
 
@@ -1358,7 +1348,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                     methodName = t.encodePrivate(methodName, true);
                     let node = babylon.parseExpression(`{ ${methodId}: "${methodName}" }`).properties[0];
                     methodsPropertyNode.value.properties.push(node);
-                  }                              
+                  }
                 }
               });
             }
@@ -1869,9 +1859,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 } else if (t.__classMeta.functionName == "$$constructor") {
                   expr = expandMemberExpression(t.__classMeta.superClass + ".constructor." + methodName);
                 } else {
-                  expr = expandMemberExpression(
-                    t.__className + ".prototype." + t.__classMeta.functionName + ".base." + methodName
-                  );
+                  expr = expandMemberExpression(t.__className + ".prototype." + t.__classMeta.functionName + ".base." + methodName);
                 }
 
                 // Original call to this.base.apply would have included arguments in the first element of the array
@@ -1900,11 +1888,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
               ) {
                 let arg0 = getStringArg(0);
                 if (!arg0) {
-                  t.addMarker(
-                    "translate.invalidMessageId",
-                    path.node.loc,
-                    arg0 ?? ""
-                  );
+                  t.addMarker("translate.invalidMessageId", path.node.loc, arg0 ?? "");
                 } else {
                   addTranslation({ msgid: arg0 });
                 }
@@ -1912,12 +1896,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                 let arg0 = getStringArg(0);
                 let arg1 = getStringArg(1);
                 if (!arg0 || !arg1) {
-                  t.addMarker(
-                    "translate.invalidMessageIds",
-                    path.node.loc,
-                    arg0 ?? "",
-                    arg1 ?? ""
-                  );
+                  t.addMarker("translate.invalidMessageIds", path.node.loc, arg0 ?? "", arg1 ?? "");
                 } else {
                   addTranslation({ msgid: arg0, msgid_plural: arg1 });
                 }
@@ -2045,8 +2024,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         ObjectMethod(path) {
           // Methods within a top level object (ie "members" or "statics"), record the method name and meta data
           if (t.__classMeta && t.__classMeta._topLevel && t.__classMeta._topLevel.path == path.parentPath.parentPath) {
-            t.__classMeta.functionName =
-              t.__classMeta._topLevel.keyName == "objects" ? "_createQxObjectImpl" : getKeyName(path.node.key);
+            t.__classMeta.functionName = t.__classMeta._topLevel.keyName == "objects" ? "_createQxObjectImpl" : getKeyName(path.node.key);
             makeMeta(t.__classMeta._topLevel.keyName, t.__classMeta.functionName, path.node);
 
             path.skip();
@@ -2107,6 +2085,32 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                   }
                 }
                 t.addDeclaration(decl.id.name, value);
+
+                // Object destructuring `var {a,b} = {...}`
+              } else if (decl.id.type == "ObjectPattern") {
+                decl.id.properties.forEach(prop => {
+                  if (prop.type == "RestElement") {
+                    t.addDeclaration(prop.argument.name);
+                  } else if (prop.value.type == "AssignmentPattern") {
+                    t.addDeclaration(prop.value.left.name);
+                  } else {
+                    t.addDeclaration(prop.value.name);
+                  }
+                });
+
+                // Array destructuring `var [a,b] = [...]`
+              } else if (decl.id.type == "ArrayPattern") {
+                decl.id.elements.forEach(prop => {
+                  if (prop) {
+                    if (prop.type == "AssignmentPattern") {
+                      t.addDeclaration(prop.left.name);
+                    } else if (prop.type == "RestElement") {
+                      t.addDeclaration(prop.argument.name);
+                    } else {
+                      t.addDeclaration(prop.name);
+                    }
+                  }
+                });
               } else {
                 scanIdsRecursively(decl.id);
               }
@@ -2256,7 +2260,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         delete unresolved[name];
         // Escape special regex characters and anchor to start of string
         // to prevent "x" from matching "qx.foo" (only match "x.foo")
-        var escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         var re = new RegExp("^" + escapedName + "\\.");
         for (var tmp in unresolved) {
           if (re.test(tmp)) {
