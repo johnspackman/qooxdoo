@@ -320,15 +320,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
         })
       );
 
-      //FOR INTERNAL USE ONLY
-      cmd.addFlag(
-        new qx.tool.cli.Flag("is-custom").set({
-          description: "Whether this compiler is a custom compiler. DO NOT set this flag manually; it is reserved for internal use.",
-          type: "string",
-          hidden: true
-        })
-      );
-
       return cmd;
     }
   },
@@ -442,9 +433,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
   },
 
   members: {
-    /**
-     * @type {qx.tool.compiler.Compiler}
-     */
+    /** @type {qx.tool.compiler.Compiler} the Compiler instance that will run the compile */
     __compiler: null,
 
     /**
@@ -457,14 +446,50 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
         return;
       }
 
+      let compileConfig = this.getCompilerApi().getConfiguration();
+      let hasCustomCompiler = compileConfig.applications.find(app => app.compiler);
+
+      let compilerClassName = qx.core.Environment.get("qx.tool.compiler.Compiler.compilerClass");
+      let isCustomCompiler = !!compilerClassName;
+      let CompilerClass = qx.tool.compiler.Compiler;
+      if (isCustomCompiler) {
+        if (!hasCustomCompiler) {
+          qx.tool.compiler.Console.error("This is a custom compiler but the configuration does not require a custom compiler");
+          process.exitCode = 1;
+          return;
+        }
+
+        if (!compilerClassName) {
+          qx.tool.compiler.Console.error(
+            "This application is a custom compiler which is intended to be created, compiled, and run solely by the qx application. " +
+              "The environment setting qx.tool.compiler.Compiler.compilerClass is not set which suggests that you're not running the custom compiler correctly. " +
+              "The most likely cause of this is that you are manually compiling and running the custom compiler instead of letting the qx application do it.  Don't :)"
+          );
+          process.exitCode = 1;
+          return;
+        }
+
+        CompilerClass = qx.Class.getByName(compilerClassName);
+        if (!CompilerClass) {
+          qx.tool.compiler.Console.error("Could not find compiler class: " + compilerClassName);
+          process.exitCode = 1;
+          return;
+        }
+        if (!qx.Class.hasInterface(CompilerClass, qx.tool.compiler.ICompilerInterface)) {
+          qx.tool.compiler.Console.error(
+            `This is a custom compiler built using the class ${compilerClassName} but that class does not implement qx.tool.compiler.ICompilerInterface`
+          );
+          process.exitCode = 1;
+          return;
+        }
+      }
+
       let qxVersion = await this.getQxVersion();
       if (this.argv.verbose) {
         console.log(`
 Compiler:  v${this.getCompilerVersion()} in ${require.main.filename}
 Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
-
-      let compileConfig = this.getCompilerApi().getConfiguration();
 
       if (compileConfig.sass && compileConfig.sass.compiler !== undefined) {
         qx.tool.compiler.resources.ScssConverter.USE_V6_COMPILER = compileConfig.sass.compiler == "latest";
@@ -482,7 +507,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
         qxVersion: qxVersion
       };
 
-      if (this._hasCustomCompiler() && !this._isCustomCompiler()) {
+      if (hasCustomCompiler && !isCustomCompiler) {
         qx.tool.compiler.Console.log(">>>Custom compiler detected - compiling custom compiler first...");
         //we will compile our custom compiler first, then run it in a child process and let that take over.
         let compilerCompiler = new qx.tool.compiler.Compiler({ ...data, compilerOnly: true, watch: false, nJobs: 0 });
@@ -537,7 +562,6 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
         nodeCmdArgs = nodeCmdArgs.concat(
           process.argv.slice(2).filter(arg => !arg.startsWith("--custom-inspect") && !arg.startsWith("--customInspect"))
         );
-        nodeCmdArgs.push("--is-custom=true");
         await new Promise(resolve => {
           if (this.argv.verbose) {
             qx.tool.compiler.Console.log(">>>Running custom compiler with command: " + process.execPath + " " + nodeCmdArgs.join(" "));
@@ -560,35 +584,9 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
 
       let compiler;
-      //if we are running as a custom compiler,
-      //we need to get and load the custom compiler class
-      if (this._isCustomCompiler()) {
-        let compilerClassName = qx.core.Environment.get("qx.tool.compiler.Compiler.compilerClass");
-        if (!compilerClassName) {
-          throw new Error(
-            "Your project is set to use a custom compiler but the environment setting qx.tool.compiler.Compiler.compilerClass is not set. \
-             Please set it to your compiler class."
-          );
-        }
-        let CompilerClass = qx.Class.getByName(compilerClassName);
 
-        if (!CompilerClass) {
-          throw new Error(
-            "Could not find compiler class: " +
-              compilerClassName +
-              ". Please make sure you have included the class in your custom compiler application configuration."
-          );
-        }
-
-        if (!qx.Class.hasInterface(CompilerClass, qx.tool.compiler.ICompilerInterface)) {
-          throw new Error("Compiler class " + compilerClassName + " does not implement qx.tool.compiler.ICompilerInterface");
-        }
-
-        compiler = new CompilerClass(data);
-      } else {
-        compiler = new qx.tool.compiler.Compiler(data);
-      }
-
+      // If we are running as a custom compiler, we need to get and load the custom compiler class
+      compiler = new CompilerClass(data);
       this.__compiler = compiler;
 
       //relay the events
@@ -596,6 +594,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       for (let event of events) {
         compiler.addListener(event, evt => this.dispatchEvent(evt.clone()));
       }
+
       qx.tool.compiler.Console.log(">>> Starting compilation of project...");
       await compiler.start(data);
       return new Promise((resolve, reject) => {
@@ -615,23 +614,6 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
      */
     getMakers() {
       return this.__compiler.getMakers();
-    },
-
-    /**
-     *  Returns whether this compiler is a custom compiler (i.e. whether it contains any applications with a custom compiler specified).
-     * @returns {boolean}
-     */
-    _hasCustomCompiler() {
-      let compileConfig = this.getCompilerApi().getConfiguration();
-      return compileConfig.applications.find(app => app.compiler);
-    },
-
-    /**
-     * Returns whether this compiler is running as a custom compiler (i.e. whether it was launched by another instance of Compile to run a custom compiler).
-     * @returns {boolean}
-     */
-    _isCustomCompiler() {
-      return this.argv.isCustom;
     },
 
     /**

@@ -15,47 +15,36 @@
      * Patryk Malinowski (pmalinowski116@gmail.com)
 
 ************************************************************************ */
+
 /**
  * This application runs in the compiler worker thread and creates an instance of ClassFile, which invokes Babel.
- *
- *
  *
  */
 const { isMainThread, threadId } = require("worker_threads");
 
 qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
   extend: qx.tool.compiler.cli.Command,
-  statics: {
-    async createCliCommand(clazz = this) {
-      let cmd = await qx.tool.compiler.cli.Command.createCliCommand(clazz);
-      cmd.set({
-        name: "transpiler-worker",
-        hidden: true
-      });
-      return cmd;
-    }
-  },
+
   construct(...args) {
     super(...args);
     this.__metaDb = new qx.tool.compiler.meta.MetaDatabase();
   },
+
   members: {
-    /**
-     * String showing the ranges of times when this thread was compiling
-     */
+    /** @type{String} String showing the ranges of times when this thread was compiling */
     __stats: "",
-    /**
-     * @type {qx.tool.compiler.meta.MetaDatabase}
-     */
+
+    /** @type {qx.tool.compiler.meta.MetaDatabase} */
     __metaDb: null,
-    /**
-     * @type {number?}
-     */
+
+    /** @type {number?} */
     __metaTimestamp: null,
+
     /**
      * Map of the hashcode of the maker to its related information (e.g. source transformer or class file config).
      * When the compiler initally starts, we pass in this data just once for optimization reasons.
      * Then each transpile call can look up its data because we may be compiling for different makers at once.
+     *
      * @type {Object.<string, qx.tool.compiler.Controller.MakerInfo>}
      */
     __infoByMaker: null,
@@ -96,6 +85,12 @@ qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
         stats: this.__stats
       };
     },
+
+    resetStats() {
+      this.__stats = "";
+      this.__initialStart = null;
+    },
+
     /**
      *
      * @param {SharedArrayBuffer} serializedMetaData
@@ -103,11 +98,6 @@ qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
     updateClassMeta(serializedMetaData) {
       let newOne = qx.tool.compiler.meta.MetaDatabase.deserialize(serializedMetaData);
       this.__metaDb.move(newOne);
-    },
-
-    resetStats() {
-      this.__stats = "";
-      this.__initialStart = null;
     },
 
     /**
@@ -144,6 +134,17 @@ qx.Class.define("qx.tool.compiler.cli.commands.TranspilerWorker", {
         };
         infoByMaker[key] = thisMakerInfo;
       }
+    }
+  },
+
+  statics: {
+    async createCliCommand(clazz = this) {
+      let cmd = await qx.tool.compiler.cli.Command.createCliCommand(clazz);
+      cmd.set({
+        name: "transpiler-worker",
+        hidden: true
+      });
+      return cmd;
     }
   }
 });

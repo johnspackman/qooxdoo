@@ -27,21 +27,21 @@ const path = require("upath");
  * Controller for managing the discovery of class files, reading their metadata,
  * compiling them for targets, and relaying information about modifications to the
  * makers
- * 
- * 
+ *
+ *
  * @typedef {Object} SourceInfo Information regarding the source file to be compiled
  * @property {string} classname
  * @property {string} filename Absolute path of source file
  * @property {string} source The source code itself
  * @property {string} manglePrefix The prefix used for mangling privates to make them distinct across different classes
- * 
- * 
+ *
+ *
  * @typedef {Object} MakerInfo
  * @property {qx.tool.compiler.ISourceTransformer?} transformer
  * @property {qx.tool.compiler.ClassFileConfig} classFileConfig
- * 
+ *
  * @typedef {{ dbClassInfo: qx.tool.compiler.ClassFile.DbClassInfo, cached: boolean}} CompilationResult
- * 
+ *
  */
 qx.Class.define("qx.tool.compiler.Controller", {
   extend: qx.core.Object,
@@ -49,7 +49,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
   /**
    *
    * @param {Object} options Options for the controller
-   * 
+   *
    * @typedef {Object} Options
    * @property {string} metaDir The directory where the meta database is stored
    * @property {number} [nTranspilerThreads] The number of threads to use for transpilation.  If not specified, will default to the number of CPU cores.  If set to 0 or a negative number, transpilation will be done in the main thread.
@@ -90,6 +90,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * Fired when the watcher detects changes to the source files
      */
     changesDetected: "qx.event.type.Event",
+
     /** Fired when a maker is added, data is the `qx.tool.compiler.Maker` */
     addMaker: "qx.event.type.Data",
 
@@ -130,21 +131,13 @@ qx.Class.define("qx.tool.compiler.Controller", {
   },
 
   members: {
-    /**
-     * Whether this controller has encountered an error during calling the `start()` method
-     */
+    /** @type {Boolean} Whether this controller has encountered an error during calling the `start()` method */
     __startError: false,
-    /**
-     * Whether to watch for file changes
-     */
+
+    /** @type{Boolean} Whether to watch for file changes */
     __watch: false,
 
-    isWatch() {
-      return this.__watch;
-    },
-    /**
-     * Whether TypeScript generation has been enabled
-     */
+    /** @type{Boolean} Whether TypeScript generation has been enabled */
     __typescriptEnabled: false,
 
     /**
@@ -152,22 +145,24 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * The TypeScript writer instance, responsible for generating TypeScript definitions
      */
     __typescriptWriter: null,
+
     /**
      * @type {Object.<string, '+' | '-'>} List of changed files, indexed by file name,
      * with value "+" for added/changed files and "-" for removed files
      * These are for the classes that have been queued up for compilation but are not yet being compiled
      */
     __changedFiles: null,
+
     /**
      * @type {qx.tool.compiler.TranspilerPool}
      * The pool of transpiler workers which invoke Babel to do the transpilation
      */
     __transpilerPool: null,
-    /**
-     * @type {qx.tool.compiler.meta.MetaDatabase}
-     */
+
+    /** @type {qx.tool.compiler.meta.MetaDatabase} Meta database for all classes in this target */
     __metaDb: null,
-    /** @type {Object<String, qx.tool.compiler.app.Library} */
+
+    /** @type {Object<String, qx.tool.compiler.app.Library>} all libraries indexed by namespace */
     __libraries: null,
 
     /** @type {qx.tool.compiler.Maker[]} list of makers */
@@ -255,10 +250,9 @@ qx.Class.define("qx.tool.compiler.Controller", {
       }
       metaDb.getDatabase().environmentChecks = environmentChecks;
       this.fireEvent("metaDbConfigured");
-      this.__startError ||= !await metaDb.addFiles(this.__discovery.getDiscoveredFiles());
+      this.__startError ||= !(await metaDb.addFiles(this.__discovery.getDiscoveredFiles()));
       this.fireEvent("addedDiscoveredClasses");
 
-      
       /**
        * Updates the meta database and compiles the classes that have been queued up
        */
@@ -271,11 +265,11 @@ qx.Class.define("qx.tool.compiler.Controller", {
        */
       const onFileChange = async evt => {
         let filename = evt.getData();
-        this.__changedFiles[filename] = '+';
+        this.__changedFiles[filename] = "+";
         debounceProcessChangedFiles.trigger();
       };
 
-      if (this.__watch) {        
+      if (this.__watch) {
         this.__discovery.addListener("fileAdded", onFileChange);
         this.__discovery.addListener("fileChanged", onFileChange);
         this.__discovery.addListener("fileRemoved", async evt => {
@@ -303,7 +297,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
 
       //If we are using Node workers, we need to send the maker info to the workers
       let infoByMaker = {};
-      
+
       await Promise.all(
         makers.map(async maker => {
           makers.push(maker);
@@ -324,7 +318,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       if (this.__transpilerPool) {
         await this.__transpilerPool.callAll("setMakerInfo", [infoByMaker]);
       }
-      
+
       for (let maker of makers) {
         this.__makeMaker(maker);
       }
@@ -332,13 +326,15 @@ qx.Class.define("qx.tool.compiler.Controller", {
     },
 
     /**
-     * 
      * @returns {boolean}
      */
     hasStartError() {
       return this.__startError;
     },
 
+    /**
+     * @Override
+     */
     async stop() {
       await this.__discovery.stop();
       if (this.__transpilerPool) {
@@ -347,10 +343,8 @@ qx.Class.define("qx.tool.compiler.Controller", {
     },
 
     /**
-     * Regenerates the meta database with the file changes,
-     * generates the TypeScript file if TypeScript is enabled,
+     * Regenerates the meta database with the file changes, generates the TypeScript file if TypeScript is enabled,
      * and triggers recompilation
-     * @returns 
      */
     async __processChangedFiles() {
       let metaDb = this.__metaDb;
@@ -359,15 +353,17 @@ qx.Class.define("qx.tool.compiler.Controller", {
       let added = [];
       this.__changedFiles = {};
 
-      await Promise.all(Object.entries(changedFiles).map(async ([filename, changeType]) => {        
-        if (changeType === "+") {
-          let classname = this.__discovery.getClassnameForFile(filename);
-          added.push(classname);
-          await metaDb.addFile(filename, true);
-        } else {
-          await metaDb.removeFile(filename);
-        }
-      }));
+      await Promise.all(
+        Object.entries(changedFiles).map(async ([filename, changeType]) => {
+          if (changeType === "+") {
+            let classname = this.__discovery.getClassnameForFile(filename);
+            added.push(classname);
+            await metaDb.addFile(filename, true);
+          } else {
+            await metaDb.removeFile(filename);
+          }
+        })
+      );
 
       await metaDb.reparseAll();
       await metaDb.save();
@@ -406,7 +402,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
      * @param {String} classname
      * @param {CompilationResult} result Result of the compilation
      */
-    _onClassCompiled(analyzer, classname, result) {      
+    _onClassCompiled(analyzer, classname, result) {
       if (!result.cached) {
         this.fireDataEvent("compiledClass", { classname, analyzer });
         let maker = analyzer.getMaker();
@@ -575,7 +571,7 @@ qx.Class.define("qx.tool.compiler.Controller", {
       if (!dbClassInfo) {
         dbClassInfo = {};
       }
-      
+
       this.__dbClassInfoCache[hashKey] = dbClassInfo;
 
       if (!force) {
@@ -610,7 +606,6 @@ qx.Class.define("qx.tool.compiler.Controller", {
         manglePrefix: analyzer.getManglePrefix(classname)
       };
 
-
       let dbClassInfoNew;
       if (this.__transpilerPool) {
         dbClassInfoNew = await this.__transpilerPool.callMethod("transpile", [sourceInfo, analyzer.getMaker().toHashCode()]);
@@ -634,10 +629,14 @@ qx.Class.define("qx.tool.compiler.Controller", {
       for (var key in dbClassInfoNew) {
         dbClassInfo[key] = dbClassInfoNew[key];
       }
-      
+
       await fs.promises.writeFile(jsonFilename, JSON.stringify(dbClassInfo, null, 2), "utf8");
 
       return { dbClassInfo, cached: false };
+    },
+
+    isWatch() {
+      return this.__watch;
     },
 
     /**

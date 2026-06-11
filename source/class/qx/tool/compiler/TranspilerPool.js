@@ -18,6 +18,7 @@ const os = require("os");
  */
 qx.Class.define("qx.tool.compiler.TranspilerPool", {
   extend: qx.core.Object,
+
   /**
    *
    * @param {?number} size Number of workers in the pool. Defaults to number of CPU cores / 2
@@ -45,30 +46,22 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
     }
     this.__queue = [];
   },
-  
+
   events: {
     allReady: "qx.event.type.Event"
   },
+
   members: {
-    /**
-     * Number of ready workers
-     */
+    /** @type{Integer} Number of ready workers */
     __nReady: 0,
-    /**
-     * @type {WorkerTracker[]}
-     * Array of workers in the pool
-     */
+
+    /** @type {WorkerTracker[]} Array of workers in the pool */
     __workers: null,
 
-    /**
-     * @type {number}
-     */
+    /** @type {Integer} */
     __poolSize: 0,
 
-    /**
-     * @type {CallTracker[]}
-     * Calls which were requested but are waiting for an available worker
-     */
+    /** @type {CallTracker[]} Calls which were requested but are waiting for an available worker */
     __queue: null,
 
     /**
@@ -80,6 +73,7 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
     /**
      * Calls a remote method on an available worker.
      * Queues the call if no worker is available.
+     *
      * @param {string} methodName
      * @param {Array} args
      * @returns {Promise} A promise which resolves with the method's return value
@@ -224,9 +218,11 @@ qx.Class.define("qx.tool.compiler.TranspilerPool", {
       }
     }
   },
+
   statics: {
     /**
      * Registers an object which contains the methods to be called remotely from the main thread.
+     *
      * @param {Object} obj
      */
     register(obj) {

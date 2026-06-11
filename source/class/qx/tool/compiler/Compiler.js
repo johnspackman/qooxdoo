@@ -88,20 +88,22 @@ qx.Class.define("qx.tool.compiler.Compiler", {
   members: {
     /** @type {cliProgress.SingleBar|null} progress bar instance */
     __progressBar: null,
-    /**
-     * @type {qx.tool.compiler.ICompilerInterface.CompilerData} the data passed to the compiler
-     */
+
+    /** @type {qx.tool.compiler.ICompilerInterface.CompilerData} the data passed to the compiler */
     __data: null,
+
     /** @type {String} the path to the root of the meta files by classname */
     __metaDir: null,
-    /**
-     * @type {qx.tool.compiler.Controller} the controller instance
-     */
+
+    /** @type {qx.tool.compiler.Controller} the controller instance */
     __controller: null,
+
     /** @type {qx.tool.compiler.makers.Maker[]|null} list of makers created from config */
     __makers: null,
+
     /** @type {Object} map of namespace to Library instance */
     __libraries: null,
+
     /** @type {Boolean} true if the output directory was created during this run */
     __outputDirWasCreated: false,
 
@@ -116,6 +118,13 @@ qx.Class.define("qx.tool.compiler.Compiler", {
 
     /** @type {Boolean} whether the typescript watcher has already been attached (watch mode) */
     __typescriptWatcherAttached: false,
+
+    async compileOnce() {
+      await this.start();
+      return new Promise((resolve, reject) => {
+        this.__controller.addListenerOnce("allMakersMade", resolve);
+      });
+    },
 
     /**
      * @override
@@ -167,36 +176,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
 
       await this._loadConfigAndCreateController();
-    },
-
-    async compileOnce() {
-      await this.start();
-      return new Promise((resolve, reject) => {
-        this.__controller.addListenerOnce("allMakersMade", resolve);
-      });
-    },
-
-    /**
-     *
-     * @returns {boolean} Whether an error has been encountered during startup
-     */
-    hasStartError() {
-      return this.__controller.hasStartError();
-    },
-
-    /**
-     * @override
-     */
-    stop() {
-      return this.__controller.stop();
-    },
-
-    /**
-     * @override
-     * @returns {qx.tool.compiler.Maker[]}
-     */
-    getMakers() {
-      return this.__makers;
     },
 
     async _loadConfigAndCreateController() {
@@ -279,6 +258,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       controller.start();
       return controller;
     },
+
     /**
      * Processes the configuration from a JSON data structure and creates a Maker
      *
@@ -856,6 +836,28 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       });
 
       return makers;
+    },
+
+    /**
+     * @override
+     */
+    stop() {
+      return this.__controller.stop();
+    },
+
+    /**
+     * @override
+     * @returns {qx.tool.compiler.Maker[]}
+     */
+    getMakers() {
+      return this.__makers;
+    },
+
+    /**
+     *@returns {Boolean} Whether an error has been encountered during startup
+     */
+    hasStartError() {
+      return this.__controller.hasStartError();
     },
 
     /**
