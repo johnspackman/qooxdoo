@@ -17,8 +17,6 @@
 
 ************************************************************************ */
 
-const whyIsNodeRunning = require("why-is-node-running").default;
-
 qx.Class.define("qx.tool.cli.AbstractCliApp", {
   type: "abstract",
   extend: qx.application.Basic,
@@ -66,7 +64,6 @@ qx.Class.define("qx.tool.cli.AbstractCliApp", {
       // uv_async_send() on one → assertion fails (libuv 1.50.x made this a hard crash, not a no-op).
       // Setting exitCode and returning lets the event loop drain naturally instead.
       process.exitCode = exitCode;
-      whyIsNodeRunning();
     },
 
     /**

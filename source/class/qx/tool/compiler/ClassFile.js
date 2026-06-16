@@ -2106,6 +2106,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
                       t.addDeclaration(prop.left.name);
                     } else if (prop.type == "RestElement") {
                       t.addDeclaration(prop.argument.name);
+                    } else if (prop.type == "ObjectPattern") {
+                      for (let objectProperty of prop.properties) {
+                        t.addDeclaration(objectProperty.value.name);
+                      }
                     } else {
                       t.addDeclaration(prop.name);
                     }

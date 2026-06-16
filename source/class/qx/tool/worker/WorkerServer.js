@@ -4,8 +4,9 @@ const os = require("os");
 qx.Class.define("qx.tool.worker.WorkerServer", {
   extend: qx.core.Object,
 
-  construct() {
+  construct(loopback) {
     super();
+    this.__loopback = loopback;
     this.__apisByApiName = {};
     if (qx.tool.worker.WorkerServer.__instance) {
       throw new Error("WorkerServer is a singleton and an instance already exists");
@@ -14,20 +15,53 @@ qx.Class.define("qx.tool.worker.WorkerServer", {
   },
 
   members: {
+    /** @type {boolean} Whether the server is in loopback mode */
+    __loopback: false,
+
     /** @type{Object<String, qx.core.Object>} list of API instances by name */
     __apisByApiName: null,
+
+    /**
+     * Sets the loopback client for this WorkerServer.  This is used when the WorkerServer is running in loopback
+     * mode, and allows the WorkerServer to call methods on the main thread.
+     *
+     * @param {qx.tool.worker.WorkerClient} workerClient
+     */
+    setLoopbackClient(workerClient) {
+      if (!this.__loopback) {
+        throw new Error("setLoopbackClient can only be called when the WorkerServer is in loopback mode");
+      }
+      this.__loopbackClient = workerClient;
+    },
 
     /**
      * Called to start the worker server and listen for messages from the main thread.
      * This should only be called once, and only in a Worker thread.
      */
     start() {
-      if (isMainThread) {
-        throw new Error("qx.tool.worker.WorkerServer can only be used in a Worker thread");
+      if (isMainThread && !this.__loopback) {
+        throw new Error("qx.tool.worker.WorkerServer can only be used in a Worker thread unless it is in loopback mode");
       }
+      if (this.__loopback && !this.__loopbackClient) {
+        throw new Error("setLoopbackClient must be called before start when in loopback mode");
+      }
+      if (!this.__loopback) {
+        parentPort.on("message", msg => this.onMessage(msg));
+      }
+      this.__postMessage({ type: "ready" });
+    },
 
-      parentPort.on("message", msg => this.__onMessage(msg));
-      parentPort.postMessage({ type: "ready" });
+    /**
+     * Posts a message to the other side (main thread or loopback client)
+     *
+     * @param {*} msg
+     */
+    __postMessage(msg) {
+      if (this.__loopback) {
+        process.nextTick(() => this.__loopbackClient.onMessage(msg));
+      } else {
+        parentPort.postMessage(msg);
+      }
     },
 
     /**
@@ -35,27 +69,27 @@ qx.Class.define("qx.tool.worker.WorkerServer", {
      *
      * @param {*} msg The message from the main thread
      */
-    __onMessage(msg) {
+    onMessage(msg) {
       if (msg.type === "callMethod") {
         let api = this.getApi(msg.apiName);
         let result = undefined;
         try {
           result = api[msg.methodName].apply(api, msg.args);
         } catch (error) {
-          parentPort.postMessage({ type: "methodReturn", uuid: msg.uuid, error: error.message });
+          this.__postMessage({ type: "methodReturn", uuid: msg.uuid, error: error.message });
           return;
         }
 
         if (result instanceof Promise) {
           result
             .then(resolvedResult => {
-              parentPort.postMessage({ type: "methodReturn", uuid: msg.uuid, result: resolvedResult });
+              this.__postMessage({ type: "methodReturn", uuid: msg.uuid, result: resolvedResult });
             })
             .catch(error => {
-              parentPort.postMessage({ type: "methodReturn", uuid: msg.uuid, error: error.message });
+              this.__postMessage({ type: "methodReturn", uuid: msg.uuid, error: error.message });
             });
         } else {
-          parentPort.postMessage({ type: "methodReturn", uuid: msg.uuid, result: result });
+          this.__postMessage({ type: "methodReturn", uuid: msg.uuid, result: result });
         }
       }
     },
@@ -110,6 +144,9 @@ qx.Class.define("qx.tool.worker.WorkerServer", {
      * Shuts down the WorkerServer - anything awaiting on the initialise method will be resolved.
      */
     shutdown() {
+      if (isMainThread) {
+        return true;
+      }
       qx.tool.worker.WorkerServer.__promiseShutdown.resolve(true);
     }
   }

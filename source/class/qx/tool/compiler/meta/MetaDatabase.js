@@ -221,7 +221,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       let addMetaResults = await Promise.all(
         files.map(filename => {
           if (!this.__metaByFilename[filename]) {
-            return this.addFile(filename, true);
+            return this.addFile(filename);
           } else {
             return true;
           }
@@ -458,6 +458,7 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
           await metaReader.saveMeta(filename);
         })
       );
+      await this.save();
     },
 
     /**

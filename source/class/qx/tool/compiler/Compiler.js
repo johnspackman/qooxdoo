@@ -162,13 +162,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     /** @type {Object<String,Promise>} list of makers currently making, indexed by hash code */
     __makingMakers: null,
 
-    async compileOnce() {
-      await this.start();
-      return new Promise((resolve, reject) => {
-        this.__controller.addListenerOnce("allMakersMade", resolve);
-      });
-    },
-
     /**
      * Adds a maker to the discovery process, which will then
      * add all libraries that the maker uses to the discovery.
@@ -256,9 +249,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
        * Configure the worker pool
        */
       let poolMaxSize = this.getMaxWorkers() ?? Math.round(require("os").cpus().length / 2);
-      if (poolMaxSize < 2) {
-        poolMaxSize = 2;
-      }
       this.__jobQueue = new qx.tool.worker.JobQueue().set({
         maxConcurrentJobs: poolMaxSize
       });
@@ -540,7 +530,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
               outputFilename: outputFilename,
               manglePrefix: analyzer.getManglePrefix(classname),
               classFileConfig: analyzer.getClassFileConfig().serialize(),
-              transformer: analyzer.getMaker().getTransformerClass()
+              sourceTransformer: analyzer.getMaker().getTransformerClass()
             }
           ]
         });

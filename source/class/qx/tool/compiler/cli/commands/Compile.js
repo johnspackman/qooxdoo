@@ -287,11 +287,10 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       );
 
       cmd.addFlag(
-        new qx.tool.cli.Flag("max-threads").set({
-          description:
-            "Number of threads to use for compilation. By default it's number of CPU cores / 2. If set to zero, uses only the main thread.",
+        new qx.tool.cli.Flag("max-workers").set({
+          description: "Number of workers to use for compilation, 1 means to use the main thread only (which is better for small projects)",
           type: "integer",
-          value: null,
+          value: 1,
           required: false
         })
       );
@@ -535,7 +534,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
       let compilerOptions = {
         watch: this.argv.watch,
-        maxWorkers: this.argv.maxThreads,
+        maxWorkers: this.argv.maxWorkers,
         typescriptEnabled: qx.lang.Type.isBoolean(this.argv.typescript)
       };
 
@@ -1127,7 +1126,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
       if (hasCustomCompiler && !isCustomCompiler) {
         qx.tool.compiler.Console.log(">>>Custom compiler detected - compiling custom compiler first...");
-        await compiler.compileOnce();
+        await compiler.start();
 
         if (qx.core.Environment.get("qx.debug")) {
           this.assertTrue(makers.length == 1, "There should only be one target when using a custom compiler");

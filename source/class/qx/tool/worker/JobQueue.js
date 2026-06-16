@@ -42,7 +42,11 @@ qx.Class.define("qx.tool.worker.JobQueue", {
 
     /** @type{Object<String,qx.tool.worker.WorkerClient>} WorkerClients index by UUID */
     __workerClientsByUuid: null,
+
+    /** @type{qx.tool.worker.WorkerClient[]} Idle worker clients */
     __idleWorkerClients: null,
+
+    /** @type{Object<String,qx.tool.worker.WorkerClient>} Busy worker clients indexed by UUID */
     __busyWorkerClients: null,
 
     /**
@@ -52,13 +56,23 @@ qx.Class.define("qx.tool.worker.JobQueue", {
     async start() {
       this.__idleWorkerClients = [];
       this.__busyWorkerClients = {};
-      for (let i = 0; i < this.getMaxConcurrentJobs(); i++) {
-        let workerClient = new qx.tool.worker.WorkerClient();
+
+      const addWorkerClient = async workerClient => {
         this.__workerClientsByUuid[workerClient.toUuid()] = workerClient;
         await workerClient.start();
         this.__idleWorkerClients.push(workerClient);
         this.fireDataEvent("workerClientReady", workerClient);
         this.__pollQueue();
+      };
+
+      if (this.getMaxConcurrentJobs() < 2) {
+        let workerClient = qx.tool.worker.WorkerClient.createLoopbackClient();
+        await addWorkerClient(workerClient);
+      } else {
+        for (let i = 0; i < this.getMaxConcurrentJobs(); i++) {
+          let workerClient = new qx.tool.worker.WorkerClient();
+          await addWorkerClient(workerClient);
+        }
       }
     },
 

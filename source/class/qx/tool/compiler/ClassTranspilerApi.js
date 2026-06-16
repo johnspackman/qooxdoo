@@ -10,11 +10,32 @@ qx.Class.define("qx.tool.compiler.ClassTranspilerApi", {
 
   construct() {
     super();
+    this.__sourceTransformers = {};
   },
 
   members: {
+    /** @type{Object<String, qx.tool.compiler.ISourceTransformer>} list of known source transformer instances*/
+    __sourceTransformers: null,
+
     async test() {
       return Math.round(Math.random() * 100);
+    },
+
+    /**
+     * Gets or creates a source transformer instance for the given class name.  Caches the result
+     *
+     * @param {String} classname
+     * @return {qx.tool.compiler.ISourceTransformer}
+     */
+    async _getSourceTransformer(classname) {
+      let transformer = this.__sourceTransformers[classname];
+      if (!transformer) {
+        let TransformerClass = qx.Class.getByName(classname);
+        transformer = new TransformerClass();
+        this.__sourceTransformers[classname] = transformer;
+        await transformer.initialise();
+      }
+      return transformer;
     },
 
     /**
@@ -27,11 +48,10 @@ qx.Class.define("qx.tool.compiler.ClassTranspilerApi", {
       let classFileConfig = new qx.tool.compiler.ClassFileConfig().set(transpileConfig.classFileConfig);
       let sourceTransformer = null;
       if (transpileConfig.sourceTransformer) {
-        let SourceTransformerClass = qx.Class.getByName(transpileConfig.sourceTransformer);
-        sourceTransformer = new SourceTransformerClass();
+        sourceTransformer = await this._getSourceTransformer(transpileConfig.sourceTransformer);
       }
       if (sourceTransformer && sourceTransformer.shouldTransform(transpileConfig)) {
-        source = sourceTransformer.transform(transpileConfig, source);
+        source = await sourceTransformer.transform(transpileConfig, source);
         await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
         sourceFilename = outputFilename.replace(/\.js$/, ".trans.js");
         fs.promises.writeFile(sourceFilename, source, "utf8"); //no need to await this because this only starts to matter once the user starts running and debugging

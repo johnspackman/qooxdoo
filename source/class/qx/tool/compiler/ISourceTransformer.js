@@ -7,9 +7,8 @@ qx.Interface.define("qx.tool.compiler.ISourceTransformer", {
   members: {
     /**
      * Function called once to initialize the source transformer.
-     * @param {qx.tool.compiler.meta.MetaDatabase} metaDb The meta database
      */
-    async init(metaDb) {},
+    async initialise() {},
 
     /**
      * Whether this transformer should transform the given source,

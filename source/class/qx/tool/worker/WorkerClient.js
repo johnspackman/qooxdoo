@@ -25,6 +25,12 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
   },
 
   members: {
+    /** @type{boolean} Whether the client is in loopback mode */
+    __loopback: false,
+
+    /** @type{qx.tool.worker.WorkerServer?} The loopback server instance */
+    __loopbackServer: null,
+
     /** @type{Worker} the node Worker */
     __worker: null,
 
@@ -46,11 +52,17 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
      * @ignore(Worker)
      */
     async start() {
-      let worker = new Worker(process.argv[1], { argv: ["create-worker-server"] });
-      this.__worker = worker;
-      worker.addListener("message", msg => this.__onMessage(msg));
+      if (this.__loopback) {
+        if (!this.__loopbackServer) {
+          throw new Error("Loopback server must be set before starting a loopback worker client");
+        }
+      } else {
+        let worker = new Worker(process.argv[1], { argv: ["create-worker-server"] });
+        this.__worker = worker;
+        worker.addListener("message", msg => this.onMessage(msg));
+      }
       this.__promiseReady = new qx.Promise();
-      return await this.__promiseReady;
+      //await this.__promiseReady;
     },
 
     /**
@@ -60,7 +72,9 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
       let api = this.getApi(qx.tool.worker.IWorkerServerApi);
       await api.shutdown();
       this.__ready = false;
-      this.__worker.terminate();
+      if (!this.__loopback) {
+        this.__worker.terminate();
+      }
       this.__worker = null;
     },
 
@@ -89,11 +103,24 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
     },
 
     /**
+     * Posts a message to the other side (main thread or loopback client)
+     *
+     * @param {*} msg
+     */
+    __postMessage(msg) {
+      if (this.__loopback) {
+        process.nextTick(() => this.__loopbackServer.onMessage(msg));
+      } else {
+        this.__worker.postMessage(msg);
+      }
+    },
+
+    /**
      * Handles messages from the worker
      *
      * @param {*} msg
      */
-    __onMessage(msg) {
+    onMessage(msg) {
       if (msg.type === "ready") {
         this.__ready = true;
         this.__promiseReady.resolve();
@@ -136,8 +163,32 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
       let dataToPost = qx.lang.Object.clone(callInProgress);
       delete dataToPost.promise; //can't post the promise, so we look it up by uuid when we get the response
       this.__callsByUuid[callInProgress.uuid] = callInProgress;
-      this.__worker.postMessage(dataToPost);
+      this.__postMessage(dataToPost);
       return await promise;
+    }
+  },
+
+  statics: {
+    /** @type{qx.tool.worker.WorkerClient?} the loopback client instance */
+    __loopbackClient: null,
+
+    /**
+     * Creates a lookback client, where the client and server are in the same process.
+     *
+     * @returns {qx.tool.worker.WorkerClient} a loopback worker client
+     */
+    createLoopbackClient() {
+      if (qx.tool.worker.WorkerClient.__loopbackClient) {
+        return qx.tool.worker.WorkerClient.__loopbackClient;
+      }
+
+      let loopbackClient = new qx.tool.worker.WorkerClient();
+      qx.tool.worker.WorkerClient.__loopbackClient = loopbackClient;
+      loopbackClient.__loopback = true;
+      let loopbackServer = new qx.tool.worker.WorkerServer(loopbackClient);
+      loopbackClient.__loopbackServer = loopbackServer;
+      loopbackServer.setLoopbackClient(loopbackClient);
+      return loopbackClient;
     }
   }
 });

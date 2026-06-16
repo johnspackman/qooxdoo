@@ -389,23 +389,39 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
         classes.push(classname);
       };
 
+      let stackDepth = 0;
       const addType = str => {
-        let pos = str.indexOf("|");
-        if (pos != -1) {
-          let parts = str.split("|");
-          parts.forEach(addType);
+        if (qx.lang.Type.isArray(str)) {
+          str.forEach(addType);
           return;
         }
-        pos = str.indexOf("<");
-        if (pos == -1) {
-          requireClass(str);
+        if (!str || typeof str != "string") {
           return;
         }
-        let base = str.substring(0, pos);
-        let lastPos = str.lastIndexOf(">");
-        let generic = str.substring(pos + 1, lastPos);
-        requireClass(base);
-        addType(generic);
+        stackDepth++;
+        if (stackDepth > 100) {
+          throw new Error("Maximum stack depth exceeded");
+        }
+        try {
+          let pos = str.indexOf("|");
+          if (pos != -1) {
+            let parts = str.split("|");
+            parts.forEach(addType);
+            return;
+          }
+          pos = str.indexOf("<");
+          if (pos == -1) {
+            requireClass(str);
+            return;
+          }
+          let base = str.substring(0, pos);
+          let lastPos = str.lastIndexOf(">");
+          let generic = str.substring(pos + 1, lastPos < 0 ? str.length : lastPos);
+          requireClass(base);
+          addType(generic);
+        } finally {
+          stackDepth--;
+        }
       };
 
       const scanMethods = methods => {
@@ -988,7 +1004,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
       }
 
       // then check if compiler version is the same
-      let qxVersion = qx.tool.config.Utils.getQxVersion();
+      let qxVersion = qx.core.Environment.get("qx.version");
       if (db.compilerVersion !== qxVersion) {
         return true;
       }
