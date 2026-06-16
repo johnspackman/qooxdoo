@@ -35,22 +35,23 @@ const forceArray = value => {
  * strictly does not persist state (outside of the `parse()` method) so that it
  * can be used in a multi-threaded environment, ie we can use Node Workers to
  * parse multiple files at once.
- * 
+ *
  * @typedef {Object} MetaData
- * @property {number} version - The version of the metadata format
- * @property {number} lastModified - The last modified timestamp of the class file
- * @property {string} lastModifiedIso - The last modified timestamp of the class file in ISO format
- * @property {string} classFilename - The filename of the class, relative to the meta root dir
- * @property {string} superClass
+ * @property {String} className - The name of the class
+ * @property {Number} version - The version of the metadata format
+ * @property {Number} lastModified - The last modified timestamp of the class file
+ * @property {String} lastModifiedIso - The last modified timestamp of the class file in ISO format
+ * @property {String} classFilename - The filename of the class, relative to the meta root dir
+ * @property {String} superClass
  * @property {Object.<string, PropertyMeta>} properties
- * 
+ *
  * @typedef {Object} PropertyMeta
  * @property {{start: *, end:*}} location
- * @property {string} jsdoc
- * @property {boolean=} nullable
- * @property {string} init The code for the init value. This is not the value itself!
- * @property {(string|string[])=} check
- * 
+ * @property {String} jsdoc
+ * @property {Boolean=} nullable
+ * @property {String} init The code for the init value. This is not the value itself!
+ * @property {(String|String[])=} check
+ *
  *
  */
 qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
@@ -62,16 +63,10 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
   },
 
   members: {
-    /**
-     * @type {MetaData}
-     * The metadata, only valid during `parse()`
-     * */
+    /** @type {MetaData} The metadata, only valid during `parse()` */
     __metaData: null,
 
-    /**
-     * @type {string}
-     * Expected class name derived from file path
-     */
+    /** @type {string} Expected class name derived from file path */
     __expectedClassname: null,
 
     /**
@@ -98,6 +93,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
       const babelCore = require("@babel/core");
       let src = await fs.promises.readFile(classFilename, "utf8");
 
+      this.__dependencyScanner = this.__pluginDependencyScanner();
       let plugins = [require("@babel/plugin-syntax-jsx"), this.__plugin()];
 
       var config = {
@@ -129,6 +125,9 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
 
       babelCore.transform(src, config);
       let metaData = this.__metaData;
+      if (metaData.uses) {
+        metaData.uses = Object.keys(metaData.uses);
+      }
       this.__metaData = null;
       return metaData;
     },
@@ -189,6 +188,23 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
                 }
               }
             });
+          }
+        }
+      };
+    },
+
+    __pluginDependencyScanner() {
+      let metaData = this.__metaData;
+      let t = this;
+      return {
+        NewExpression(path) {
+          let node = path.node;
+          let str = qx.tool.utils.BabelHelpers.collapseMemberExpression(node.callee);
+          if (str.match(/(([a-zA-Z0-9_]+)\.)+([A-Z][a-zA-Z0-9_]+)/)) {
+            if (!metaData.uses) {
+              metaData.uses = {};
+            }
+            metaData.uses[str] = true;
           }
         }
       };
@@ -381,9 +397,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
             }
             memberPaths.forEach(memberPath => {
               let member = memberPath.node;
-              const name = qx.tool.utils.BabelHelpers.collapseMemberExpression(
-                member.key
-              );
+              const name = qx.tool.utils.BabelHelpers.collapseMemberExpression(member.key);
               if (name[0] == "@") {
                 annotations[name] = memberPath.get("value").toString();
                 return;
@@ -393,21 +407,13 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
                 jsdoc: qx.tool.utils.BabelHelpers.getJsDoc(member.leadingComments)
               });
 
-              memberMeta.access = name.startsWith("__")
-                ? "private"
-                : name.startsWith("_")
-                  ? "protected"
-                  : "public";
+              memberMeta.access = name.startsWith("__") ? "private" : name.startsWith("_") ? "protected" : "public";
               memberMeta.location = {
                 start: member.loc.start,
                 end: member.loc.end
               };
 
-              if (
-                member.type === "ObjectMethod" ||
-                (member.type === "ObjectProperty" &&
-                  member.value.type === "FunctionExpression")
-              ) {
+              if (member.type === "ObjectMethod" || (member.type === "ObjectProperty" && member.value.type === "FunctionExpression")) {
                 memberMeta.type = "function";
                 memberMeta.params = [];
                 collapseParamMeta(member, memberMeta);
@@ -423,6 +429,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
               memberMeta.annotation = forceArray(annotations[metaName]);
             }
           }
+          path.traverse(this.__dependencyScanner);
         }
       });
       if (ctorAnnotations["@construct"] && metaData.construct) {
@@ -445,8 +452,8 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
       }
 
       /**
-       * 
-       * @param {NodePath} path 
+       *
+       * @param {NodePath} path
        */
       const traversePath = path => {
         path.skip();
@@ -507,7 +514,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
           jsdoc: qx.tool.utils.BabelHelpers.getJsDoc(property.leadingComments)
         });
       };
-      
+
       paths.forEach(traversePath);
     }
   }

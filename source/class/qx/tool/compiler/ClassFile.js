@@ -211,7 +211,7 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
 
   /**
    * Constructor
-   * @param {qx.tool.compiler.meta.MetaDatabase} metaDb the meta database
+   * @param {qx.tool.compiler.meta.ShadowMetaDatabaseApi} metaDb the meta database
    * @param {qx.tool.compiler.ClassFileConfig} compileConfig the configuration for the class compilation
    * @param {String} className the full name of the class
    * @param {string} manglePrefix The prefix used for mangling/minifying privates, unique to this class

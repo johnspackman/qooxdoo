@@ -1,9 +1,3 @@
-/**
- * @typedef {Object} CompilerData A large POJO containing all the options for the compiler.
- * It contains properties for all the command line options for `qx.tool.compiler.cli.commands.Compile`,
- * such as `watch`, `nJobs` as well as the following:
- * @property {Object} config The compiler configuration from the compiler API
- */
 qx.Interface.define("qx.tool.compiler.ICompilerInterface", {
   events: {
     /**
@@ -114,27 +108,21 @@ qx.Interface.define("qx.tool.compiler.ICompilerInterface", {
      */
     minifiedApplication: "qx.event.type.Data"
   },
+
   members: {
     /**
      * Starts the compilation process
-     * @param {qx.tool.compiler.ICompilerInterface.CompilerData} data
      */
-    async start(data) {
-    },
+    async start() {},
 
     /**
      * Stops the compilation process
      */
-    async stop() {
-
-    },
+    async stop() {},
 
     /**
      * @returns {Promise<qx.tool.compiler.makers.Maker[]>} Information about the makers, in native Objects
-     * 
      */
-    async getMakers() {
-
-    }
+    async getMakers() {}
   }
 });

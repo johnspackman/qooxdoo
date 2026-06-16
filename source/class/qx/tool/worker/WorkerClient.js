@@ -1,0 +1,143 @@
+const { Worker } = require("worker_threads");
+
+/**
+ * @typedef {Object} CallInProgress
+ * @property {string} type The type of message, e.g. "callMethod"
+ * @property {string} apiName The name of the API the method belongs to
+ * @property {string} methodName The name of the method being called
+ * @property {Array} args The arguments to the method
+ * @property {qx.Promise} promise The promise that will be resolved with the method's return value
+ * @property {string} uuid A unique ID for this call, used to match up responses
+ */
+qx.Class.define("qx.tool.worker.WorkerClient", {
+  extend: qx.core.Object,
+
+  construct(worker) {
+    super();
+    this.__worker = worker;
+    this.__callsByUuid = {};
+    this.__apisByApiName = {};
+  },
+
+  events: {
+    /** @type{qx.event.type.Data} sent when an event is received from the worker */
+    eventReceived: "qx.event.type.Data"
+  },
+
+  members: {
+    /** @type{Worker} the node Worker */
+    __worker: null,
+
+    /** @type{qx.Promise} a promise that resolves when the worker is ready */
+    __promiseReady: null,
+
+    /** @type {boolean} whether the worker is ready */
+    __ready: false,
+
+    /** @type {Object<String,CallInProgress>} list of calls in progress */
+    __callsByUuid: null,
+
+    /** @type{Object<String, qx.tool.worker.AbstractClientApi>} list of API instances by name */
+    __apisByApiName: null,
+
+    /**
+     * Called to start the worker and wait until it is ready.
+     *
+     * @ignore(Worker)
+     */
+    async start() {
+      let worker = new Worker(process.argv[1], { argv: ["create-worker-server"] });
+      this.__worker = worker;
+      worker.addListener("message", msg => this.__onMessage(msg));
+      this.__promiseReady = new qx.Promise();
+      return await this.__promiseReady;
+    },
+
+    /**
+     * Shuts down the worker and waits for it to finish.
+     */
+    async shutdown() {
+      let api = this.getApi(qx.tool.worker.IWorkerServerApi);
+      await api.shutdown();
+      this.__ready = false;
+      this.__worker.terminate();
+      this.__worker = null;
+    },
+
+    /**
+     * Get or creates an API instance for the given interface; caches the result
+     *
+     * @param {*} apiInterface
+     * @returns {qx.tool.worker.AbstractClientApi} an API instance
+     */
+    getApi(apiInterface) {
+      let apiName;
+      if (typeof apiInterface === "string") {
+        apiName = apiInterface;
+        apiInterface = qx.tool.worker.AbstractClientApi.getInterfaceFromApiName(apiName);
+      } else {
+        apiName = qx.tool.worker.AbstractClientApi.getApiNameFromInterface(apiInterface);
+      }
+      let api = this.__apisByApiName[apiName];
+      if (api) {
+        return api;
+      }
+      let clientApiClass = qx.tool.worker.AbstractClientApi.createClientApiClass(apiInterface);
+      api = new clientApiClass(this);
+      this.__apisByApiName[apiName] = api;
+      return api;
+    },
+
+    /**
+     * Handles messages from the worker
+     *
+     * @param {*} msg
+     */
+    __onMessage(msg) {
+      if (msg.type === "ready") {
+        this.__ready = true;
+        this.__promiseReady.resolve();
+      } else if (msg.type === "methodReturn") {
+        let callInProgress = this.__callsByUuid[msg.uuid];
+        delete this.__callsByUuid[msg.uuid];
+        if (callInProgress) {
+          if (msg.error) {
+            callInProgress.promise.reject(new Error(msg.error));
+          } else {
+            callInProgress.promise.resolve(msg.result);
+          }
+        }
+      } else if (msg.type === "event") {
+        this.fireDataEvent("eventReceived", msg.eventData);
+      } else {
+        this.error(`Unknown message type from worker: ${msg.type}`);
+      }
+    },
+
+    /**
+     * Calls a remote method
+     *
+     * @param {qx.tool.worker.AbstractClientApi} api The API instance making the call
+     * @param {string} methodName The name of the method to call
+     * @param {Array} args The arguments to pass to the method
+     * @returns {Promise} A promise which resolves with the method's return value
+     */
+    async callMethod(api, methodName, args) {
+      args ??= [];
+      let promise = new qx.Promise();
+      let callInProgress = {
+        type: "callMethod",
+        apiName: api.getApiName(),
+        methodName,
+        args,
+        promise,
+        uuid: qx.util.Uuid.createUuidV4()
+      };
+      let dataToPost = qx.lang.Object.clone(callInProgress);
+      delete dataToPost.promise; //can't post the promise, so we look it up by uuid when we get the response
+      this.__callsByUuid[callInProgress.uuid] = callInProgress;
+      this.__worker.postMessage(dataToPost);
+      return await promise;
+    }
+  }
+});

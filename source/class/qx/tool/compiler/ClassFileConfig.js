@@ -78,6 +78,7 @@ qx.Class.define("qx.tool.compiler.ClassFileConfig", {
 
       return config;
     },
+
     /**
      * Reconstructs a ClassFileConfig from a native object
      * @param {Object} obj

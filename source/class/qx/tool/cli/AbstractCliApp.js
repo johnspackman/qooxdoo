@@ -16,6 +16,9 @@
      * Henner Kollmann (Henner.Kollmann@gmx.de, @hkollmann)
 
 ************************************************************************ */
+
+const whyIsNodeRunning = require("why-is-node-running").default;
+
 qx.Class.define("qx.tool.cli.AbstractCliApp", {
   type: "abstract",
   extend: qx.application.Basic,
@@ -39,11 +42,11 @@ qx.Class.define("qx.tool.cli.AbstractCliApp", {
       let run = (cmd && cmd.getRun()) || null;
       if (!cmd || run === null || errors || cmd.getFlag("help").getValue()) {
         console.log((cmd || rootCmd).usage());
-        process.exit((!cmd || errors) ? 1 : 0);
+        process.exit(!cmd || errors ? 1 : 0);
       }
       let exitCode = 0;
       try {
-        exitCode = await run.call(cmd, cmd) ?? 0;
+        exitCode = (await run.call(cmd, cmd)) ?? 0;
       } catch (ex) {
         console.error("ERROR:\n" + (ex.stack ?? ex.message) + "\n");
         exitCode = 1;
@@ -63,6 +66,7 @@ qx.Class.define("qx.tool.cli.AbstractCliApp", {
       // uv_async_send() on one → assertion fails (libuv 1.50.x made this a hard crash, not a no-op).
       // Setting exitCode and returning lets the event loop drain naturally instead.
       process.exitCode = exitCode;
+      whyIsNodeRunning();
     },
 
     /**
