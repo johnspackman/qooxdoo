@@ -123,6 +123,9 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
         let filenames = await fs.promises.readdir(directoryName);
         for (let i = 0; i < filenames.length; i++) {
           let filename = filenames[i];
+          if (filename.match(/__init__/i)) {
+            continue;
+          }
           let fullFilename = path.join(directoryName, filename);
           let stat = await fs.promises.stat(fullFilename);
           if (stat.isDirectory()) {
@@ -145,6 +148,14 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
 
       for (let filename in this.__watchedPaths) {
         await scanImpl(filename, filename);
+      }
+      let allClassnames = {};
+      for (let filename in this.__discoveredFiles) {
+        let classname = this.__discoveredFiles[filename].classname;
+        if (allClassnames[classname]) {
+          qx.tool.compiler.Console.print("qx.tool.compiler.discovery.duplicateClassname", classname, filename, allClassnames[classname]);
+        }
+        allClassnames[classname] = filename;
       }
       this.fireEvent("started");
     },
