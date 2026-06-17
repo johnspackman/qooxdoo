@@ -114,7 +114,7 @@ qx.Class.define("qx.tool.worker.JobQueue", {
     /**
      * Shuts down all worker clients and waits for them to finish.
      */
-    async shutdown() {
+    async stop() {
       for (let uuid in this.__workerClientsByUuid) {
         let workerClient = this.__workerClientsByUuid[uuid];
         await workerClient.shutdown();

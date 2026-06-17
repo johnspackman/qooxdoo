@@ -240,6 +240,9 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
      * @returns {Promise<boolean>} False if there were any fundamental user errors in the project code (e.g. syntax errors), true otherwise
      */
     async addFile(filename, force) {
+      if (filename.match(/__init__/)) {
+        return;
+      }
       filename = await qx.tool.utils.files.Utils.correctCase(filename);
       filename = path.resolve(filename);
       let meta = this.__metaByFilename[filename];

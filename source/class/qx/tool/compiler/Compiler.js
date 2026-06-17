@@ -286,9 +286,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           await shadowMetaApi.updateClassMeta(classMeta.getSharedBufferMetaData());
         });
         for (let classname of this.__metaDb.getClassnames()) {
-          if (classname == "uk.co.spar.cli.edi.EdiParseComment") {
-            debugger;
-          }
           let classMeta = this.__metaDb.getClassMeta(classname);
           await shadowMetaApi.updateClassMeta(classMeta.getSharedBufferMetaData());
         }
@@ -382,16 +379,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     },
 
     /**
-     * Shuts down the compiler, including the job queue and any worker clients.
-     */
-    async shutdown() {
-      if (this.__jobQueue) {
-        await this.__jobQueue.shutdown();
-      }
-      await this.__discovery?.stop();
-    },
-
-    /**
      * Regenerates the meta database with the file changes, generates the TypeScript file if TypeScript is enabled,
      * and triggers recompilation
      */
@@ -456,9 +443,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      *
      */
     compileClass(analyzer, classname, force) {
-      if (classname == "uk.co.spar.cli.Edi") {
-        debugger;
-      }
       let hashKey = analyzer.toHashCode() + ":" + classname;
       let existingCompile = this.__compilingClasses[hashKey];
       if (this.__dirtyClasses[hashKey]) {
@@ -689,10 +673,11 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      * @Override
      */
     async stop() {
-      await this.__discovery.stop();
-      if (this.__workerPool) {
-        this.__workerPool.dispose();
+      await this.__metaDb.save();
+      if (this.__jobQueue) {
+        await this.__jobQueue.stop();
       }
+      await this.__discovery.stop();
     },
 
     /**

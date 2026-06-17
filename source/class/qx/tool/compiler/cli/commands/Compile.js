@@ -1211,7 +1211,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       if (this.argv.watch) {
         await new qx.Promise();
       } else {
-        await compiler.shutdown();
+        await compiler.stop();
       }
     },
 
