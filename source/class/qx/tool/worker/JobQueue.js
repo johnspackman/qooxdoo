@@ -1,3 +1,38 @@
+/* ************************************************************************
+ *
+ *    qooxdoo-compiler - node.js based replacement for the Qooxdoo python
+ *    toolchain
+ *
+ *    https://github.com/qooxdoo/qooxdoo
+ *
+ *    Copyright:
+ *      2025 Zenesis Limited, http://www.zenesis.com
+ *
+ *    License:
+ *      MIT: https://opensource.org/licenses/MIT
+ *
+ *      This software is provided under the same licensing terms as Qooxdoo,
+ *      please see the LICENSE file in the Qooxdoo project's top-level directory
+ *      for details.
+ *
+ *    Authors:
+ *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
+ *      * Patryk Malinowski (pmalinowski@vmn.digital, @patryk-m-malinowski)
+ *
+ * *********************************************************************** */
+
+/**
+ * Operates a simple job queue, which uses a pool of node worker threads (each managed by a
+ * `qx.tool.worker.WorkerClient`) to process jobs concurrently. The number of concurrent jobs
+ * is limited by the `maxConcurrentJobs` property.
+ *
+ * If the `maxConcurrentJobs` property is set to 1, then the job queue will use a loopback worker
+ * client, which executes jobs in the main thread.
+ *
+ * Each job is implemented by an API - all you have to do is define an interface that conforms
+ * to the naming convention defined in `qx.tool.worker.AbstractClientApi` and the job queue will
+ * be able to execute your task.
+ */
 qx.Class.define("qx.tool.worker.JobQueue", {
   extend: qx.core.Object,
 
@@ -26,7 +61,7 @@ qx.Class.define("qx.tool.worker.JobQueue", {
   members: {
     /**
      * @typedef {Object} Job
-     * @property {String} jobUuid uuid of the job
+     * @property {String} jobUuid uuid of the job (created if not provided)
      * @property {String} status "queued", "running", or "complete"
      * @property {String} workerClientUuid uuid of the worker client processing the job
      * @property {String} jobApiName the api name of the class that will process the job
@@ -60,8 +95,8 @@ qx.Class.define("qx.tool.worker.JobQueue", {
       const addWorkerClient = async workerClient => {
         this.__workerClientsByUuid[workerClient.toUuid()] = workerClient;
         await workerClient.start();
+        await this.fireDataEventAsync("workerClientReady", workerClient);
         this.__idleWorkerClients.push(workerClient);
-        this.fireDataEvent("workerClientReady", workerClient);
         this.__pollQueue();
       };
 
@@ -150,10 +185,27 @@ qx.Class.define("qx.tool.worker.JobQueue", {
     /**
      * Adds a job to the queue and returns a promise that resolves when the job is complete.
      *
+     * @param {Interface|String} jobApi the API to invoke (either the interface or the interface name)
+     * @param {String} jobMethodName the method name to invoke on the API
+     * @param {Array?} jobArgs the arguments to pass to the method
+     * @returns
+     */
+    addJob(jobApi, jobMethodName, ...jobArgs) {
+      let jobApiName = typeof jobApi === "string" ? jobApi : qx.tool.worker.AbstractClientApi.getApiNameFromInterface(jobApi);
+      return this.addJobImpl({
+        jobApiName,
+        jobMethodName,
+        jobArgs
+      });
+    },
+
+    /**
+     * Adds a job to the queue and returns a promise that resolves when the job is complete.
+     *
      * @param {Job} job the Job definition
      * @returns {Promise} A promise that resolves when the job is complete.
      */
-    addJob(job) {
+    addJobImpl(job) {
       if (!job.jobUuid) {
         job.jobUuid = qx.util.Uuid.createUuidV4();
         job.promiseComplete = new qx.Promise();

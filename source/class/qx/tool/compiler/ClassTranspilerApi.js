@@ -50,7 +50,7 @@ qx.Class.define("qx.tool.compiler.ClassTranspilerApi", {
       if (transpileConfig.sourceTransformer) {
         sourceTransformer = await this._getSourceTransformer(transpileConfig.sourceTransformer);
       }
-      if (sourceTransformer && sourceTransformer.shouldTransform(transpileConfig)) {
+      if (sourceTransformer && (await sourceTransformer.shouldTransform(transpileConfig))) {
         source = await sourceTransformer.transform(transpileConfig, source);
         await fs.promises.mkdir(path.dirname(outputFilename), { recursive: true });
         sourceFilename = outputFilename.replace(/\.js$/, ".trans.js");

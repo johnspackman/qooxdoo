@@ -1,5 +1,44 @@
+/* ************************************************************************
+ *
+ *    qooxdoo-compiler - node.js based replacement for the Qooxdoo python
+ *    toolchain
+ *
+ *    https://github.com/qooxdoo/qooxdoo
+ *
+ *    Copyright:
+ *      2025 Zenesis Limited, http://www.zenesis.com
+ *
+ *    License:
+ *      MIT: https://opensource.org/licenses/MIT
+ *
+ *      This software is provided under the same licensing terms as Qooxdoo,
+ *      please see the LICENSE file in the Qooxdoo project's top-level directory
+ *      for details.
+ *
+ *    Authors:
+ *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
+ *      * Patryk Malinowski (pmalinowski@vmn.digital, @patryk-m-malinowski)
+ *
+ * *********************************************************************** */
+
 const { Worker } = require("worker_threads");
 
+/**
+ * Manages a node worker thread, which will be operated by an instance of
+ * `qx.tool.worker.WorkerServer`.  Communication is handled by using "APIs", which is a structured
+ * mechanism where you define an interface plus an implementation of that interface, and then the
+ * `qx.tool.worker.AbstractClientApi` provides a way to call methods on that interface and have them
+ * execute in the worker thread, calling the appropriate methods on the class that you wrote.
+ *
+ * @see `qx.tool.worker.AbstractClientApi` for more details of the API mechanism.
+ *
+ * There is an overhead in creating a worker thread, so while you have to write code which follows the
+ * API mechanism, you mighht have circumstances when you don't want to actually create a worker, but you
+ * also do want your API code to be able to work with and without workers.  In this case, use the
+ * `createLoopbackClient` static method to create a loopback client, which will run the WorkerServer in
+ * the same main thread as the WorkerClient.
+ *
+ */
 /**
  * @typedef {Object} CallInProgress
  * @property {string} type The type of message, e.g. "callMethod"
@@ -56,13 +95,14 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
         if (!this.__loopbackServer) {
           throw new Error("Loopback server must be set before starting a loopback worker client");
         }
+        process.nextTick(() => this.onMessage({ type: "ready" }));
       } else {
-        let worker = new Worker(process.argv[1], { argv: ["create-worker-server"] });
+        let worker = new Worker(process.argv[1]);
         this.__worker = worker;
         worker.addListener("message", msg => this.onMessage(msg));
       }
       this.__promiseReady = new qx.Promise();
-      //await this.__promiseReady;
+      await this.__promiseReady;
     },
 
     /**
@@ -73,7 +113,7 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
       await api.shutdown();
       this.__ready = false;
       if (!this.__loopback) {
-        this.__worker.terminate();
+        await this.__worker.terminate();
       }
       this.__worker = null;
     },
@@ -165,6 +205,10 @@ qx.Class.define("qx.tool.worker.WorkerClient", {
       this.__callsByUuid[callInProgress.uuid] = callInProgress;
       this.__postMessage(dataToPost);
       return await promise;
+    },
+
+    isReady() {
+      return this.__ready;
     }
   },
 

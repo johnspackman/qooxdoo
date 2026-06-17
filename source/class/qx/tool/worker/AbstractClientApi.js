@@ -1,5 +1,47 @@
+/* ************************************************************************
+ *
+ *    qooxdoo-compiler - node.js based replacement for the Qooxdoo python
+ *    toolchain
+ *
+ *    https://github.com/qooxdoo/qooxdoo
+ *
+ *    Copyright:
+ *      2025 Zenesis Limited, http://www.zenesis.com
+ *
+ *    License:
+ *      MIT: https://opensource.org/licenses/MIT
+ *
+ *      This software is provided under the same licensing terms as Qooxdoo,
+ *      please see the LICENSE file in the Qooxdoo project's top-level directory
+ *      for details.
+ *
+ *    Authors:
+ *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
+ *      * Patryk Malinowski (pmalinowski@vmn.digital, @patryk-m-malinowski)
+ *
+ * *********************************************************************** */
+
+/**
+ * An "API" is a mechanism that you use to call methods in a node worker (managed by WorkerClient) and
+ * receive the results asynchronously - it is a wrpper around the `postMessage` mechanism but provides a
+ * much more convenient and structured way to invoke code in a worker thread.
+ *
+ * In this context, the "client" exists in the main thread only, and one "server" exists in each worker thread.
+ *
+ * An API is always defined by an interface, and the client API class is generated from the interface - i.e.
+ * although `qx.tool.worker.AbstractClientApi` is an abtract class, you do not write classes that extend this class;
+ * instead, use the static method `createClientApiClass` to create a client API class for a specific interface.
+ *
+ * The naming convention is required - the interface must be prefixed with an `I` and the server class is the same
+ * name but without the `I` prefix.   For example, if the client API name is be `MyPackage.MyApi`, the interface must
+ * be named `MyPackage.IMyApi`, and the server implementation must be named `MyPackage.MyApi`.  The `createClientApiClass`
+ * method will generate a client API class named `MyPackage.MyApi$Client` which implements the interface
+ * `MyPackage.IMyApi`.
+ *
+ */
 qx.Class.define("qx.tool.worker.AbstractClientApi", {
   extend: qx.core.Object,
+  type: "abstract",
 
   construct(apiName, workerClient) {
     super();

@@ -1,6 +1,43 @@
+/* ************************************************************************
+ *
+ *    qooxdoo-compiler - node.js based replacement for the Qooxdoo python
+ *    toolchain
+ *
+ *    https://github.com/qooxdoo/qooxdoo
+ *
+ *    Copyright:
+ *      2025 Zenesis Limited, http://www.zenesis.com
+ *
+ *    License:
+ *      MIT: https://opensource.org/licenses/MIT
+ *
+ *      This software is provided under the same licensing terms as Qooxdoo,
+ *      please see the LICENSE file in the Qooxdoo project's top-level directory
+ *      for details.
+ *
+ *    Authors:
+ *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
+ *      * Patryk Malinowski (pmalinowski@vmn.digital, @patryk-m-malinowski)
+ *
+ * *********************************************************************** */
+
 const { Worker, isMainThread, parentPort } = require("worker_threads");
 const os = require("os");
 
+/**
+ * WorkerServer is a singleton class that runs in a Worker thread and listens for messages from the main thread.
+ * In your applications `main` method you need to add this code at the begining:
+ *
+ * <code>
+ * async main() {
+ *  if (await qx.tool.worker.WorkerServer.initialise()) {
+ *     return;
+ *  }
+ *  await super.main();
+ *  // ... rest of your main method
+ * }
+ * </code>
+ */
 qx.Class.define("qx.tool.worker.WorkerServer", {
   extend: qx.core.Object,
 

@@ -1,7 +1,32 @@
+/* ************************************************************************
+ *
+ *    qooxdoo-compiler - node.js based replacement for the Qooxdoo python
+ *    toolchain
+ *
+ *    https://github.com/qooxdoo/qooxdoo
+ *
+ *    Copyright:
+ *      2025 Zenesis Limited, http://www.zenesis.com
+ *
+ *    License:
+ *      MIT: https://opensource.org/licenses/MIT
+ *
+ *      This software is provided under the same licensing terms as Qooxdoo,
+ *      please see the LICENSE file in the Qooxdoo project's top-level directory
+ *      for details.
+ *
+ *    Authors:
+ *      * John Spackman (john.spackman@zenesis.com, @johnspackman)
+ *      * Patryk Malinowski (pmalinowski@vmn.digital, @patryk-m-malinowski)
+ *
+ * *********************************************************************** */
+
 const fs = qx.tool.utils.Promisify.fs;
 const path = require("upath");
 
 /**
+ * Operates the Qooxdoo compiler, including discovery of classes, compilation of classes, and making of applications.
+ *
  * @use(qx.core.BaseInit)
  * @use(qx.tool.*)
  * @use(qx.tool.compiler.ClassTranspilerApi)
@@ -261,6 +286,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           await shadowMetaApi.updateClassMeta(classMeta.getSharedBufferMetaData());
         });
         for (let classname of this.__metaDb.getClassnames()) {
+          if (classname == "uk.co.spar.cli.edi.EdiParseComment") {
+            debugger;
+          }
           let classMeta = this.__metaDb.getClassMeta(classname);
           await shadowMetaApi.updateClassMeta(classMeta.getSharedBufferMetaData());
         }
@@ -428,6 +456,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      *
      */
     compileClass(analyzer, classname, force) {
+      if (classname == "uk.co.spar.cli.Edi") {
+        debugger;
+      }
       let hashKey = analyzer.toHashCode() + ":" + classname;
       let existingCompile = this.__compilingClasses[hashKey];
       if (this.__dirtyClasses[hashKey]) {
@@ -520,19 +551,13 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           filename: sourceFilename
         });
 
-        existingCompile.job = this.__jobQueue.addJob({
-          jobApiName: "qx.tool.compiler.ClassTranspilerApi",
-          jobMethodName: "transpileClass",
-          jobArgs: [
-            {
-              classname,
-              sourceFilename: sourceFilename,
-              outputFilename: outputFilename,
-              manglePrefix: analyzer.getManglePrefix(classname),
-              classFileConfig: analyzer.getClassFileConfig().serialize(),
-              sourceTransformer: analyzer.getMaker().getTransformerClass()
-            }
-          ]
+        existingCompile.job = this.__jobQueue.addJob(qx.tool.compiler.IClassTranspilerApi, "transpileClass", {
+          classname,
+          sourceFilename: sourceFilename,
+          outputFilename: outputFilename,
+          manglePrefix: analyzer.getManglePrefix(classname),
+          classFileConfig: analyzer.getClassFileConfig().serialize(),
+          sourceTransformer: analyzer.getMaker().getTransformerClass()
         });
         let dbClassInfoNew = await existingCompile.job.promiseComplete;
 
