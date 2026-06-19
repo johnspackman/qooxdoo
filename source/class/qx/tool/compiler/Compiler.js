@@ -30,6 +30,10 @@ const path = require("upath");
  * @use(qx.core.BaseInit)
  * @use(qx.tool.*)
  * @use(qx.tool.compiler.ClassTranspilerApi)
+ * @use(qx.tool.compiler.cli.api.CompilerApi)
+ * @use(qx.tool.compiler.meta.ShadowMetaDatabaseApi)
+ * @use(qx.tool.worker.WorkerServerApi)
+ * @use(qx.tool.compiler.ClassTranspilerApi)
  */
 
 qx.Class.define("qx.tool.compiler.Compiler", {
@@ -235,10 +239,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       let configDb = await qx.tool.compiler.cli.ConfigDb.getInstance();
       let compilerApi = qx.tool.compiler.cli.ConfigLoader.getInstance().getCompilerApi();
 
+      let poolMaxSize = this.getMaxWorkers() ?? Math.round(require("os").cpus().length / 2);
+      this.__jobQueue = new qx.tool.worker.JobQueue().set({
+        maxConcurrentJobs: poolMaxSize
+      });
+
       /*
        * Configure MetaDatabase and Discovery
        */
-      this.__metaDb = new qx.tool.compiler.meta.MetaDatabase().set({
+      this.__metaDb = new qx.tool.compiler.meta.MetaDatabase(this.__jobQueue).set({
         rootDir: this.getMetaDir()
       });
 
@@ -267,16 +276,10 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
       metaDb.getDatabase().environmentChecks = environmentChecks;
       this.fireEvent("metaDbConfigured");
-      this.__startError ||= !(await metaDb.addFiles(this.__discovery.getDiscoveredFiles()));
-      this.fireEvent("addedDiscoveredClasses");
 
       /*
        * Configure the worker pool
        */
-      let poolMaxSize = this.getMaxWorkers() ?? Math.round(require("os").cpus().length / 2);
-      this.__jobQueue = new qx.tool.worker.JobQueue().set({
-        maxConcurrentJobs: poolMaxSize
-      });
       this.__jobQueue.addListener("workerClientReady", async evt => {
         let workerClient = evt.getData();
         let shadowMetaApi = await workerClient.getApi(qx.tool.compiler.meta.IShadowMetaDatabaseApi);
@@ -291,6 +294,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         }
       });
       await this.__jobQueue.start();
+
+      this.__startError ||= !(await metaDb.addFiles(this.__discovery.getDiscoveredFiles()));
+      this.fireEvent("addedDiscoveredClasses");
 
       if (this.getTypescriptEnabled()) {
         this.__typescriptWriter = new qx.tool.compiler.targets.TypeScriptWriter(this.__metaDb);
@@ -535,6 +541,10 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           filename: sourceFilename
         });
 
+        if (classname == "qx.tool.compiler.cli.commands.Clean") {
+          debugger;
+        }
+
         existingCompile.job = this.__jobQueue.addJob(qx.tool.compiler.IClassTranspilerApi, "transpileClass", {
           classname,
           sourceFilename: sourceFilename,
@@ -544,6 +554,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           sourceTransformer: analyzer.getMaker().getTransformerClass()
         });
         let dbClassInfoNew = await existingCompile.job.promiseComplete;
+        if (classname == "qx.tool.compiler.cli.commands.Clean") {
+          debugger;
+        }
 
         delete dbClassInfo.unresolved;
         delete dbClassInfo.dependsOn;

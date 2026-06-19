@@ -41,6 +41,9 @@ qx.Class.define("qx.tool.compiler.meta.ShadowMetaDatabaseApi", {
     /** @type{Object<String, qx.tool.compiler.meta.StdClassParser.MetaData>} the raw data meta data, indexed by classname */
     __metaByClassname: null,
 
+    /** @type{Object<String, Boolean>} the packages, indexed by package name */
+    __packages: null,
+
     /**
      * Returns the raw meta data for the given classname
      *
@@ -49,6 +52,22 @@ qx.Class.define("qx.tool.compiler.meta.ShadowMetaDatabaseApi", {
      */
     getMetaData(classname) {
       return this.__metaByClassname[classname];
+    },
+
+    /**
+     * Finds all the classnames in the given package
+     *
+     * @param {String} packageName
+     * @returns {String[]} the classnames in the given package
+     */
+    getPackageClasses(packageName) {
+      let classnames = [];
+      for (let classname in this.__metaByClassname) {
+        if (classname.startsWith(packageName + ".")) {
+          classnames.push(classname);
+        }
+      }
+      return classnames;
     },
 
     /**

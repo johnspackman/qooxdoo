@@ -640,6 +640,22 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
         }
         if (jsdoc["@use"]) {
           jsdoc["@use"].forEach(function (elem) {
+            let name = elem.body;
+            let info = t.__metaDb.getSymbolType(name);
+            if (info?.symbolType === "package") {
+              let classnames = t.__metaDb.getPackageClasses(name);
+              if (classnames) {
+                for (let classname of classnames) {
+                  t._requireClass(classname, {
+                    where: "use",
+                    load: false,
+                    location: loc
+                  });
+                }
+              }
+              return;
+            }
+
             t._requireClass(elem.body, {
               where: "use",
               load: false,
@@ -2610,6 +2626,10 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
      * @return {Map?} info about the symbol type of the named class, @see {MetaDatabase.getSymbolType}
      */
     _requireClass(name, opts) {
+      if (this.__className == "qx.tool.compiler.cli.commands.Clean" && name == "qx.tool.compiler.app.ManifestFont") {
+        debugger;
+      }
+
       if (qx.lang.Type.isArray(name)) {
         name.forEach(name => this._requireClass(name));
         return null;

@@ -38,8 +38,9 @@ const path = require("upath");
 qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   extend: qx.core.Object,
 
-  construct() {
+  construct(jobQueue) {
     super();
+    this.__jobQueue = jobQueue;
     this.__classMetasByClassname = {};
     this.__metaByFilename = {};
     this.__packages = {};
@@ -67,6 +68,9 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
   },
 
   members: {
+    /** @type{qx.tool.worker.JobQueue} the job queue */
+    __jobQueue: null,
+
     /** @type {Object<String,qx.tool.compiler.meta.ClassMeta>} list of meta indexed by classname */
     __classMetasByClassname: null,
 
@@ -245,39 +249,47 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
       }
       filename = await qx.tool.utils.files.Utils.correctCase(filename);
       filename = path.resolve(filename);
-      let meta = this.__metaByFilename[filename];
-      if (meta && !force && !(await meta.isOutOfDate())) {
+      let classMeta = this.__metaByFilename[filename];
+      if (classMeta && !force && !(await classMeta.isOutOfDate())) {
         return true;
       }
 
       let libraries = Object.values(this.getDatabase().libraries || {}).map(l => l.sourceDir);
       let libraryPath = libraries.find(l => filename.startsWith(l));
 
-      meta = new qx.tool.compiler.meta.ClassMeta(this.getRootDir(), libraryPath);
+      classMeta = new qx.tool.compiler.meta.ClassMeta(this.getRootDir(), libraryPath);
+      let classFilename = await qx.tool.utils.files.Utils.correctCase(filename);
 
       try {
-        var metaData = await meta.parse(filename);
+        let existingCompile = this.__jobQueue.addJob(
+          qx.tool.compiler.meta.IStdClassParser,
+          "parse",
+          this.getRootDir(),
+          libraryPath,
+          classFilename
+        );
+        let metaData = await existingCompile.promiseComplete;
+        classMeta.setMetaData(metaData);
+        let classname = metaData.className;
+        if (metaData.className === undefined) {
+          //This may seem like an error, but we do have files which don't define classes, e.g. packages' __init__.js
+          return true;
+        }
+        this.__classMetasByClassname[metaData.className] = classMeta;
+        this.__metaByFilename[filename] = classMeta;
+        this.__dirtyClasses[metaData.className] = true;
+
+        let segs = classname.split(".");
+        for (let i = 0; i < segs.length - 1; i++) {
+          let seg = segs.slice(0, i + 1).join(".");
+          this.__packages[seg] = true;
+        }
+
+        this.fireDataEvent("classMetaParsed", classMeta);
       } catch (ex) {
         qx.tool.compiler.Console.error("Failed to parse meta data for file " + filename + ": " + ex.message);
         return false;
       }
-
-      let classname = metaData.className;
-      if (metaData.className === undefined) {
-        //This may seem like an error, but we do have files which don't define classes, e.g. packages' __init__.js
-        return true;
-      }
-      this.__classMetasByClassname[metaData.className] = meta;
-      this.__metaByFilename[filename] = meta;
-      this.__dirtyClasses[metaData.className] = true;
-
-      let segs = classname.split(".");
-      for (let i = 0; i < segs.length - 1; i++) {
-        let seg = segs.slice(0, i + 1).join(".");
-        this.__packages[seg] = true;
-      }
-
-      this.fireDataEvent("classMetaParsed", meta);
 
       return true;
     },

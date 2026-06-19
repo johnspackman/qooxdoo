@@ -92,6 +92,14 @@ qx.Class.define("qx.tool.compiler.meta.ClassMeta", {
       await qx.tool.utils.Json.saveJsonAsync(filename, this.__metaData);
     },
 
+    setMetaData(metaData) {
+      if (this.__readOnly) {
+        throw new Error("Cannot set meta data on a read-only ClassMeta");
+      }
+      this.__metaData = metaData;
+      this.__sharedBufferMetaData = null;
+    },
+
     /**
      * Returns the actual meta data
      *

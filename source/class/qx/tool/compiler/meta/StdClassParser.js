@@ -56,6 +56,7 @@ const forceArray = value => {
  */
 qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
   extend: qx.core.Object,
+  implement: [qx.tool.compiler.meta.IStdClassParser],
 
   statics: {
     /** Meta Data Version - stored in meta data files */
@@ -70,12 +71,7 @@ qx.Class.define("qx.tool.compiler.meta.StdClassParser", {
     __expectedClassname: null,
 
     /**
-     * Parses the file and returns the metadata
-     *
-     * @param {String} metaRootDir Root directory of meta database
-     * @param {String} libraryPath Path of the source files of the library that this file is found in
-     * @param {String} classFilename the .js file to parse
-     * @return {Promise<MetaData>} the parsed metadata
+     * @Override
      */
     async parse(metaRootDir, libraryPath, classFilename) {
       classFilename = await qx.tool.utils.files.Utils.correctCase(classFilename);

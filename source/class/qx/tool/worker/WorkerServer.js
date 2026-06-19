@@ -144,6 +144,9 @@ qx.Class.define("qx.tool.worker.WorkerServer", {
       let api = this.__apisByApiName[apiName];
       if (!api) {
         let clazz = qx.Class.getByName(apiName);
+        if (!clazz) {
+          throw new Error(`API class ${apiName} not found`);
+        }
         api = new clazz(this);
         this.__apisByApiName[apiName] = api;
       }

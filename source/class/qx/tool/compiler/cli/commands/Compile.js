@@ -461,7 +461,7 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       }
 
       let compileConfig = this.getCompilerApi().getConfiguration();
-      let hasCustomCompiler = compileConfig.applications.find(app => app.compiler);
+      let hasCustomCompiler = compileConfig.applications.find(app => app.type === "compiler");
 
       let compilerClassName = qx.core.Environment.get("qx.tool.compiler.Compiler.compilerClass");
       let isCustomCompiler = !!compilerClassName;
@@ -546,6 +546,45 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
 
       /*
+       * Auto detect an output path for targets that do not specify one, and ensure that no two
+       * targets have the same output path
+       */
+      (function () {
+        let outputPathsByTargetType = {
+          source: {},
+          build: {}
+        };
+        let targetsByType = {
+          source: [],
+          build: []
+        };
+        for (let targetConfig of compileConfig.targets) {
+          if (targetConfig.outputPath) {
+            outputPathsByTargetType[targetConfig.type][targetConfig.outputPath] = true;
+          }
+          targetsByType[targetConfig.type].push(targetConfig);
+        }
+        for (let targetConfig of compileConfig.targets) {
+          if (!targetConfig.outputPath) {
+            if (targetsByType[targetConfig.type].length == 1) {
+              targetConfig.outputPath = "compiled/" + targetConfig.type;
+            } else {
+              let appType = targetConfig["application-types"] ? targetConfig["application-types"].join("-") : "all";
+              let outputPath = "compiled/" + targetConfig.type;
+              if (appType != "browser") {
+                outputPath += "-" + appType;
+              }
+              targetConfig.outputPath = outputPath;
+            }
+            if (outputPathsByTargetType[targetConfig.type][targetConfig.outputPath]) {
+              throw new qx.tool.utils.Utils.UserError(`Multiple targets with the same output path '${targetConfig.outputPath}'`);
+            }
+            outputPathsByTargetType[targetConfig.type][targetConfig.outputPath] = true;
+          }
+        }
+      })();
+
+      /*
        * Calculate the the list of targets and applications; this is a many to many list, where an
        * application can be compiled for many targets, and each target has many applications.
        *
@@ -555,7 +594,8 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
       //Ensure we only consider the compiler target if we are in compilerOnly mode, and the opposite if we're not
       compileConfig.targets = compileConfig.targets.filter(targetConfig => {
-        return compilerTargetOnly === !!targetConfig.compiler;
+        let isCompilerTarget = !!(targetConfig["application-types"] && targetConfig["application-types"].includes("compiler"));
+        return compilerTargetOnly === isCompilerTarget;
       });
       compileConfig.targets.forEach((targetConfig, index) => (targetConfig.index = index));
 
@@ -591,10 +631,13 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
 
       let allAppNames = {};
-      compileConfig.applications.forEach((appConfig, index) => {
-        //Ensure we only consider the compiler application if we are in compilerOnly mode, and the opposite if we're not
-        if (compilerTargetOnly !== !!appConfig.compiler) {
-          return;
+      for (let index = 0; index < compileConfig.applications.length; index++) {
+        let appConfig = compileConfig.applications[index];
+        if (compilerTargetOnly && appConfig.type != "compiler") {
+          continue;
+        }
+        if (!compilerTargetOnly && appConfig.type == "compiler") {
+          continue;
         }
 
         if (appConfig.name) {
@@ -609,10 +652,40 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
           }
         }
         appConfig.index = index;
-        let appType = appConfig.type || "browser";
+        let appType;
+        if (appConfig.type == "compiler") {
+          appType = "node";
+          if (!appConfig.class) {
+            appConfig.class = "qx.tool.compiler.cli.Application";
+          }
+          if (!appConfig.name) {
+            appConfig.name = "custom-compiler";
+          }
+        } else {
+          appType = appConfig.type || "browser";
+          if (!appConfig.class) {
+            throw new qx.tool.utils.Utils.UserError(
+              `Applications require a class to be specified, but application #${index} (named ${
+                appConfig.name || "unnamed"
+              }) does not have one`
+            );
+          }
+          if (!appConfig.name) {
+            throw new qx.tool.utils.Utils.UserError(
+              `Applications require a name to be specified, but application #${index} (class ${appConfig.class}) does not have one`
+            );
+          }
+        }
         let appTargetConfigs = targetConfigs.filter(targetConfig => {
+          let isCompilerTarget = !!(targetConfig["application-types"] && targetConfig["application-types"].includes("compiler"));
+          if (appConfig.type == "compiler" && !isCompilerTarget) {
+            return false;
+          }
+          if (appConfig.type != "compiler" && isCompilerTarget) {
+            return false;
+          }
           let appTypes = targetConfig["application-types"];
-          if (appTypes && !qx.lang.Array.contains(appTypes, appType)) {
+          if (appTypes && !isCompilerTarget && !qx.lang.Array.contains(appTypes, appType)) {
             return false;
           }
 
@@ -643,7 +716,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
           }
           appConfig.targetConfigs.push(targetConfig);
         });
-      });
+      }
       if (defaultTargetConfig && defaultTargetConfig.appConfigs) {
         targetConfigs.push(defaultTargetConfig);
       }
@@ -729,6 +802,28 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
             targetConfig.defaultAppConfig = targetConfig.appConfigs[0];
           }
         }
+
+        let targetDefaults = null;
+        if (compileConfig?.targetDefaults && compileConfig?.targetDefaults[targetConfig.type]) {
+          targetDefaults = compileConfig.targetDefaults[targetConfig.type];
+        }
+
+        if (targetDefaults) {
+          for (let key in targetDefaults) {
+            if (key == "environment") {
+              if (!targetConfig.environment) {
+                targetConfig.environment = {};
+              }
+              for (let envKey in targetDefaults.environment) {
+                if (targetConfig.environment[envKey] === undefined) {
+                  targetConfig.environment[envKey] = targetDefaults.environment[envKey];
+                }
+              }
+            } else if (targetConfig[key] === undefined) {
+              targetConfig[key] = targetDefaults[key];
+            }
+          }
+        }
       });
 
       /*
@@ -739,7 +834,9 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
       for (let targetConfig of targetConfigs) {
         if (!targetConfig.appConfigs) {
-          qx.tool.compiler.Console.print("qx.tool.cli.compile.unusedTarget", targetConfig.type, targetConfig.index);
+          if (targetConfig.type != "compiler") {
+            qx.tool.compiler.Console.print("qx.tool.cli.compile.unusedTarget", targetConfig.type, targetConfig.index);
+          }
           continue;
         }
         let appConfigs = targetConfig.appConfigs.filter(appConfig => {
@@ -1023,11 +1120,27 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
           app.setTemplatePath(qx.tool.utils.Utils.getTemplateDir());
 
+          if (appConfig["type"] === "compiler") {
+            app.setType("node");
+          } else if (appConfig["type"]) {
+            app.setType(appConfig["type"]);
+          }
+          let environment = qx.lang.Object.mergeWith({}, appConfig.environment || {}, true);
+          if (appConfig.type === "compiler") {
+            if (!appConfig.compilerClass) {
+              qx.tool.compiler.Console.error(
+                "This is a custom compiler but the configuration does not specify a compilerClass for the application"
+              );
+              process.exitCode = 1;
+              return;
+            }
+            environment["qx.tool.compiler.Compiler.compilerClass"] = appConfig.compilerClass;
+          }
+          app.setEnvironment(environment);
+
           [
-            "type",
             "theme",
             "name",
-            "environment",
             "outputPath",
             "bootPath",
             "loaderTemplate",
@@ -1087,9 +1200,14 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
           }
 
           app.set({
-            exclude: mergeArray([], compileConfig.exclude, targetConfig.exclude, appConfig.exclude),
-            include: mergeArray([], compileConfig.include, targetConfig.include, appConfig.include)
+            exclude: mergeArray([], compileConfig.exclude, targetConfig.exclude, appConfig.exclude)
           });
+
+          let appInclude = mergeArray([], compileConfig.include, targetConfig.include, appConfig.include);
+          if (appConfig.type == "compiler") {
+            appInclude.push(appConfig.compilerClass);
+          }
+          app.setInclude(appInclude);
 
           maker.addApplication(app);
         });
@@ -1177,7 +1295,12 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
         nodeCmdArgs.push(compilerPath);
         nodeCmdArgs = nodeCmdArgs.concat(
-          process.argv.slice(2).filter(arg => !arg.startsWith("--custom-inspect") && !arg.startsWith("--customInspect"))
+          process.argv.slice(2).filter(arg => {
+            // prettier-ignore
+            return !arg.startsWith("--custom-inspect") && 
+              !arg.startsWith("--customInspect") &&
+              arg !== "--clean";
+          })
         );
         await new Promise(resolve => {
           if (this.argv.verbose) {
