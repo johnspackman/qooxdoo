@@ -50,9 +50,10 @@ async function runCommand(dir, ...args) {
     if (DEBUG) {
       console.debug(`    [[DEBUG]] Running command in ${dir}: ${originalCmd} ${args.join(" ")}`);
     }
-    let proc = child_process.spawn(originalCmd, args, { 
+    let proc = child_process.spawn(originalCmd, args, {
       cwd: dir,
-      env: env
+      env: env,
+      shell: process.platform === "win32"
     });
     let result = { exitCode: null, output: "", error: "", messages: null };
     proc.stdout.on("data", data => { 
