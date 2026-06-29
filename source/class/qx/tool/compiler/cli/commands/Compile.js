@@ -1224,6 +1224,14 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
         }
         if (allApplicationTypes["rhino"]) {
           qx.lang.Array.append(globalSymbols, ClassFile.RHINO_GLOBALS);
+          if (babelConfig.options?.targets && Object.keys(allApplicationTypes).length > 1) {
+            qx.tool.compiler.Console.warn(
+              `There is an application type of 'rhino' and Babel option targets are specified.  Due to lack of standards support, Rhino typically ` +
+                `requires maximum transpilation, so Babel targets will be ignored; however, as you are using the same target for multiple application types, ` +
+                `this will over transpile the other application types.  It is recommended to use a separate target for Rhino applications.`
+            );
+          }
+          delete babelConfig.options?.targets;
         }
         maker.getAnalyzer().setGlobalSymbols(globalSymbols);
 
