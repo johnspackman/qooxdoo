@@ -533,7 +533,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       }
 
       let compilerOptions = {
-        watch: this.argv.watch,
+        watch: this.argv.watch ?? false,
         maxWorkers: this.argv.maxWorkers,
         typescriptEnabled: qx.lang.Type.isBoolean(this.argv.typescript)
       };
