@@ -1305,9 +1305,8 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
         nodeCmdArgs = nodeCmdArgs.concat(
           process.argv.slice(2).filter(arg => {
             // prettier-ignore
-            return !arg.startsWith("--custom-inspect") && 
-              !arg.startsWith("--customInspect") &&
-              arg !== "--clean";
+            return !arg.startsWith("--custom-inspect") &&
+              !arg.startsWith("--customInspect");
           })
         );
         await new Promise(resolve => {
