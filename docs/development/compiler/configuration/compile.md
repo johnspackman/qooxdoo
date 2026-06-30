@@ -464,22 +464,27 @@ and define how to transform it by overriding its methods.
 Please refer the the doc comments of `ISourceTransformer` for more information.
 Then inside your custom compiler, you set the maker's `transformerClass` property to the **name of the transformer class**
 (not an instance of the class or the class itself).
-For example, this can be done by extending from `qx.tool.compiler.Compiler` and overriding `_createMakersFromConfig` like so:
+For example, this can be done by extending from `qx.tool.compiler.Compiler` and overriding `addMaker` like so:
 
 ```js
 qx.Class.define("com.mycompany.myapp.compiler.CustomCompiler", {
   extend: qx.tool.compiler.Compiler,
   members: {
     /**@override */
-    async _createMakersFromConfig() {
-      let makers = await super._createMakersFromConfig();
-      let browserMakers = makers.filter(maker => maker.getAnalyzer().getApplicationTypes().includes("browser"));
-      browserMakers.forEach(maker => maker.setTransformerClass(com.mycompany.myapp.compiler.SourceTransformer.classname));
-      return makers;
+    addMaker(maker) {
+      let isBrowser = maker.getApplications().some(app => app.getType() === "browser");
+      if (isBrowser) {
+        maker.setTransformerClass(com.mycompany.myapp.compiler.SourceTransformer.classname);
+      }
+      super.addMaker(maker);
     }
   }
 });
 ```
+
+`addMaker` is called by the CLI once per maker, after the maker's applications and
+target have been fully configured, so it is the right place to assign a
+`transformerClass`.
 
 ## Libraries
 
