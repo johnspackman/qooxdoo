@@ -541,10 +541,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           filename: sourceFilename
         });
 
-        if (classname == "qx.tool.compiler.cli.commands.Clean") {
-          debugger;
-        }
-
         existingCompile.job = this.__jobQueue.addJob(qx.tool.compiler.IClassTranspilerApi, "transpileClass", {
           classname,
           sourceFilename: sourceFilename,
@@ -553,10 +549,8 @@ qx.Class.define("qx.tool.compiler.Compiler", {
           classFileConfig: analyzer.getClassFileConfig().serialize(),
           sourceTransformer: analyzer.getMaker().getTransformerClass()
         });
+
         let dbClassInfoNew = await existingCompile.job.promiseComplete;
-        if (classname == "qx.tool.compiler.cli.commands.Clean") {
-          debugger;
-        }
 
         delete dbClassInfo.unresolved;
         delete dbClassInfo.dependsOn;
