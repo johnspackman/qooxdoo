@@ -153,7 +153,10 @@ qx.Class.define("qx.tool.worker.JobQueue", {
     __executeJob(job, workerClient) {
       job.status = "running";
       let api = workerClient.getApi(job.jobApiName);
-      api[job.jobMethodName].apply(api, job.jobArgs).then(result => this.__onJobComplete(job, workerClient, result));
+      api[job.jobMethodName]
+        .apply(api, job.jobArgs)
+        .then(result => this.__onJobComplete(job, workerClient, result))
+        .catch(err => this.__onJobError(job, workerClient, err));
     },
 
     /**
@@ -174,6 +177,33 @@ qx.Class.define("qx.tool.worker.JobQueue", {
       job.promiseComplete.resolve(result);
 
       // Shortcut to process the next job in the queue if there is one, otherwise mark the worker as idle
+      if (this.__queue.length) {
+        this.__pollQueue(workerClient);
+        return;
+      }
+      delete this.__busyWorkerClients[workerClient.toUuid()];
+      this.__idleWorkerClients.push(workerClient);
+    },
+
+    /**
+     * Called when a job fails; rejects the job's completion promise so the caller can
+     * handle the failure (e.g. mark the class as having a fatal compile error) instead
+     * of the rejection escaping as an unhandled error.
+     *
+     * @param {Job} job
+     * @param {qx.tool.worker.WorkerClient} workerClient
+     * @param {Error} err
+     */
+    __onJobError(job, workerClient, err) {
+      if (!this.__jobsByUuid[job.jobUuid]) {
+        // If the job is not found, it may have been removed from the queue, so we can ignore it
+        return;
+      }
+
+      job.status = "complete";
+      job.promiseComplete.reject(err);
+
+      // Continue processing the queue / release the worker, exactly as on success
       if (this.__queue.length) {
         this.__pollQueue(workerClient);
         return;

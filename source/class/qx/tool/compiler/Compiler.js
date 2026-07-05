@@ -375,7 +375,10 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
 
       try {
-        let promises = this.__makers.map(maker => maker.make());
+        // Route the initial make through __makeMaker so that __makingMakers is populated;
+        // this de-duplicates the redundant make that _onClassCompiled would otherwise trigger
+        // while this make is still running, which caused a premature "allMakersMade" event.
+        let promises = this.__makers.map(maker => this.__makeMaker(maker));
         await Promise.all(promises);
         console.log("All makers made");
       } catch (ex) {
@@ -606,19 +609,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
         }
       }
 
-      //Only print the markers when we are making,
-      //because all the classes get re-checked anyway when we make
-      //and this will prevent duplicated markers being printed
-      if (Object.keys(this.__makingMakers).length > 0) {
-        let markers = result.dbClassInfo.markers;
-        if (markers) {
-          markers.forEach(function (marker) {
-            var str = qx.tool.compiler.Console.decodeMarker(marker);
-            qx.tool.compiler.Console.warn(classname + ": " + str + ` (${analyzer.getMaker().getTarget().getOutputDir()})`);
-          });
-        }
-      }
-
+      // Markers (warnings/errors) are printed once per make cycle in Maker.make(),
+      // which is deterministic; printing them here duplicated output because classes
+      // can be transpiled more than once during a single compile.
       let makers = Object.values(this.__dirtyMakers);
       if (makers.length === 0 || Object.keys(this.__compilingClasses).length != 0) {
         return;
@@ -699,6 +692,16 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      */
     getMakers() {
       return this.__makers;
+    },
+
+    /**
+     * Whether an error occurred during `start()` (e.g. discovered classes could not be added
+     * to the meta database)
+     *
+     * @returns {Boolean}
+     */
+    hasStartError() {
+      return Boolean(this.__startError);
     },
 
     /**

@@ -1342,7 +1342,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
       if (this.argv.watch) {
         await new qx.Promise();
       } else {
-        await compiler.stop();
+        return await this._exit();
       }
     },
 
@@ -1517,7 +1517,9 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
      * @returns {integer} the process exit code
      */
     async _exit() {
-      let makers = this.getMakers();
+      // getMakers() is declared async in ICompilerInterface, so custom compilers may
+      // implement it asynchronously - await it to support both sync and async variants.
+      let makers = await this.getMakers();
       let success = makers.every(maker => maker.success) && !this.__compiler.hasStartError();
       let hasWarnings = makers.some(maker => maker.hasWarnings);
       if (success && hasWarnings && this.argv.warnAsError) {
