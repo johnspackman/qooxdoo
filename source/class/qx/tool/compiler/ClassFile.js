@@ -2626,9 +2626,6 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
      * @return {Map?} info about the symbol type of the named class, @see {MetaDatabase.getSymbolType}
      */
     _requireClass(name, opts) {
-      if (this.__className == "qx.tool.compiler.cli.commands.Clean" && name == "qx.tool.compiler.app.ManifestFont") {
-        debugger;
-      }
 
       if (qx.lang.Type.isArray(name)) {
         name.forEach(name => this._requireClass(name));

@@ -321,6 +321,26 @@ qx.Class.define("qx.tool.compiler.cli.commands.Compile", {
       );
 
       return cmd;
+    },
+
+    /**
+     * Filters CLI arguments before forwarding them to a spawned custom compiler.
+     * --clean must not be forwarded: the outer compiler already cleaned its output
+     * directory, and forwarding --clean to the inner compiler would cause it to
+     * delete that same directory while it is still in use by the outer process.
+     *
+     * @param {string[]} args - the raw argv slice to filter
+     * @return {string[]} filtered args safe to pass to the inner compiler
+     */
+    filterArgsForCustomCompiler(args) {
+      return args.filter(
+        arg =>
+          // prettier-ignore
+          !arg.startsWith("--custom-inspect") &&
+          !arg.startsWith("--customInspect") &&
+          arg !== "--clean" &&
+          arg !== "--no-clean"
+      );
     }
   },
 
@@ -1303,12 +1323,7 @@ Framework: v${qxVersion} in ${await this.getQxPath()}`);
 
         nodeCmdArgs.push(compilerPath);
         nodeCmdArgs = nodeCmdArgs.concat(
-          process.argv.slice(2).filter(arg => {
-            // prettier-ignore
-            return !arg.startsWith("--custom-inspect") && 
-              !arg.startsWith("--customInspect") &&
-              arg !== "--clean";
-          })
+          qx.tool.compiler.cli.commands.Compile.filterArgsForCustomCompiler(process.argv.slice(2))
         );
         await new Promise(resolve => {
           if (this.argv.verbose) {
