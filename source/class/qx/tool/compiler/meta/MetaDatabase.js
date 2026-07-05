@@ -742,6 +742,32 @@ qx.Class.define("qx.tool.compiler.meta.MetaDatabase", {
         await this.addFile(filename, options.force || false);
       }
       await this.reparseAll();
+
+      // Remove any classes whose source file is excluded by the ignore patterns.
+      // Scanning already skips excluded files, but classes parsed by a previous run
+      // may have been reloaded from the persisted database (db.json) by load(), so
+      // filter them out here to keep excluded classes out of the result.
+      if (options.ignore) {
+        for (let classname of this.getClassnames()) {
+          let meta = this.getMetaData(classname);
+          if (!meta || !meta.classFilename) {
+            continue;
+          }
+          let sourcePath = path.resolve(path.join(this.getRootDir(), meta.classFilename));
+          let relativePath = path.relative(process.cwd(), sourcePath);
+          // Files outside the current working directory cannot be matched by the
+          // relative ignore patterns (and the `ignore` package rejects "../" paths),
+          // so they are never excluded.
+          if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+            continue;
+          }
+          if (options.ignore.ignores(relativePath)) {
+            delete this.__classMetasByClassname[classname];
+            delete this.__metaByFilename[sourcePath];
+            delete this.__dirtyClasses[classname];
+          }
+        }
+      }
     }
   }
 });
