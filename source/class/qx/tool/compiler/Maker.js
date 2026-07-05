@@ -386,21 +386,6 @@ qx.Class.define("qx.tool.compiler.Maker", {
           success = false;
           continue;
         }
-        if (!hasWarnings) {
-          application.getDependencies().forEach(classname => {
-            let dbClassInfo = analyzer.getDbClassInfo(classname);
-            if (!dbClassInfo?.markers) {
-              return;
-            }
-            for (let marker of dbClassInfo.markers) {
-              let type = qx.tool.compiler.Console.getInstance().getMessageType(marker.msgId);
-              if (type == "warning") {
-                hasWarnings = true;
-                break;
-              }
-            }
-          });
-        }
 
         let appInfo = appsThisTime[i];
 
@@ -411,6 +396,28 @@ qx.Class.define("qx.tool.compiler.Maker", {
       }
 
       await this.fireDataEventAsync("writtenApplications", allAppInfos);
+
+      // Report markers (warnings/errors) for every class compiled in this make cycle,
+      // and flag whether any warnings were produced (used for --warn-as-error). This is
+      // done here - rather than per class as it is compiled - because a class can be
+      // transpiled more than once per compile, which would duplicate the output. Using
+      // the full list of compiled classes (rather than just an application's load
+      // dependencies) ensures markers on classes that are only referenced at runtime
+      // are still reported.
+      let outputDir = this.getTarget().getOutputDir();
+      let Console = qx.tool.compiler.Console.getInstance();
+      for (let classname of analyzer.getCompiledClassnames()) {
+        let dbClassInfo = analyzer.getDbClassInfo(classname);
+        if (!dbClassInfo?.markers) {
+          continue;
+        }
+        for (let marker of dbClassInfo.markers) {
+          if (Console.getMessageType(marker.msgId) == "warning") {
+            hasWarnings = true;
+          }
+          qx.tool.compiler.Console.warn(classname + ": " + qx.tool.compiler.Console.decodeMarker(marker) + ` (${outputDir})`);
+        }
+      }
 
       await analyzer.saveDatabase();
       this.setSuccess(success);
