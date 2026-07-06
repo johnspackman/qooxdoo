@@ -90,19 +90,20 @@ async function createMaker() {
 }
 
 /**
- * Runs the maker through the Controller API (required for full compilation).
- * Creates a Controller, adds the maker, starts it, and waits for completion.
+ * Runs the maker through the Compiler API (required for full compilation).
+ * Creates a Compiler, adds the maker, starts it, and waits for completion.
  */
 async function runMaker(maker) {
-  const controller = new qx.tool.compiler.Controller({
+  const compiler = new qx.tool.compiler.Compiler().set({
     metaDir: "test-deps-meta",
-    nTranspilerThreads: 0
+    maxWorkers: 1
   });
-  controller.addMaker(maker);
-  const done = new Promise(resolve => controller.addListenerOnce("allMakersMade", resolve));
-  await controller.start();
+  await maker.init();
+  compiler.addMaker(maker);
+  const done = new Promise(resolve => compiler.addListenerOnce("allDone", resolve));
+  await compiler.start();
   await done;
-  await controller.stop();
+  await compiler.stop();
 }
 
 test("Dependencies and environment settings", async t => {
@@ -175,7 +176,11 @@ test("Dependencies and environment settings", async t => {
   try {
     await fs.promises.mkdir("meta");
   } catch(ex) {}
-  const metaDb = new qx.tool.compiler.meta.MetaDatabase().set({
+  // MetaDatabase parses classes via a JobQueue, so it needs a started one; the default
+  // (maxConcurrentJobs = 1) uses an in-process loopback worker.
+  const jobQueue = new qx.tool.worker.JobQueue();
+  await jobQueue.start();
+  const metaDb = new qx.tool.compiler.meta.MetaDatabase(jobQueue).set({
     rootDir: "meta"
   });
   // MetaDatabase uses upath internally (forward slashes), so normalise the path accordingly
@@ -184,6 +189,7 @@ test("Dependencies and environment settings", async t => {
   };
   await metaDb.addFile("testapp/source/class/testapp/Application.js");
   await metaDb.reparseAll();
+  await jobQueue.stop();
   const meta = await readJson("meta/testapp/Application.json");
 
   await t.test("translations", async () => {

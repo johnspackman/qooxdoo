@@ -1,4 +1,5 @@
-const test = require("tape");
+const { test } = require("node:test");
+const assert = require("node:assert");
 const fs = require("fs");
 const path = require("path");
 const { SourceMapConsumer } = require("source-map-js");
@@ -61,12 +62,11 @@ function getPatternPosition(filePath, pattern) {
 /**
  * Verifies that a generated bundle and its source map point back to the expected source line.
  *
- * @param {import("tape").Test} assert tape assertion object used for the checks
  * @param {{ label: string, js: string, map: string }} output generated artifact paths and label
  * @param {number} sourceLine expected source line in the original application file
  * @returns {Promise<void>} resolves when the assertions pass
  */
-async function verifyOutput(assert, output, sourceLine) {
+async function verifyOutput(output, sourceLine) {
   const generatedPosition = getPatternPosition(output.js, THROW_PATTERN);
   const generatedColumn = generatedPosition.column + generatedPosition.match.indexOf("Error");
   const rawMap = JSON.parse(await fsPromises.readFile(output.map, "utf8"));
@@ -93,7 +93,7 @@ async function verifyOutput(assert, output, sourceLine) {
   }
 }
 
-test("embedded package sourcemaps stay aligned in build target", async assert => {
+test("embedded package sourcemaps stay aligned in build target", async () => {
   try {
     await testUtils.deleteRecursive(path.join(APP_DIR, "compiled"));
     const result = await testUtils.runCompiler(
@@ -105,18 +105,17 @@ test("embedded package sourcemaps stay aligned in build target", async assert =>
     assert.equal(result.exitCode, 0, result.error || result.output);
 
     const sourcePosition = getTextPosition(APPLICATION_JS, THROW_SNIPPET);
-    await verifyOutput(assert, {
+    await verifyOutput({
       label: "unminified build",
       js: path.join(APP_DIR, "compiled", "build", "testsourcemap", "index.js.unminified"),
       map: path.join(APP_DIR, "compiled", "build", "testsourcemap", "index.js.unminified.map")
     }, sourcePosition.line);
-    await verifyOutput(assert, {
+    await verifyOutput({
       label: "minified build",
       js: path.join(APP_DIR, "compiled", "build", "testsourcemap", "index.js"),
       map: path.join(APP_DIR, "compiled", "build", "testsourcemap", "index.js.map")
     }, sourcePosition.line);
-    assert.end();
   } catch (ex) {
-    assert.end(ex);
+    throw ex;
   }
 });

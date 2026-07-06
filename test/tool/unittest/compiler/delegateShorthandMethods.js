@@ -1,4 +1,6 @@
-qx.Class.define("classIssue10591",
+// Regression fixture for GitHub issue #10591 - loaded by qx.test.tool.compiler.ClassFile
+
+qx.Class.define("delegateShorthandMethods",
  {
     // These generate a compiler warning that `property` and `value` are
     // unresolved. The warnings can be eliminated by changing the
