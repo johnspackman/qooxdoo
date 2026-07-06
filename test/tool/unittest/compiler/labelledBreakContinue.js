@@ -1,4 +1,6 @@
-qx.Class.define("classIssue10727",
+// Regression fixture for GitHub issue #10727 - loaded by qx.test.tool.compiler.ClassFile
+
+qx.Class.define("labelledBreakContinue",
 {
   extend: qx.core.Object,
 

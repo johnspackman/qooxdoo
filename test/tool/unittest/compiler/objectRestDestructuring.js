@@ -1,4 +1,6 @@
-qx.Class.define("classIssue10623", {
+// Regression fixture for GitHub issue #10623 - loaded by qx.test.tool.compiler.ClassFile
+
+qx.Class.define("objectRestDestructuring", {
   statics: {
     // Test function parameter with object rest
     testFunctionParam({ destruct1, destruct2, ...restDestruct }) {

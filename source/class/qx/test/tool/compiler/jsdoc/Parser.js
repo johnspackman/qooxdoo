@@ -15,7 +15,7 @@
 /**
  * test the parser
  */
-qx.Class.define("qx.test.compiler.jsdoc.Parser", {
+qx.Class.define("qx.test.tool.compiler.jsdoc.Parser", {
   extend: qx.dev.unit.TestCase,
 
   members: {
