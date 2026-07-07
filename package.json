@@ -129,5 +129,11 @@
     "source-map-support": "^0.5.21",
     "tape": "^5.7.1"
   },
-  "engine": "node >= 12"
+  "engine": "node >= 12",
+  "allowScripts": {
+    "core-js@3.33.1": true,
+    "core-js-bundle@3.33.1": true,
+    "fsevents@2.3.3": true,
+    "metalsmith@2.6.1": true
+  }
 }
