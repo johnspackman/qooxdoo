@@ -339,7 +339,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
     async generateApplication(application, environment) {
       var t = this;
       var analyzer = application.getAnalyzer();
-      var rm = analyzer.getResourceManager();
+      var rm = analyzer.getCompiler().getResourceManager();
 
       let appMeta = (this.__appMeta = new qx.tool.compiler.targets.meta.ApplicationMeta(this, application));
       appMeta.setAddTimestampsToUrls(this.getAddTimestampsToUrls());
@@ -429,12 +429,8 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       // class will always bundle local modules specified for an
       // application in compile.json, but will not bundle `require()`d
       // modules that are Node modules.
-      if (
-        appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser"
-      ) {
-        bootPackage.addJavascriptMeta(
-          new qx.tool.compiler.targets.meta.Browserify(appMeta)
-        );
+      if (appMeta.getEnvironmentValue("qx.compiler.applicationType") == "browser") {
+        bootPackage.addJavascriptMeta(new qx.tool.compiler.targets.meta.Browserify(appMeta));
       }
 
       /*
@@ -501,12 +497,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
       if (analyzer.getApplicationTypes().indexOf("browser") > -1) {
         appMeta.addPreBootCode("qx.$$fontBootstrap={};\n");
         await this.__writeDeprecatedWebFonts(application, appMeta, assets);
-        await this.__writeManifestFonts(
-          application,
-          appMeta,
-          assets,
-          bootPackage
-        );
+        await this.__writeManifestFonts(application, appMeta, assets, bootPackage);
       }
       await this._writeApplication();
       this.__appMeta = null;
@@ -591,7 +582,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
      */
     async __writeManifestFonts(application, appMeta, assets, bootPackage) {
       let analyzer = application.getAnalyzer();
-      let rm = analyzer.getResourceManager();
+      let rm = analyzer.getCompiler().getResourceManager();
 
       const addResourcesToBuild = resourcePaths => {
         for (let asset of rm.getAssetsForPaths(resourcePaths)) {
@@ -753,9 +744,7 @@ qx.Class.define("qx.tool.compiler.targets.Target", {
 
       var promises = t.getLocales().map(async localeId => {
         let localeOptions = await loadLocaleData(localeId);
-        let pkg = this.isI18nAsParts()
-          ? appMeta.getLocalePackage(localeId)
-          : bootPackage;
+        let pkg = this.isI18nAsParts() ? appMeta.getLocalePackage(localeId) : bootPackage;
         pkg.addLocale(localeId, localeOptions);
       });
 

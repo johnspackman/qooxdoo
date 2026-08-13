@@ -2626,7 +2626,6 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
      * @return {Map?} info about the symbol type of the named class, @see {MetaDatabase.getSymbolType}
      */
     _requireClass(name, opts) {
-
       if (qx.lang.Type.isArray(name)) {
         name.forEach(name => this._requireClass(name));
         return null;
@@ -2711,10 +2710,12 @@ qx.Class.define("qx.tool.compiler.ClassFile", {
       }
       return info;
     },
+
     /**
      * Adds a required asset
      * @param path
-     */ _requireAsset(path) {
+     */
+    _requireAsset(path) {
       if (path.indexOf("/") < 0 && path.indexOf(".") > -1) {
         path = path.replace(/\./g, "/");
       }

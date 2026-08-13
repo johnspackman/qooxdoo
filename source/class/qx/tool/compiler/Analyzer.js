@@ -232,22 +232,12 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
      *
      * @async
      */
-    open() {
-      var p;
+    async open() {
       if (!this.__opened) {
         this.__opened = true;
 
-        var resManager = null;
-        if (this.isProcessResources()) {
-          resManager = new qx.tool.compiler.resources.Manager(this);
-        }
-        this.__resManager = resManager;
-        p = Promise.all([this.loadDatabase(), resManager && resManager.loadDatabase()]);
-      } else {
-        p = Promise.resolve();
+        await this.loadDatabase();
       }
-
-      return p;
     },
 
     /**
@@ -285,12 +275,6 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
       if (!this.__db) {
         this.__db = {};
       }
-
-      log.debug("Scanning source code");
-      if (this.__resManager) {
-        await this.__resManager.findAllResources();
-      }
-      log.debug("processed source and resources");
     },
 
     /**
@@ -307,12 +291,6 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
      */
     resetDatabase() {
       this.__db = null;
-
-      if (this.__resManager) {
-        this.__resManager.dispose();
-        this.__resManager = null;
-      }
-
       this.__opened = false;
       return this.open();
     },
@@ -331,9 +309,7 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
           }
         }
       }
-      await qx.tool.utils.Json.saveJsonAsync(this.getDbFilename(), this.__db).then(
-        () => this.__resManager && this.__resManager.saveDatabase()
-      );
+      await qx.tool.utils.Json.saveJsonAsync(this.getDbFilename(), this.__db);
     },
 
     /**
@@ -931,13 +907,6 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
      */
     getEnvironmentCheck(key) {
       return this.__environmentChecks[key];
-    },
-
-    /**
-     * Returns the resource manager
-     */
-    getResourceManager() {
-      return this.__resManager;
     },
 
     /**

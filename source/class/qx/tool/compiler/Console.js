@@ -191,6 +191,7 @@ qx.Class.define("qx.tool.compiler.Console", {
         "qx.tool.compiler.compiler.wrongClassName": "Wrong class name or filename - expected to find at least %1 but only found [%2]",
         "qx.tool.compiler.class.reservedWordDecl": "Do not use the reserved word '%1' as a variable name",
         "qx.tool.compiler.compiler.membersNotAnObject": "The members property of class %1 is not an object",
+        "qx.tool.compiler.compiler.missingLibrary": "Cannot find library %1 inn directory %2",
 
         // Application errors (@see {Application})
         "qx.tool.compiler.application.partRecursive": "Part %1 has recursive dependencies on other parts",

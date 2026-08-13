@@ -132,6 +132,23 @@ qx.Class.define("qx.tool.utils.files.Utils", {
     },
 
     /**
+     * Returns the stats for a file, or null if the file does not exist
+     *
+     * @param filename
+     * @returns {import("node:fs").Stats}
+     */
+    safeStatSync(filename) {
+      try {
+        return fs.statSync(filename);
+      } catch (err) {
+        if (err.code === "ENOENT") {
+          return null;
+        }
+        throw err;
+      }
+    },
+
+    /**
      * Deletes a file, does nothing if the file does not exist
      *
      * @param filename {String} file to delete

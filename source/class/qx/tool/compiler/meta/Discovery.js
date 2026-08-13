@@ -3,7 +3,11 @@ const fs = require("fs");
 const chokidar = require("chokidar");
 
 /**
- * Discovery is used to discover files containing classes in a project by watching specified paths for changes.
+ * Discovery is used to discover files in a project by watching specified paths for changes.
+ *
+ * @typedef {Object} FileDiscoveryInfo
+ * @property {String} filename - The filename of the discovered file
+ * @property {String} rootDir - The root directory where the file is located
  */
 qx.Class.define("qx.tool.compiler.meta.Discovery", {
   extend: qx.core.Object,
@@ -15,13 +19,13 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
   },
 
   events: {
-    /** Fired when a class is added to the discovery, data is {ClassMeta} */
+    /** Fired when a class is added to the discovery, data is {FileDiscoveryInfo} */
     fileAdded: "qx.event.type.Data",
 
-    /** Fired when a class is added to the discovery, data is {ClassMeta} */
+    /** Fired when a class is removed from the discovery, data is {FileDiscoveryInfo} */
     fileRemoved: "qx.event.type.Data",
 
-    /** Fired when a class file changes, data is {ClassMeta} */
+    /** Fired when a class file changes, data is {FileDiscoveryInfo} */
     fileChanged: "qx.event.type.Data",
 
     /** Fired when the discovery process is starting */
@@ -64,13 +68,13 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
      *
      * @param {String} filename
      */
-    addPath(filename) {
+    addPath(filename, context) {
       if (qx.core.Environment.get("qx.debug")) {
         if (this.__started) {
           throw new Error("Cannot add paths after discovery has started.");
         }
       }
-      this.__watchedPaths[filename] = null;
+      this.__watchedPaths[filename] = { context: context };
     },
 
     /**
@@ -93,19 +97,17 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
           let watcher = chokidar.watch(filename, {
             //ignored: /(^|[\/\\])\../
           });
-          let watchedPath = {
-            path: filename,
-            watcher: watcher,
-            ready: false
-          };
-          this.__watchedPaths[filename] = watchedPath;
+          let watchedPath = this.__watchedPaths[filename];
+          watchedPath.path = filename;
+          watchedPath.watcher = watcher;
+          watchedPath.ready = false;
 
-          let confirmedName = filename;
-          watcher.on("change", filename => this.__onFileChange("change", filename, confirmedName));
-          watcher.on("add", filename => this.__onFileChange("add", filename, confirmedName));
-          watcher.on("unlink", filename => this.__onFileChange("unlink", filename, confirmedName));
+          let rootDir = filename;
+          watcher.on("change", filename => this.fireDataEvent("fileChanged", { filename, rootDir, context: watchedPath.context }));
+          watcher.on("add", filename => this.fireDataEvent("fileAdded", { filename, rootDir, context: watchedPath.context }));
+          watcher.on("unlink", filename => this.fireDataEvent("fileRemoved", { filename, rootDir, context: watchedPath.context }));
           watcher.on("ready", () => {
-            qx.tool.compiler.Console.logVerbose(`Start watching ${confirmedName}...`);
+            qx.tool.compiler.Console.logVerbose(`Start watching ${rootDir}...`);
             watchedPath.ready = true;
           });
           watcher.on("error", err => {
@@ -114,48 +116,32 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
         }
       }
 
-      // Scans a directory recursively to find all .js files
-      const scanImpl = async (directoryName, rootDir) => {
-        let packageName = path.relative(rootDir, directoryName);
-        packageName = packageName.split(path.sep);
-        packageName = packageName.join(".");
-
-        let filenames = await fs.promises.readdir(directoryName);
-        for (let i = 0; i < filenames.length; i++) {
-          let filename = filenames[i];
-          if (filename.match(/__init__/i)) {
-            continue;
-          }
-          let fullFilename = path.join(directoryName, filename);
-          let stat = await fs.promises.stat(fullFilename);
-          if (stat.isDirectory()) {
-            if (filename[0] != ".") {
-              await scanImpl(fullFilename, rootDir);
+      const scanWatchedPath = async (directoryName, context) => {
+        // Scans a directory recursively to find all .js files
+        const scanImpl = async (directoryName, rootDir) => {
+          let filenames = await fs.promises.readdir(directoryName);
+          for (let i = 0; i < filenames.length; i++) {
+            let filename = filenames[i];
+            if (filename.match(/__init__/i)) {
+              continue;
             }
-          } else if (stat.isFile()) {
-            if (filename.endsWith(".js")) {
-              let classname = path.basename(filename, ".js");
-              if (packageName.length) {
-                classname = packageName + "." + classname;
+            let fullFilename = path.join(directoryName, filename);
+            let stat = await fs.promises.stat(fullFilename);
+            if (stat.isDirectory()) {
+              if (filename[0] != ".") {
+                await scanImpl(fullFilename, rootDir);
               }
-              this.__discoveredFiles[fullFilename] = {
-                classname
-              };
+            } else if (stat.isFile()) {
+              this.fireDataEvent("fileAdded", { filename: fullFilename, rootDir, context: context });
             }
           }
-        }
+        };
+
+        await scanImpl(directoryName, directoryName);
       };
 
-      for (let filename in this.__watchedPaths) {
-        await scanImpl(filename, filename);
-      }
-      let allClassnames = {};
-      for (let filename in this.__discoveredFiles) {
-        let classname = this.__discoveredFiles[filename].classname;
-        if (allClassnames[classname]) {
-          qx.tool.compiler.Console.print("qx.tool.compiler.discovery.duplicateClassname", classname, filename, allClassnames[classname]);
-        }
-        allClassnames[classname] = filename;
+      for (let directoryName in this.__watchedPaths) {
+        await scanWatchedPath(directoryName, this.__watchedPaths[directoryName].context);
       }
       this.fireEvent("started");
     },
@@ -169,62 +155,6 @@ qx.Class.define("qx.tool.compiler.meta.Discovery", {
         }
       }
       this.fireEvent("stopped");
-    },
-
-    /**
-     * Returns the list of discovered classes
-     *
-     * @returns {string[]} list of all discovered class files
-     */
-    getDiscoveredFiles() {
-      return Object.keys(this.__discoveredFiles);
-    },
-
-    /**
-     * @param {string} filename
-     * @returns {string}
-     */
-    getClassnameForFile(filename) {
-      if (qx.core.Environment.get("qx.debug")) {
-        if (!this.__discoveredFiles[filename]) {
-          throw new Error(`Cannot find file ${filename} in discovery.`);
-        }
-      }
-      return this.__discoveredFiles[filename].classname;
-    },
-
-    /**
-     * Called when a file change is detected
-     *
-     * @param {"added"|"unlink"|"change"} event
-     * @param {String} filename filename of the changed file
-     * @param {String} rootDir the directory where the file is located (used to determine the package name)
-     */
-    __onFileChange(event, filename, rootDir) {
-      filename = path.normalize(filename);
-      let packageName = path.relative(rootDir, filename);
-      packageName = packageName.split(path.sep);
-      packageName.pop();
-      packageName = packageName.join(".");
-      let classname = path.basename(filename, ".js");
-      if (packageName.length) {
-        classname = packageName + "." + classname;
-      }
-      if (event == "unlink") {
-        if (this.__discoveredFiles[filename]) {
-          this.fireDataEvent("fileRemoved", filename);
-          delete this.__discoveredFiles[filename];
-        }
-      } else if (event == "add") {
-        if (filename.endsWith(".js")) {
-          this.__discoveredFiles[filename] = {
-            classname
-          };
-          this.fireDataEvent("fileAdded", filename);
-        }
-      } else if (event == "change") {
-        this.fireDataEvent("fileChanged", filename);
-      }
     }
   }
 });

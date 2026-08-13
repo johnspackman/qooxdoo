@@ -733,12 +733,11 @@ qx.Class.define("qx.tool.compiler.app.Application", {
         }
       }
 
-      var rm = analyzer.getResourceManager();
       function addExternalAssets(arr, msgId) {
         if (arr) {
           arr.forEach(filename => {
             if (!filename.match(/^https?:/)) {
-              let asset = rm.getAsset(filename);
+              let asset = resManager.getAsset(filename);
               if (asset) {
                 let str = asset.getDestFilename(target);
                 str = path.relative(path.join(target.getOutputDir(), "resource"), str);

@@ -180,8 +180,25 @@ qx.Class.define("qx.tool.compiler.targets.meta.ApplicationMeta", {
     async syncAssets() {
       for (let i = 0; i < this.__packages.length; i++) {
         let pkg = this.__packages[i];
-        await qx.tool.utils.Promisify.poolEachOf(pkg.getAssets(), 10, asset => asset.sync(this.__target));
+        await qx.tool.utils.Promisify.poolEachOf(pkg.getAssets(), 10, asset => asset.synchronizeAssetIntoTarget(this.__target));
       }
+    },
+
+    /**
+     * Synchronizes a single asset, if it is used by the packages in this application.  Does nothing if the asset is not used by any package.
+     *
+     * @param {qx.tool.compiler.resource.Asset} asset
+     * @returns
+     */
+    async syncOneAsset(asset) {
+      for (let i = 0; i < this.__packages.length; i++) {
+        let pkg = this.__packages[i];
+        if (pkg.getAssets().includes(asset)) {
+          await asset.synchronizeAssetIntoTarget(this.__target);
+          return;
+        }
+      }
+      await asset.deleteAssetFromTarget(this.__target);
     },
 
     /**

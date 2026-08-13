@@ -44,7 +44,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
     super();
     this.__makers = [];
     this.__libraries = {};
-    this.__discovery = new qx.tool.compiler.meta.Discovery();
 
     this.__dbClassInfoCache = {};
     this.__changedFiles = {};
@@ -151,11 +150,8 @@ qx.Class.define("qx.tool.compiler.Compiler", {
   },
 
   members: {
-    /**
-     * @type {qx.tool.compiler.targets.TypeScriptWriter|null}
-     * The TypeScript writer instance, responsible for generating TypeScript definitions
-     */
-    __typescriptWriter: null,
+    /** @type{qx.tool.compiler.meta.Discovery} searches for class source files and watches for changes */
+    __classDiscovery: null,
 
     /**
      * @type {Object.<string, '+' | '-'>} List of changed files, indexed by file name,
@@ -163,6 +159,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      * These are for the classes that have been queued up for compilation but are not yet being compiled
      */
     __changedFiles: null,
+
+    /** @type{Object<String,String>} list of discovered class files, indexed by filename */
+    __discoveredClassFiles: null,
+
+    /**
+     * @type {qx.tool.compiler.targets.TypeScriptWriter|null}
+     * The TypeScript writer instance, responsible for generating TypeScript definitions
+     */
+    __typescriptWriter: null,
 
     /** @type {qx.tool.worker.JobQueue} The queue of jobs to be run in qx.tool.worker.WorkerClient workers */
     __jobQueue: null,
@@ -215,21 +220,125 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       }
 
       let dir = path.join(lib.getRootDir(), lib.getSourcePath());
-      try {
-        let stat = fs.statSync(dir);
-        if (stat.isDirectory()) {
-          this.__discovery.addPath(dir);
-          this.__libraries[lib.getNamespace()] = lib;
-        }
-      } catch (ex) {
-        if (ex.code !== "ENOENT") {
-          throw ex; // rethrow if it's not a "file not found" error
-        }
+      let stat = qx.tool.utils.files.Utils.safeStatSync(dir);
+      if (!stat?.isDirectory()) {
+        qx.tool.compiler.Console.print("qx.tool.compiler.compiler.missingLibrary", lib.getNamespace(), lib.getSourcePath());
+        return;
       }
+      this.__libraries[lib.getNamespace()] = lib;
     },
 
     /**
-     * @override
+     * Initializes the discovery process for classes
+     */
+    async __startClassDiscovery() {
+      this.__discoveredClassFiles = {};
+
+      /**
+       * Figures out what the class name would be for a given filename, based on the root directory.
+       *
+       * @param {String} filename
+       * @param {String} rootDir
+       * @returns {String} classname
+       */
+      const calculateClassnameFromFilename = (filename, rootDir) => {
+        filename = path.normalize(filename);
+        let packageName = path.relative(rootDir, filename);
+        packageName = packageName.split(path.sep);
+        packageName.pop();
+        packageName = packageName.join(".");
+        let classname = path.basename(filename, ".js");
+        if (packageName.length) {
+          classname = packageName + "." + classname;
+        }
+        return classname;
+      };
+
+      /**
+       * Handles class files being discovered
+       *
+       * @param {qx.event.type.Data} evt
+       */
+      const onClassFileAdded = evt => {
+        let { filename, rootDir } = evt.getData();
+        if (filename.endsWith(".js")) {
+          this.__discoveredClassFiles[filename] = {
+            classname: calculateClassnameFromFilename(filename, rootDir)
+          };
+          this.__changedFiles[filename] = "+";
+          this.__debounceProcessChangedFiles?.trigger();
+        }
+      };
+
+      /**
+       * Handles discovered class files being changed
+       *
+       * @param {qx.event.type.Data} evt
+       */
+      const onClassFileChanged = evt => {
+        let { filename } = evt.getData();
+        if (filename.endsWith(".js")) {
+          this.__changedFiles[filename] = "+";
+          this.__debounceProcessChangedFiles?.trigger();
+        }
+      };
+
+      /**
+       * Handles discovered class files being removed
+       *
+       * @param {qx.event.type.Data} evt
+       */
+      const onClassFileRemoved = evt => {
+        let { filename } = evt.getData();
+        if (this.__discoveredClassFiles[filename]) {
+          delete this.__discoveredClassFiles[filename];
+          this.__changedFiles[filename] = "-";
+          this.__debounceProcessChangedFiles?.trigger();
+        }
+      };
+
+      if (qx.core.Environment.get("qx.debug")) {
+        this.assertTrue(!this.__classDiscovery, "Class discovery already started");
+      }
+      this.__classDiscovery = new qx.tool.compiler.meta.Discovery();
+      this.__classDiscovery.setWatch(this.getWatch());
+      for (let lib of Object.values(this.__libraries)) {
+        let dir = path.join(lib.getRootDir(), lib.getSourcePath());
+        this.__classDiscovery.addPath(dir);
+      }
+
+      this.__classDiscovery.addListener("fileAdded", onClassFileAdded, this);
+      this.__classDiscovery.addListener("fileChanged", onClassFileChanged, this);
+      this.__classDiscovery.addListener("fileRemoved", onClassFileRemoved, this);
+      await this.__classDiscovery.start();
+      let allClassnames = {};
+      for (let filename in this.__discoveredClassFiles) {
+        let classname = this.__discoveredClassFiles[filename].classname;
+        if (allClassnames[classname]) {
+          qx.tool.compiler.Console.print("qx.tool.compiler.discovery.duplicateClassname", classname, filename, allClassnames[classname]);
+        }
+        allClassnames[classname] = filename;
+      }
+      this.fireEvent("discoveryStarted");
+    },
+
+    /**
+     * Starts the resource manager, including discovery and watching if required
+     */
+    async __startResourceManager() {
+      if (qx.core.Environment.get("qx.debug")) {
+        this.assertTrue(!this.__resourceManager, "Resource manager already started");
+      }
+      this.__resourceManager = new qx.tool.compiler.resources.Manager(path.join(this.getMetaDir(), "resource-db.json"));
+      this.__resourceManager.setWatch(this.getWatch());
+      for (let lib of Object.values(this.__libraries)) {
+        this.__resourceManager.addLibrary(lib);
+      }
+      await this.__resourceManager.start();
+    },
+
+    /**
+     * @Override
      */
     async start() {
       if (!this.__makers || !this.__makers.length) {
@@ -245,7 +354,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       });
 
       /*
-       * Configure MetaDatabase and Discovery
+       * Configure MetaDatabase
        */
       this.__metaDb = new qx.tool.compiler.meta.MetaDatabase(this.__jobQueue).set({
         rootDir: this.getMetaDir()
@@ -256,9 +365,12 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       this.fireEvent("starting");
       await metaDb.load();
       this.fireEvent("metaDbLoaded");
-      this.__discovery.setWatch(this.getWatch());
-      await this.__discovery.start();
-      this.fireEvent("discoveryStarted");
+
+      // Class discovery
+      await this.__startClassDiscovery();
+
+      // Resources
+      await this.__startResourceManager();
 
       // Store the libraries in the meta database
       this.fireEvent("metaDbConfiguring");
@@ -295,7 +407,9 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       });
       await this.__jobQueue.start();
 
-      this.__startError ||= !(await metaDb.addFiles(this.__discovery.getDiscoveredFiles()));
+      this.__debounceProcessChangedFiles = new qx.util.Debounce(() => this.__processChangedFiles(), 100);
+
+      this.__startError ||= !(await metaDb.addFiles(Object.keys(this.__discoveredClassFiles)));
       this.fireEvent("addedDiscoveredClasses");
 
       if (this.getTypescriptEnabled()) {
@@ -306,26 +420,6 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       /**
        * Updates the meta database and compiles the classes that have been queued up
        */
-      let debounceProcessChangedFiles = new qx.util.Debounce(() => this.__processChangedFiles(), 100);
-
-      if (this.getWatch()) {
-        /**
-         * Adds a class to the compilation queue
-         * @param {qx.event.type.Data} evt
-         */
-        const onFileChange = async evt => {
-          let filename = evt.getData();
-          this.__changedFiles[filename] = "+";
-          debounceProcessChangedFiles.trigger();
-        };
-        this.__discovery.addListener("fileAdded", onFileChange);
-        this.__discovery.addListener("fileChanged", onFileChange);
-        this.__discovery.addListener("fileRemoved", async evt => {
-          let filename = evt.getData();
-          this.__changedFiles[filename] = "-";
-          debounceProcessChangedFiles.trigger();
-        });
-      }
 
       // Process the meta data and save to disk
       await metaDb.save();
@@ -401,7 +495,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       await Promise.all(
         Object.entries(changedFiles).map(async ([filename, changeType]) => {
           if (changeType === "+") {
-            let classname = this.__discovery.getClassnameForFile(filename);
+            let classname = this.__discoveredClassFiles[filename];
             added.push(classname);
             await metaDb.addFile(filename, true);
           } else {
@@ -677,7 +771,8 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       if (this.__jobQueue) {
         await this.__jobQueue.stop();
       }
-      await this.__discovery.stop();
+      await this.__classDiscovery.stop();
+      await this.__resourceManager.stop();
     },
 
     /**
@@ -686,6 +781,15 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      */
     getMakers() {
       return this.__makers;
+    },
+
+    /**
+     * Returns the resource manager used by the compiler.
+     *
+     * @returns {qx.tool.compiler.resources.Manager}
+     */
+    getResourceManager() {
+      return this.__resourceManager;
     },
 
     /**
@@ -713,7 +817,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
      * @returns {qx.tool.compiler.meta.Discovery}
      */
     getDiscovery() {
-      return this.__discovery;
+      return this.__classDiscovery;
     }
   },
 
