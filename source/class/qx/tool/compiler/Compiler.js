@@ -495,7 +495,7 @@ qx.Class.define("qx.tool.compiler.Compiler", {
       await Promise.all(
         Object.entries(changedFiles).map(async ([filename, changeType]) => {
           if (changeType === "+") {
-            let classname = this.__discoveredClassFiles[filename];
+            let classname = this.__discoveredClassFiles[filename].classname;
             added.push(classname);
             await metaDb.addFile(filename, true);
           } else {
