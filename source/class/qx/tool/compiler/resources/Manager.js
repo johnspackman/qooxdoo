@@ -91,7 +91,13 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
      * Loads the cached database
      */
     async loadDatabase() {
-      this.__db = (await qx.tool.utils.Json.loadJsonAsync(this.__dbFilename)) || {};
+      try {
+        this.__db = (await qx.tool.utils.Json.loadJsonAsync(this.__dbFilename)) || {};
+      } catch (ex) {
+        if (ex.code === "ENOENT") {
+          this.__db = {};
+        }
+      }
       if (!this.__db.resources) {
         this.__db.resources = {};
       }
@@ -101,7 +107,8 @@ qx.Class.define("qx.tool.compiler.resources.Manager", {
      * Saves the database
      */
     async saveDatabase() {
-      return qx.tool.utils.Json.saveJsonAsync(this.__dbFilename, this.__db);
+      await qx.tool.utils.Utils.makeParentDir(this.__dbFilename);
+      return await qx.tool.utils.Json.saveJsonAsync(this.__dbFilename, this.__db);
     },
 
     /**
