@@ -77,9 +77,7 @@ qx.Mixin.define("qx.ui.core.MSingleSelectionHandling", {
         this.__getManager().setSelected(item);
         return null;
       } else {
-        return new TypeError(
-          "Given argument is not null or a {qx.ui.core.Widget}."
-        );
+        return new TypeError("Given argument is not null or a {qx.ui.core.Widget}.");
       }
     },
 
@@ -133,12 +131,7 @@ qx.Mixin.define("qx.ui.core.MSingleSelectionHandling", {
           this.__getManager().setSelected(items[0]);
           break;
         default:
-          throw new Error(
-            "Could only select one item, but the selection" +
-              " array contains " +
-              items.length +
-              " items!"
-          );
+          throw new Error("Could only select one item, but the selection" + " array contains " + items.length + " items!");
       }
     },
 
@@ -222,14 +215,11 @@ qx.Mixin.define("qx.ui.core.MSingleSelectionHandling", {
             } else {
               return item.isVisible();
             }
-          }
+          },
+          allowEmptySelection: this._isAllowEmptySelection()
         });
 
-        this.__manager.addListener(
-          "changeSelected",
-          this._onChangeSelected,
-          this
-        );
+        this.__manager.addListener("changeSelected", this._onChangeSelected, this);
       }
       this.__manager.setAllowEmptySelection(this._isAllowEmptySelection());
 
