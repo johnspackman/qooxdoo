@@ -31,6 +31,15 @@
  * </ul>
  */
 qx.Mixin.define("qx.ui.core.MSingleSelectionHandling", {
+  construct() {
+    // __getManager creates a manager and sets the allowEmptySelection property - which can cause
+    //  a change in state, and this means that apparently innocuous code such as `getValue` or
+    // `getSelection` can trigger state changes ... alternatively, addition of items may not trigger
+    // state changes immediately.  By making sure that the manager exists now, we can avoid the
+    // uncertainty
+    this.__getManager();
+  },
+
   /*
   *****************************************************************************
      EVENTS
@@ -215,7 +224,8 @@ qx.Mixin.define("qx.ui.core.MSingleSelectionHandling", {
             } else {
               return item.isVisible();
             }
-          },
+          }
+        }).set({
           allowEmptySelection: this._isAllowEmptySelection()
         });
 
