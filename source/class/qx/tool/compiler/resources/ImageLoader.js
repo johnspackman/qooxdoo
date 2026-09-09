@@ -20,8 +20,7 @@
  *
  * *********************************************************************** */
 
-var imageSize = qx.tool.utils.Promisify.promisify(require("image-size"));
-
+const imageSize = require("image-size");
 var log = qx.tool.utils.LogManager.createLog("resource-manager");
 
 qx.Class.define("qx.tool.compiler.resources.ImageLoader", {
@@ -41,11 +40,7 @@ qx.Class.define("qx.tool.compiler.resources.ImageLoader", {
      * @Override
      */
     needsLoad(filename, fileInfo, stat) {
-      if (
-        !fileInfo ||
-        fileInfo.width === undefined ||
-        fileInfo.height === undefined
-      ) {
+      if (!fileInfo || fileInfo.width === undefined || fileInfo.height === undefined) {
         return true;
       }
       return super.needsLoad(filename, fileInfo, stat);
@@ -62,11 +57,7 @@ qx.Class.define("qx.tool.compiler.resources.ImageLoader", {
       if (filename.endsWith(".svg")) {
         let withoutExt = filename.substring(0, filename.length - 3);
         let manager = this.getManager();
-        if (
-          ["eot", "woff2", "woff", "ttf"].find(
-            ext => !!manager.findLibraryForResource(withoutExt + ext)
-          )
-        ) {
+        if (["eot", "woff2", "woff", "ttf"].find(ext => !!manager.findLibraryForResource(withoutExt + ext))) {
           return false;
         }
       }
@@ -82,7 +73,16 @@ qx.Class.define("qx.tool.compiler.resources.ImageLoader", {
       let fileInfo = asset.getFileInfo();
       log.trace("Getting size of " + filename);
       try {
-        let dimensions = await imageSize(filename);
+        let p = new Promise((resolve, reject) => {
+          imageSize.imageSize(filename, (err, result) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(result);
+            }
+          });
+        });
+        let dimensions = await p;
         fileInfo.width = dimensions.width;
         fileInfo.height = dimensions.height;
       } catch (ex) {

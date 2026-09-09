@@ -35,8 +35,32 @@ qx.Class.define("qx.tool.utils.Json", {
       if (str === null || !str.trim()) {
         return null;
       }
-      let ast = qx.tool.utils.json.Parser.parseToAst(str.trim());
-      return qx.tool.utils.json.Stringify.astToObject(ast);
+      return JSON.parse(str.trim());
+    },
+
+    /**
+     * Stringifies the JSON, but maintains the sort order of the keys in objects so that we can
+     * get consistent diffs / SHAs on the outputted data, irrespective of the order in which the
+     * data was compiled.
+     *
+     * @param {*} obj The object to stringify
+     * @return {String} The stable JSON string
+     */
+    stringifyStable(obj) {
+      const replacer = (key, value) => {
+        if (value instanceof Object && !Array.isArray(value) && Object.keys(value).length > 0) {
+          let keys = Object.keys(value);
+          keys.sort();
+          let result = {};
+          for (let key of keys) {
+            result[key] = value[key];
+          }
+          return result;
+        } else {
+          return value;
+        }
+      };
+      return JSON.stringify(obj, replacer, 2);
     },
 
     /**
@@ -75,9 +99,7 @@ qx.Class.define("qx.tool.utils.Json", {
           indent: 2
         });
 
-        qx.tool.compiler.Console.warn(
-          "JSON data does not validate against " + schema.$id + ":\n" + message
-        );
+        qx.tool.compiler.Console.warn("JSON data does not validate against " + schema.$id + ":\n" + message);
 
         return false;
       }
@@ -85,20 +107,9 @@ qx.Class.define("qx.tool.utils.Json", {
       let err = betterAjvErrors(schema.$id, json, ajv.errors, { format: "js" });
       let msg;
       if (Array.isArray(err) && err.length) {
-        msg = err
-          .reduce(
-            (prev, curr, index) => `${prev} ${index + 1}) ${curr.error}`,
-            ""
-          )
-          .trim();
+        msg = err.reduce((prev, curr, index) => `${prev} ${index + 1}) ${curr.error}`, "").trim();
       } else if (Array.isArray(ajv.errors)) {
-        msg = ajv.errors
-          .reduce(
-            (prev, curr, index) =>
-              `${prev} ${index + 1}) ${curr.dataPath} ${curr.message}`,
-            ""
-          )
-          .trim();
+        msg = ajv.errors.reduce((prev, curr, index) => `${prev} ${index + 1}) ${curr.dataPath} ${curr.message}`, "").trim();
       } else {
         msg = "Unknown error during validation.";
       }
@@ -173,11 +184,7 @@ qx.Class.define("qx.tool.utils.Json", {
      */
     async saveJsonAsync(filename, data) {
       if (data !== null) {
-        await fs.writeFileAsync(
-          filename,
-          JSON.stringify(data, null, 2),
-          "utf8"
-        );
+        await fs.writeFileAsync(filename, JSON.stringify(data, null, 2), "utf8");
       } else if (await fs.existsAsync(filename)) {
         fs.unlinkAsync(filename);
       }

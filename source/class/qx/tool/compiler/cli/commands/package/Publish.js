@@ -474,20 +474,20 @@ qx.Class.define("qx.tool.compiler.cli.commands.package.Publish", {
         qx.tool.compiler.Console.info("Creating index file...");
       }
 
-      const files = await glob(qx.tool.config.Manifest.config.fileName, { matchBase: true });
+      let manifestFilenames = await glob(qx.tool.config.Manifest.config.fileName, { matchBase: true });
 
-      if (!files || !files.length) {
+      if (!manifestFilenames || !manifestFilenames.length) {
         throw new qx.tool.utils.Utils.UserError("No Manifest.json files could be found");
       }
 
       let mainpath;
-      if (files.length > 1) {
-        let choices = files.map(p => {
-          let m = qx.tool.utils.Json.parseJson(fs.readFileSync(path.join(process.cwd(), p), "utf-8"));
+      if (manifestFilenames.length > 1) {
+        let choices = manifestFilenames.map(manifestFilename => {
+          let manifestJson = qx.tool.utils.Json.parseJson(fs.readFileSync(path.join(process.cwd(), manifestFilename), "utf-8"));
 
           return {
-            name: m.info.name + (m.info.summary ? ": " + m.info.summary : ""),
-            value: p
+            name: manifestJson.info.name + (manifestJson.info.summary ? ": " + manifestJson.info.summary : ""),
+            value: manifestFilename
           };
         });
         let answer = await inquirer.prompt({
@@ -500,8 +500,8 @@ qx.Class.define("qx.tool.compiler.cli.commands.package.Publish", {
         mainpath = answer.mainpath;
       }
       let data = {
-        libraries: files.map(p =>
-          files.length > 1 && p === mainpath
+        libraries: manifestFilenames.map(p =>
+          manifestFilenames.length > 1 && p === mainpath
             ? {
                 path: path.dirname(p),
                 main: true

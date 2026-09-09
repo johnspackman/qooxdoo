@@ -1012,7 +1012,8 @@ qx.Class.define("qx.tool.compiler.Analyzer", {
 
     /**
      * Sets the environment data in the __db.
-     * The data beeing set are:
+     *
+     * The data being set is:
      *  * a hash of the current environment values
      *  * the compiler version
      *  * a list of the libraries used
